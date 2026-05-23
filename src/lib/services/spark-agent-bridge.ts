@@ -558,7 +558,7 @@ class SparkAgentBridgeService {
 	endSession(sessionId: string, reason = 'requested'): SparkAgentSession {
 		const session = this.requireSession(sessionId);
 		if (session.status === 'ended') {
-			return session;
+			throw new Error(`Session ${sessionId} is already ended`);
 		}
 
 		const workerState = this.workerSessions.get(sessionId);

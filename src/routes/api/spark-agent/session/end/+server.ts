@@ -66,12 +66,14 @@ export const POST: RequestHandler = async (event) => {
 				{ status: error.status }
 			);
 		}
+		const message = error instanceof Error ? error.message : 'Failed to end session';
+		const status = message.includes('already ended') ? 409 : 404;
 		return json(
 			{
 				success: false,
-				error: error instanceof Error ? error.message : 'Failed to end session'
+				error: message
 			},
-			{ status: 404 }
+			{ status }
 		);
 	}
 };
