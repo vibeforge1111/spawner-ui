@@ -73,6 +73,25 @@ describe("healthRequiresCodex", () => {
   it("requires Codex when the provider is actually configured", () => {
     expect(healthRequiresCodex([{ id: "codex", cliConfigured: true }], {})).toBe(true);
   });
+
+  it("does not require Codex when another provider is selected even if codex env key is configured", () => {
+    expect(
+      healthRequiresCodex(
+        [{ id: "codex", configured: true, envKeyConfigured: true, cliConfigured: false }],
+        { SPARK_BOT_DEFAULT_PROVIDER: "openai" },
+      ),
+    ).toBe(false);
+  });
+
+  it("does not require Codex when sparkDefaultProvider names a non-codex provider", () => {
+    expect(
+      healthRequiresCodex(
+        [{ id: "codex", configured: true, envKeyConfigured: true, cliConfigured: false }],
+        {},
+        "openai",
+      ),
+    ).toBe(false);
+  });
 });
 
 describe("sparkHealthAuthHeaders", () => {

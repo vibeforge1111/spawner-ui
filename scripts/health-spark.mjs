@@ -148,14 +148,16 @@ function repairHostedWorkspaceOwnership(paths, env = process.env) {
   }
 }
 
-export function healthRequiresCodex(providers, env = process.env) {
+export function healthRequiresCodex(providers, env = process.env, sparkDefaultProvider = null) {
   const selectedProvider =
+    sparkDefaultProvider ||
     env.DEFAULT_MISSION_PROVIDER?.trim() ||
     env.SPAWNER_PRD_AUTO_PROVIDER?.trim() ||
     env.SPARK_MISSION_LLM_BOT_PROVIDER?.trim() ||
     env.SPARK_BOT_DEFAULT_PROVIDER?.trim() ||
     "";
   if (selectedProvider === "codex") return true;
+  if (selectedProvider && selectedProvider !== "codex") return false;
   const codexProvider = providers.find((provider) => provider && provider.id === "codex");
   return Boolean(
     codexProvider &&
@@ -183,7 +185,7 @@ async function main() {
         provider.envKeyConfigured === true ||
         provider.cliConfigured === true),
   ).length;
-  const wantsCodex = healthRequiresCodex(payload.providers);
+  const wantsCodex = healthRequiresCodex(payload.providers, process.env, payload.sparkDefaultProvider || null);
   const codexPath = wantsCodex ? resolveCli("codex") : null;
 
   if (wantsCodex && !codexPath) {
