@@ -235,7 +235,11 @@ function warnMalformedJsonlLine(source: string, line: string): void {
 }
 
 function finalAnswerAuditToAgentEvent(record: Record<string, unknown>, index: number): AgentEventLedgerEntry {
-	const createdAt = typeof record.ts === 'string' && record.ts.trim() ? record.ts : new Date(0).toISOString();
+	const rawTs =
+		typeof record.ts === 'string' && record.ts.trim() && Number.isFinite(Date.parse(record.ts))
+			? record.ts
+			: null;
+	const createdAt = rawTs ?? new Date(0).toISOString();
 	const chatId = stringValue(record.chat_id);
 	const userId = stringValue(record.user_id);
 	const reason = stringValue(record.suppression_reason) || 'unknown';
