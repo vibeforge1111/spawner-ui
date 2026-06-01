@@ -1768,7 +1768,12 @@ class MissionExecutor {
 		if (!response.ok) {
 			return { success: false, error: `dispatch responded ${response.status}` };
 		}
-		return response.json();
+		const rawBody = await response.text().catch(() => '');
+		try {
+			return rawBody ? JSON.parse(rawBody) : { success: false, error: 'dispatch returned empty body' };
+		} catch {
+			return { success: false, error: `dispatch returned HTTP 200 but body was not JSON: ${rawBody.slice(0, 300)}` };
+		}
 	}
 
 	/**
