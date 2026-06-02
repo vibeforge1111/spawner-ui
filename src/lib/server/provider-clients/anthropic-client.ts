@@ -224,7 +224,18 @@ async function handleAnthropicNonStreaming(
 	startTime: number
 ): Promise<ProviderResult> {
 	const { provider, onEvent } = options;
-	const data = await response.json();
+	const rawBody = await response.text().catch(() => '');
+	let data: { content?: Array<{ type: string; text?: string }>; usage?: { input_tokens?: number; output_tokens?: number } } | null = null;
+	try {
+		data = rawBody ? JSON.parse(rawBody) : null;
+	} catch {
+		return {
+			success: false,
+			error: `${provider.label} returned HTTP ${response.status} OK but the body was not JSON: ${rawBody.slice(0, 300)}`,
+			durationMs: Date.now() - startTime
+		};
+	}
+	if (!data) data = {};
 
 	const textContent = data.content?.find(
 		(c: { type: string }) => c.type === 'text'
