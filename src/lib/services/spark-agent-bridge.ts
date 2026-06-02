@@ -915,7 +915,11 @@ class SparkAgentBridgeService {
 	private requireSession(sessionId: string): SparkAgentSession {
 		const session = this.sessions.get(sessionId);
 		if (!session) {
-			throw new Error(`Unknown session: ${sessionId}`);
+			const known = Array.from(this.sessions.keys()).sort();
+			const knownList = known.length > 0 ? known.join(', ') : '(none)';
+			throw new Error(
+				`Unknown session: ${sessionId}. Active session ids: ${knownList}.`,
+			);
 		}
 		return session;
 	}
