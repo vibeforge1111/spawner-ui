@@ -219,7 +219,18 @@ async function handleNonStreamingResponse(
 	startTime: number
 ): Promise<ProviderResult> {
 	const { provider, onEvent } = options;
-	const data = await response.json();
+	const rawBody = await response.text().catch(() => '');
+	let data: { choices?: Array<{ message?: { content?: string } }>; usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } } | null = null;
+	try {
+		data = rawBody ? JSON.parse(rawBody) : null;
+	} catch {
+		return {
+			success: false,
+			error: `${provider.label} returned HTTP ${response.status} OK but the body was not JSON: ${rawBody.slice(0, 300)}`,
+			durationMs: Date.now() - startTime
+		};
+	}
+	if (!data) data = {};
 
 	const content = data.choices?.[0]?.message?.content || '';
 	const usage = data.usage;
