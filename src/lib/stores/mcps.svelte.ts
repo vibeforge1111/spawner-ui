@@ -258,9 +258,11 @@ export function createInstance(
 	config: MCPConfig = {},
 	name?: string
 ): MCPInstance {
-	const mcpDef = get(mcpStore).registry.find((m) => m.id === mcpId);
+	const registry = get(mcpStore).registry;
+	const mcpDef = registry.find((m) => m.id === mcpId);
 	if (!mcpDef) {
-		throw new Error(`MCP not found in registry: ${mcpId}`);
+		const known = registry.map((m) => m.id).sort().join(', ') || '(empty)';
+		throw new Error(`MCP not found in registry: ${mcpId}. Known MCP ids: ${known}.`);
 	}
 
 	const instance: MCPInstance = {
