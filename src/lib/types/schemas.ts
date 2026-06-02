@@ -239,13 +239,16 @@ export const AlertConfigArraySchema = z.array(AlertConfigSchema);
 // =============================================================================
 
 export const BridgeEventTypeSchema = z.enum([
-	'mission_start',
+	'mission_started',
 	'mission_progress',
-	'mission_complete',
-	'mission_error',
-	'task_start',
-	'task_complete',
-	'task_error',
+	'mission_completed',
+	'mission_failed',
+	'mission_cancelled',
+	'task_started',
+	'task_progress',
+	'task_completed',
+	'task_failed',
+	'task_cancelled',
 	'learning_captured',
 	'sync_state',
 	'control_pause',
@@ -256,7 +259,7 @@ export const BridgeEventTypeSchema = z.enum([
 export const BridgeEventSchema = z.object({
 	type: BridgeEventTypeSchema,
 	data: z.record(z.unknown()).optional(),
-	timestamp: z.number().optional()
+	timestamp: z.string().optional()
 });
 
 export type BridgeEvent = z.infer<typeof BridgeEventSchema>;
