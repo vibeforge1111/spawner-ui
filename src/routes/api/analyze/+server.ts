@@ -177,7 +177,17 @@ export const POST: RequestHandler = async (event) => {
 			}, { status: 502 });
 		}
 
-		const data = await response.json();
+		const rawBody = await response.text();
+		let data: { content?: Array<{ type: string; text?: string }> };
+		try {
+			data = JSON.parse(rawBody);
+		} catch {
+			log.error('Claude API returned non-JSON 200 body:', rawBody.slice(0, 500));
+			return json({
+				error: 'Claude API returned HTTP 200 but body was not JSON',
+				fallback: true
+			}, { status: 502 });
+		}
 
 		// Extract the text content
 		const textContent = data.content?.find((c: { type: string }) => c.type === 'text');
