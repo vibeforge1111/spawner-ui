@@ -43,7 +43,16 @@ const STOPWORDS = new Set([
 	'build', 'using', 'use', 'app', 'project', 'user', 'users'
 ]);
 
-const CONFIDENCE_THRESHOLD = Number(process.env.BUNDLE_CLASSIFIER_THRESHOLD || 0.18);
+const DEFAULT_CONFIDENCE_THRESHOLD = 0.18;
+
+function parseFloatInRangeEnv(raw: string | undefined, fallback: number, max = 1): number {
+	const trimmed = (raw ?? '').trim();
+	if (!/^\d*\.?\d+$/.test(trimmed)) return fallback;
+	const n = Number(trimmed);
+	return Number.isFinite(n) && n > 0 && n <= max ? n : fallback;
+}
+
+const CONFIDENCE_THRESHOLD = parseFloatInRangeEnv(process.env.BUNDLE_CLASSIFIER_THRESHOLD, DEFAULT_CONFIDENCE_THRESHOLD);
 
 function bundlesDir(): string {
 	return join(process.cwd(), 'static', 'bundles');
