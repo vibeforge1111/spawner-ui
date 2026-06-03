@@ -182,7 +182,7 @@ export async function matchSkills(
 			source = 'claude';
 			logger.info(`[SkillMatcher] Claude selected ${skills.length} skills with reasoning`);
 		} else {
-			logger.info('[SkillMatcher] Claude API unavailable, falling back to local');
+			logger.warn('[SkillMatcher] Claude API unavailable, falling back to local');
 		}
 	}
 
