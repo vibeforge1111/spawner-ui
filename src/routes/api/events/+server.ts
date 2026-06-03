@@ -133,7 +133,11 @@ function createAuthCookieHeader(request: Request): string | null {
 	}
 
 	const isSecure = request.url.startsWith('https://');
-	return `${EVENTS_AUTH_COOKIE}=${encodeURIComponent(apiKey)}; Path=/; HttpOnly; SameSite=Lax${isSecure ? '; Secure' : ''}`;
+	if (!isSecure) {
+		console.warn('[EventBridge] Refusing to set API key cookie over insecure HTTP connection');
+		return null;
+	}
+	return `${EVENTS_AUTH_COOKIE}=${encodeURIComponent(apiKey)}; Path=/; HttpOnly; Secure; SameSite=Lax`;
 }
 
 function eventStreamAuthPayload(event: Parameters<typeof requireControlAuth>[0]) {
