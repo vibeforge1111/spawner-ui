@@ -627,6 +627,12 @@ export const GET: RequestHandler = async (event) => {
 	if (rateLimited) return rateLimited;
 
 	const { request } = event;
+	// Periodic SSE keepalive ping. Intermediary proxies (Nginx default
+	// `proxy_read_timeout` 60s, Cloudflare 100s) drop idle SSE streams
+	// silently when no bytes flow for ~60s. A 30s comment frame keeps the
+	// stream warm so both peers observe connection health and the client
+	// is not forced into the reconnect path on every quiet window.
+	const SSE_KEEPALIVE_MS = 30_000;
 	const stream = new ReadableStream({
 		start(controller) {
 			// Send initial connection message
@@ -649,8 +655,22 @@ export const GET: RequestHandler = async (event) => {
 				}
 			});
 
+			// SSE comment frames (lines starting with `:`) are spec-defined
+			// no-ops on the client side but keep proxy idle-timers from
+			// dropping the stream. EventSource ignores them; no app-level
+			// handler change required.
+			const keepalive = setInterval(() => {
+				if (isClosed) return;
+				try {
+					controller.enqueue(encoder.encode(`: keepalive ${Date.now()}\n\n`));
+				} catch (e) {
+					isClosed = true;
+				}
+			}, SSE_KEEPALIVE_MS);
+
 			// Handle client disconnect
 			request.signal.addEventListener('abort', () => {
+				clearInterval(keepalive);
 				unsubscribe();
 				if (!isClosed) {
 					isClosed = true;
