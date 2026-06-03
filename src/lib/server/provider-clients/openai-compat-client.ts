@@ -5,6 +5,7 @@
  * Minimax, OpenAI, Kimi, OpenRouter, Ollama, etc.
  */
 
+import { randomUUID } from 'node:crypto';
 import type { ProviderResult, ProviderClientOptions, ChatMessage } from './types';
 import { createBridgeEvent } from './types';
 import { parseRetryAfterMs } from './retry-after';
@@ -45,6 +46,7 @@ export async function executeOpenAICompatRequest(
 	);
 
 	let lastError: string | undefined;
+	const idempotencyKey = randomUUID();
 
 	for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
 		if (signal?.aborted) {
@@ -56,7 +58,8 @@ export async function executeOpenAICompatRequest(
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json',
-					...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {})
+					...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+					'Idempotency-Key': idempotencyKey
 				},
 				body: JSON.stringify({
 					model: provider.model,
