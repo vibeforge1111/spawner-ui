@@ -201,6 +201,9 @@ async function handleAnthropicStream(
 			return { success: false, error: 'Cancelled', durationMs: Date.now() - startTime };
 		}
 		throw err;
+	} finally {
+		try { reader.releaseLock(); } catch { /* already released */ }
+		try { await response.body?.cancel(); } catch { /* already drained */ }
 	}
 
 	onEvent(
