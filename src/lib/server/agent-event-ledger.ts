@@ -206,7 +206,7 @@ export function readRecentAgentEvents(
 	return [...ledgerEntries, ...finalAnswerEntries]
 		.filter((entry) => !requestId || entry.request_id === requestId)
 		.filter((entry) => !sessionId || entry.session_id === sessionId)
-		.sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at))
+		.sort((a, b) => (Date.parse(a.created_at) || 0) - (Date.parse(b.created_at) || 0))
 		.slice(-limit)
 		.reverse();
 }
