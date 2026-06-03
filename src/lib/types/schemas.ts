@@ -533,10 +533,20 @@ export const ClientBridgeEventSchema = z.object({
 // Sync Client Schemas
 // =============================================================================
 
+// `timestamp` here is shape-tolerant on purpose: the sync producer surfaces in
+// this codebase emit two flavors today and the sync-client must accept both.
+//   * `sync-server.cjs` welcome message and `app.post('/sync')` echoes use
+//     `new Date().toISOString()` (string).
+//   * `syncClient.broadcast()` outer envelope at sync-client.ts:271 also uses
+//     ISO strings. Inner `data.timestamp` from broadcastSkill /
+//     broadcastExecutionControl uses `Date.now()` (number).
+// Accepting either prevents the WS consumer (sync-client.ts:178) from dropping
+// the welcome message and every echoed broadcast through `safeJsonParse`. The
+// `handleMessage` switch already coerces to string at lines 361/372.
 export const SyncMessageSchema = z.object({
 	type: z.string(),
 	data: z.record(z.unknown()).optional(),
-	timestamp: z.number().optional()
+	timestamp: z.union([z.number(), z.string()]).optional()
 });
 
 // =============================================================================
