@@ -64,6 +64,7 @@ class ClientEventBridge {
 	private eventSource: EventSource | null = null;
 	private subscribers: Set<EventCallback> = new Set();
 	private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+	private reconnectAttempts = 0;
 	private connectionStatus = writable<'disconnected' | 'connecting' | 'connected'>('disconnected');
 
 	constructor() {
@@ -92,6 +93,7 @@ class ClientEventBridge {
 			this.eventSource.onopen = () => {
 				logger.info('[EventBridge] Connected to event stream');
 				this.connectionStatus.set('connected');
+				this.reconnectAttempts = 0;
 			};
 
 			this.eventSource.onmessage = (event) => {
@@ -122,13 +124,22 @@ class ClientEventBridge {
 		}
 	}
 
+	// Exponential backoff with full jitter, capped at 60s. The previous
+	// fixed 3s delay produced an unbounded retry storm against a server
+	// that was actually down: 1 reconnect / 3s / client * N clients =
+	// 20 N attempts per minute, indefinitely. Capped exponential delay
+	// (1s, 2s, 4s, 8s, 16s, 32s, 60s, 60s, ...) plus full jitter spreads
+	// the herd and bounds load amplification.
 	private scheduleReconnect(): void {
 		if (this.reconnectTimer) return;
+		this.reconnectAttempts += 1;
+		const base = Math.min(60_000, 1000 * 2 ** Math.min(this.reconnectAttempts - 1, 6));
+		const delay = Math.floor(Math.random() * base);
 
 		this.reconnectTimer = setTimeout(() => {
 			this.reconnectTimer = null;
 			this.connect();
-		}, 3000);
+		}, delay);
 	}
 
 	disconnect(): void {
