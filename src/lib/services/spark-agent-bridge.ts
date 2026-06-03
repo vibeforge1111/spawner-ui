@@ -991,7 +991,16 @@ class SparkAgentBridgeService {
 		}
 
 		const scoped = this.subscribers.get(sessionId);
-		scoped?.forEach((callback) => callback(event));
+		scoped?.forEach((callback) => {
+			try {
+				callback(event);
+			} catch (error) {
+				console.error(
+					'[spark-agent-bridge] Subscriber callback failed:',
+					error instanceof Error ? error.name : 'UnknownError'
+				);
+			}
+		});
 	}
 
 	private async dispatchCommand(

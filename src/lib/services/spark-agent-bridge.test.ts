@@ -314,6 +314,32 @@ describe('latest canvas snapshot selection', () => {
 	});
 });
 
+describe('subscriber failure isolation', () => {
+	afterEach(() => {
+		sparkAgentBridge.resetForTests();
+		vi.restoreAllMocks();
+	});
+
+	it('continues delivering an event after one subscriber throws', () => {
+		const session = sparkAgentBridge.startSession();
+		const delivered = vi.fn();
+		sparkAgentBridge.subscribe(session.id, () => {
+			throw new Error('/Users/alice/private/subscriber.sock');
+		});
+		sparkAgentBridge.subscribe(session.id, delivered);
+		const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+		sparkAgentBridge.endSession(session.id);
+
+		expect(delivered).toHaveBeenCalledOnce();
+		expect(error).toHaveBeenCalledWith(
+			'[spark-agent-bridge] Subscriber callback failed:',
+			'Error'
+		);
+		expect(JSON.stringify(error.mock.calls)).not.toContain('/Users/alice');
+	});
+});
+
 describe('provider process timeout helpers', () => {
 	it('uses the shared agent timeout configuration', () => {
 		expect(providerProcessTimeoutMs({ SPAWNER_AGENT_WORK_TIMEOUT_MS: '120000' })).toBe(120000);
