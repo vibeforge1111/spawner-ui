@@ -8,6 +8,7 @@
 
 	let expandedCategory = $state<string | null>(null);
 	let allSkillsLoaded = $state(false);
+	let allSkillsLoadError = $state<string | null>(null);
 	let allSkillsList = $state<Skill[]>([]);
 	let currentNodes = $state<CanvasNode[]>([]);
 
@@ -54,10 +55,22 @@
 					pairsWell: s.pairsWell || []
 				})) as Skill[];
 				allSkillsLoaded = true;
+				allSkillsLoadError = null;
+			} else {
+				allSkillsLoaded = true;
+				allSkillsLoadError = `HTTP ${response.status}`;
 			}
 		} catch (e) {
 			console.error('[SkillsPanel] Failed to load all skills:', e);
+			allSkillsLoaded = true;
+			allSkillsLoadError = e instanceof Error ? e.message : 'Failed to fetch';
 		}
+	}
+
+	function retryLoadAllSkills() {
+		allSkillsLoaded = false;
+		allSkillsLoadError = null;
+		loadAllSkills();
 	}
 
 	// Pipeline skills (on canvas) and their ids for "in pipeline" highlighting
@@ -186,6 +199,17 @@
 			<div class="p-6 text-center">
 				<div class="animate-spin w-5 h-5 border-2 border-accent-primary/30 border-t-accent-primary rounded-full mx-auto mb-2"></div>
 				<p class="text-text-tertiary text-sm">Loading skills...</p>
+			</div>
+		{:else if allSkillsLoadError}
+			<div class="p-4 text-center text-text-tertiary text-sm">
+				<p class="mb-2">Could not load skills ({allSkillsLoadError}).</p>
+				<button
+					type="button"
+					onclick={retryLoadAllSkills}
+					class="px-3 py-1 text-xs font-mono border border-surface-border hover:border-accent-primary text-text-secondary hover:text-accent-primary transition-colors"
+				>
+					Retry
+				</button>
 			</div>
 		{:else if allSkillsList.length === 0}
 			<div class="p-4 text-center text-text-tertiary text-sm">No skills available</div>
