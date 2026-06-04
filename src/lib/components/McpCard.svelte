@@ -5,6 +5,17 @@
 	let { mcp, selected = false, onToggle }: { mcp: MCP; selected: boolean; onToggle: () => void } = $props();
 
 	let showConfig = $state(false);
+	let copyState = $state<'idle' | 'copied' | 'failed'>('idle');
+
+	async function copyConfig() {
+		try {
+			await navigator.clipboard.writeText(mcp.configExample);
+			copyState = 'copied';
+		} catch {
+			copyState = 'failed';
+		}
+		setTimeout(() => (copyState = 'idle'), 2000);
+	}
 </script>
 
 <div
@@ -65,9 +76,9 @@
 							<span class="text-xs text-text-tertiary font-medium">Configuration</span>
 							<button
 								class="text-xs text-accent-primary hover:underline"
-								onclick={() => navigator.clipboard.writeText(mcp.configExample)}
+								onclick={copyConfig}
 							>
-								Copy
+								{copyState === 'copied' ? 'Copied' : copyState === 'failed' ? 'Select & copy' : 'Copy'}
 							</button>
 						</div>
 						<pre class="text-xs text-text-secondary font-mono overflow-x-auto whitespace-pre">{mcp.configExample}</pre>
