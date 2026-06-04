@@ -29,15 +29,23 @@
 		return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 	}
 
-	function copyAllLogs(): void {
+	async function copyAllLogs(): Promise<void> {
 		const logText = displayLogs.map((log) => `${formatTime(log.created_at)}  ${formatExecutionLogForDisplay(log).message}`).join('\n');
-		navigator.clipboard.writeText(logText);
-		toasts.success('Logs copied to clipboard');
+		try {
+			await navigator.clipboard.writeText(logText);
+			toasts.success('Logs copied to clipboard');
+		} catch {
+			toasts.error('Could not copy logs — clipboard is blocked. Select the log text manually.');
+		}
 	}
 
-	function copyLogMessage(log: MissionLog): void {
-		navigator.clipboard.writeText(formatExecutionLogForDisplay(log).message);
-		toasts.success('Copied');
+	async function copyLogMessage(log: MissionLog): Promise<void> {
+		try {
+			await navigator.clipboard.writeText(formatExecutionLogForDisplay(log).message);
+			toasts.success('Copied');
+		} catch {
+			toasts.error('Could not copy — clipboard is blocked.');
+		}
 	}
 
 	function getLogDotClass(display: DisplayLog): string {
