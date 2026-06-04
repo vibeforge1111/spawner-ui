@@ -189,10 +189,25 @@ async function handleStreamingResponse(
 			}
 		}
 	} catch (err) {
+		// Release the underlying HTTP connection on the abort / parse-throw path.
+		// Without an explicit reader.cancel() the upstream socket and decoder
+		// state remain pinned until GC, which on long-lived workers shows up as
+		// a slow file-descriptor / memory leak under repeated mission cancels.
+		// We swallow cancel errors because the response body may already be in
+		// an errored state (that's the very reason we're in the catch block).
+		await reader.cancel().catch(() => {});
 		if (options.signal?.aborted) {
 			return { success: false, error: 'Cancelled', durationMs: Date.now() - startTime };
 		}
 		throw err;
+	} finally {
+		// releaseLock() lets the response body be GC'd promptly even on the
+		// happy path; the reader stays exclusive otherwise.
+		try {
+			reader.releaseLock();
+		} catch {
+			// Already released (e.g. via cancel() above) — safe to ignore.
+		}
 	}
 
 	onEvent(
