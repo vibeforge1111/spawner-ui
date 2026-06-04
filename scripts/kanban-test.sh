@@ -18,7 +18,11 @@ export PYTHONIOENCODING=utf-8
 BASE="${SPAWNER_BASE:-http://localhost:3333}"
 
 # --- ANSI ---
-if [ -t 1 ]; then
+# Respect both NO_COLOR (https://no-color.org) and non-TTY stdout. NO_COLOR is
+# honored when set to any non-empty value, matching curl/git/most CLIs. This
+# keeps CI logs, `| tee`, and `> capture.log` clean of escape codes that some
+# log aggregators render as literal "\033[1m" garbage.
+if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
 	BOLD=$'\033[1m'; DIM=$'\033[2m'; RED=$'\033[31m'; GREEN=$'\033[32m'
 	YELLOW=$'\033[33m'; CYAN=$'\033[36m'; RESET=$'\033[0m'
 else
