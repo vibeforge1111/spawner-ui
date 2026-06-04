@@ -30,8 +30,12 @@ function createToastStore() {
 
 		update(toasts => [...toasts, newToast]);
 
-		// Auto-remove after duration (default 5s, 0 = persistent)
-		const duration = toast.duration ?? 5000;
+		// Auto-remove after duration (default 5s, 0 = persistent).
+		// Toasts that carry an `action` button stay until the user dismisses
+		// or clicks the action — auto-hiding them would race the user's hand
+		// to the button and the action would disappear before they could click.
+		const explicitDuration = toast.duration;
+		const duration = explicitDuration ?? (toast.action ? 0 : 5000);
 		if (duration > 0) {
 			setTimeout(() => remove(id), duration);
 		}
