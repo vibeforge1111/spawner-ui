@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onDestroy } from 'svelte';
 	import Icon from './Icon.svelte';
 	import { skills, type Skill } from '$lib/stores/skills.svelte';
 	import { addNode, addNodesWithConnections, snapPosition } from '$lib/stores/canvas.svelte';
@@ -6,13 +7,21 @@
 	import { workflowTemplates, agentBundles, projectTypes, getTemplatesForProject } from '$lib/data/templates';
 	import type { WorkflowTemplate, AgentBundle, ProjectType } from '$lib/types/builder';
 
+	let frameSelectedTimer: ReturnType<typeof setTimeout> | null = null;
+
 	// Dispatch event to request framing of selected nodes
 	function requestFrameSelected() {
 		// Use a small delay to let nodes render first
-		setTimeout(() => {
+		if (frameSelectedTimer) clearTimeout(frameSelectedTimer);
+		frameSelectedTimer = setTimeout(() => {
+			frameSelectedTimer = null;
 			window.dispatchEvent(new CustomEvent('builder:frame-selected'));
 		}, 50);
 	}
+
+	onDestroy(() => {
+		if (frameSelectedTimer) clearTimeout(frameSelectedTimer);
+	});
 
 	// State
 	let expandedSection = $state<'templates' | 'bundles' | null>('templates');
