@@ -528,4 +528,19 @@ describe('PRD bridge fallback analysis', () => {
 			)
 		).toBeNull();
 	});
+
+	it('rejects suffixed SPAWNER_PRD_PROVISIONAL_*_MS forms and falls back to the documented default (suffix-trap)', () => {
+		// The prior Number.parseInt + Number.isFinite + >= 0 gate silently
+		// accepted '5s' as 5 and '30m' as 30 because parseInt strips the
+		// suffix. The regex-gated helper now falls back to the documented
+		// 10_000 / 45_000 defaults on any non-clean-integer form.
+		const direct = { buildMode: 'direct' as const, buildLane: 'direct' as const };
+		expect(_provisionalPrdDraftDelayMs(direct, { SPAWNER_PRD_PROVISIONAL_DIRECT_MS: '5s' } as NodeJS.ProcessEnv)).toBe(10_000);
+		expect(_provisionalPrdDraftDelayMs(direct, { SPAWNER_PRD_PROVISIONAL_DIRECT_MS: '30m' } as NodeJS.ProcessEnv)).toBe(10_000);
+		expect(_provisionalPrdDraftDelayMs(direct, { SPAWNER_PRD_PROVISIONAL_DIRECT_MS: '1.5' } as NodeJS.ProcessEnv)).toBe(10_000);
+		expect(_provisionalPrdDraftDelayMs(direct, { SPAWNER_PRD_PROVISIONAL_DIRECT_MS: '1e3' } as NodeJS.ProcessEnv)).toBe(10_000);
+		expect(_provisionalPrdDraftDelayMs(direct, { SPAWNER_PRD_PROVISIONAL_DIRECT_MS: '-100' } as NodeJS.ProcessEnv)).toBe(10_000);
+		expect(_provisionalPrdDraftDelayMs(direct, { SPAWNER_PRD_PROVISIONAL_DIRECT_MS: '  2500  ' } as NodeJS.ProcessEnv)).toBe(2500);
+		expect(_provisionalPrdDraftDelayMs(direct, { SPAWNER_PRD_PROVISIONAL_DIRECT_MS: '0' } as NodeJS.ProcessEnv)).toBe(0);
+	});
 });
