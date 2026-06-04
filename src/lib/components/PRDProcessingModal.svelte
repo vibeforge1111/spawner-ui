@@ -31,15 +31,18 @@
 	// Copyable prompt for Claude Code
 	const claudePrompt = $derived(`Analyze the pending PRD and send results to Spawner UI`);
 	let copied = $state(false);
+	let copyError = $state(false);
 
 	async function copyPrompt() {
 		try {
 			await navigator.clipboard.writeText(claudePrompt);
 			copied = true;
-			setTimeout(() => copied = false, 2000);
+			copyError = false;
 		} catch (e) {
+			copyError = true;
 			console.error('Failed to copy:', e);
 		}
+		setTimeout(() => { copied = false; copyError = false; }, 2000);
 	}
 
 	const stages = [
@@ -168,7 +171,7 @@
 									class="absolute top-2 right-2 px-2 py-1 text-xs font-mono bg-surface hover:bg-surface-active border border-surface-border transition-colors"
 									onclick={copyPrompt}
 								>
-									{copied ? '✓ Copied' : 'Copy fallback'}
+									{copyError ? '⚠ Select & copy manually' : copied ? '✓ Copied' : 'Copy fallback'}
 								</button>
 							</div>
 
