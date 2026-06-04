@@ -13,6 +13,12 @@ const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
 const ANTHROPIC_VERSION = '2023-06-01';
 const MAX_RETRIES = 3;
 const RETRY_BASE_MS = 1000;
+// Mark long, stable system prompts cache-eligible so repeat requests within
+// the 5-minute ephemeral cache window reuse the prefix instead of re-billing
+// it as fresh input tokens. Anthropic requires at least ~1024 cacheable tokens
+// (~4KB of text) before the cache_control marker is honored; below that the
+// API silently ignores it, so this is safe for short prompts too.
+const SYSTEM_PROMPT_CACHE_MIN_CHARS = 4096;
 
 export interface AnthropicClientOptions extends ProviderClientOptions {
 	apiKey: string;
@@ -59,7 +65,20 @@ export async function executeAnthropicRequest(
 				messages: [{ role: 'user', content: prompt }]
 			};
 			if (systemPrompt) {
-				body.system = systemPrompt;
+				// Use the structured-block form with cache_control so Anthropic can
+				// reuse the system-prompt prefix across repeat calls in the 5-minute
+				// window. Plain-string `system` works too but is never cached.
+				if (systemPrompt.length >= SYSTEM_PROMPT_CACHE_MIN_CHARS) {
+					body.system = [
+						{
+							type: 'text',
+							text: systemPrompt,
+							cache_control: { type: 'ephemeral' }
+						}
+					];
+				} else {
+					body.system = systemPrompt;
+				}
 			}
 
 			const response = await fetch(ANTHROPIC_API_URL, {
