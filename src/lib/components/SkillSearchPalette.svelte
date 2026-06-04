@@ -207,6 +207,7 @@
 					bind:value={query}
 					oninput={() => (selectedIndex = 0)}
 					placeholder="Search skills, tags, categories..."
+					aria-label="Search skills, tags, categories"
 					class="search-input"
 				/>
 				{#if query}
