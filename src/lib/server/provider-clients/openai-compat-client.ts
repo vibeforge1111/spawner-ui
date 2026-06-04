@@ -86,6 +86,11 @@ export async function executeOpenAICompatRequest(
 						progress: 0
 					})
 				);
+				// Release the previous attempt's response body so the underlying
+				// socket can be returned to the connection pool before we sleep
+				// and retry. Without cancel(), the body stays buffered until GC,
+				// pinning a file descriptor per retried attempt.
+				try { await response.body?.cancel(); } catch { /* already drained */ }
 				await sleep(delay, signal);
 				continue;
 			}
