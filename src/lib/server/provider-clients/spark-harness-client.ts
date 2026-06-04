@@ -315,7 +315,21 @@ async function submitSparkTask(input: {
 
 	if (!response.ok) {
 		const body = await response.text().catch(() => '');
-		throw new Error(`Spark harness rejected task (HTTP ${response.status}): ${body.slice(0, 500)}`);
+		const detail = body.slice(0, 500);
+		if (response.status === 404) {
+			throw new Error(
+				`Spark harness rejected task (HTTP 404 not found): ${detail}. ` +
+				`The configured Spark harness base URL (${input.baseUrl}) does not expose /v1/spark-tasks; ` +
+				`check the Spark harness provider URL in Mission Control settings.`
+			);
+		}
+		if (response.status === 401 || response.status === 403) {
+			throw new Error(
+				`Spark harness rejected task (HTTP ${response.status}): ${detail}. ` +
+				`The harness rejected the request credentials; rotate the harness token in the active provider settings.`
+			);
+		}
+		throw new Error(`Spark harness rejected task (HTTP ${response.status}): ${detail}`);
 	}
 
 	const data = (await response.json()) as { task_id?: string };
@@ -557,7 +571,14 @@ async function getSparkTaskStatus(
 	const response = await fetch(`${baseUrl}/v1/tasks/${encodeURIComponent(taskId)}`, { signal });
 	if (!response.ok) {
 		const body = await response.text().catch(() => '');
-		throw new Error(`Spark status request failed (HTTP ${response.status}): ${body.slice(0, 300)}`);
+		const detail = body.slice(0, 300);
+		if (response.status === 404) {
+			throw new Error(
+				`Spark status request failed (HTTP 404 not found): ${detail}. ` +
+				`Task ${taskId} is unknown to the harness; the task id may have been pruned or the harness URL is wrong.`
+			);
+		}
+		throw new Error(`Spark status request failed (HTTP ${response.status}): ${detail}`);
 	}
 	return (await response.json()) as SparkTaskStatus;
 }
