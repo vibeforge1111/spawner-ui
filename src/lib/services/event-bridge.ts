@@ -29,6 +29,8 @@ export interface BridgeEvent {
 
 type EventCallback = (event: BridgeEvent) => void;
 
+const MAX_SUBSCRIBERS = 1000; // Security: Limit concurrent subscribers to prevent DoS
+
 /**
  * Server-side event bridge (used in +server.ts)
  */
@@ -45,7 +47,12 @@ class ServerEventBridge {
 		});
 	}
 
-	subscribe(callback: EventCallback): () => void {
+	subscribe(callback: EventCallback): (() => void) | null {
+		// Security: Prevent resource exhaustion DoS by limiting concurrent subscribers
+		if (this.subscribers.size >= MAX_SUBSCRIBERS) {
+			logger.warn(`[EventBridge] Max subscribers (${MAX_SUBSCRIBERS}) reached, rejecting new subscription`);
+			return null;
+		}
 		this.subscribers.add(callback);
 		return () => {
 			this.subscribers.delete(callback);

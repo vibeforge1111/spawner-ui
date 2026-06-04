@@ -648,7 +648,7 @@ export const GET: RequestHandler = async (event) => {
 			controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'connected', timestamp: new Date().toISOString(), source: 'event-bridge' })}\n\n`));
 
 			// Subscribe to events
-			let unsubscribe: () => void = () => {};
+			let unsubscribe: (() => void) | null = null;
 			unsubscribe = eventBridge.subscribe((event) => {
 				if (isClosed) return;
 				try {
@@ -661,10 +661,18 @@ export const GET: RequestHandler = async (event) => {
 					// closure doesn't accumulate in the broadcast Set and run
 					// on every subsequent emit() until process restart.
 					isClosed = true;
-					unsubscribe();
+					unsubscribe?.();
 					logger.info('[EventBridge] Client disconnected');
 				}
 			});
+
+			// Reject excess streams before allocating their keepalive timer.
+			if (!unsubscribe) {
+				isClosed = true;
+				controller.enqueue(encoder.encode(`event: error\ndata: ${JSON.stringify({ type: 'error', message: 'Server at capacity, please retry later' })}\n\n`));
+				controller.close();
+				return;
+			}
 
 			// SSE comment frames (lines starting with `:`) are spec-defined
 			// no-ops on the client side but keep proxy idle-timers from
@@ -682,7 +690,7 @@ export const GET: RequestHandler = async (event) => {
 			// Handle client disconnect
 			request.signal.addEventListener('abort', () => {
 				clearInterval(keepalive);
-				unsubscribe();
+				unsubscribe?.();
 				if (!isClosed) {
 					isClosed = true;
 					try {
