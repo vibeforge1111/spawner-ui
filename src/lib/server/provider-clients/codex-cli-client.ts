@@ -168,9 +168,18 @@ export async function executeCodexCliRequest(
 			child.stdin.end();
 		}
 
-		// Handle abort signal
+		// Handle abort signal. Detach the listener once the child exits so the
+		// AbortController does not pin the dead-process closure when the signal
+		// is reused across many missions.
+		let abortHandler: (() => void) | null = null;
+		const releaseAbortListener = () => {
+			if (signal && abortHandler) {
+				signal.removeEventListener('abort', abortHandler);
+				abortHandler = null;
+			}
+		};
 		if (signal) {
-			const abortHandler = () => {
+			abortHandler = () => {
 				killed = true;
 				try {
 					child.kill('SIGTERM');
@@ -204,6 +213,7 @@ export async function executeCodexCliRequest(
 		});
 
 		child.on('error', (err) => {
+			releaseAbortListener();
 			onEvent(
 				createBridgeEvent('error', options, {
 					message: `${provider.label} process error: ${err.message}`,
@@ -218,6 +228,7 @@ export async function executeCodexCliRequest(
 		});
 
 		child.on('close', (code) => {
+			releaseAbortListener();
 			if (killed) {
 				resolve({
 					success: false,
