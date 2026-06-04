@@ -1060,4 +1060,44 @@ describe('/api/prd-bridge/load-to-canvas integration', () => {
 		expect(pending.relay.tier).toBe('pro');
 		expect(pending.nodes[0].skill.skillChain).toEqual(['frontend-engineer', 'threejs-3d-graphics']);
 	});
+
+	it('does not echo key-shaped request ids when analysis results are missing', async () => {
+		const requestId = 'OPENAI_API_KEY=sk-placeholder-load-canvas-token-123456';
+
+		const response = await POST({
+			request: new Request('http://localhost/api/prd-bridge/load-to-canvas', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ requestId, autoRun: false })
+			})
+		} as never);
+
+		expect(response.status).toBe(404);
+		const body = await response.json();
+		expect(body.error).toBe('No analysis result found for that request.');
+		expect(JSON.stringify(body)).not.toContain('sk-placeholder-load-canvas-token-123456');
+	});
+
+	it('does not echo malformed result contents in load-to-canvas failures', async () => {
+		const requestId = 'tg-malformed-result-redaction-test';
+		await writeFile(
+			path.join(testSpawnerDir, 'results', `${requestId}.json`),
+			'OPENAI_API_KEY=sk-placeholder-load-canvas-token-123456',
+			'utf-8'
+		);
+
+		const response = await POST({
+			request: new Request('http://localhost/api/prd-bridge/load-to-canvas', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ requestId, autoRun: false })
+			})
+		} as never);
+
+		expect(response.status).toBe(500);
+		const body = await response.json();
+		expect(body.error).toBe('Failed to load PRD result into canvas.');
+		expect(JSON.stringify(body)).not.toContain('OPENAI_API_KEY');
+		expect(JSON.stringify(body)).not.toContain('sk-placeholder-load-canvas-token-123456');
+	});
 });

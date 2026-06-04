@@ -298,7 +298,7 @@ export const POST: RequestHandler = async (event) => {
 				missionId: resolvedMissionId,
 				...traceRefDetails(resolvedTraceRef)
 			});
-			return json({ error: `No analysis result for ${requestId} yet` }, { status: 404 });
+			return json({ error: 'No analysis result found for that request.' }, { status: 404 });
 		}
 
 		const raw = await readFile(path, 'utf-8');
@@ -681,7 +681,6 @@ export const POST: RequestHandler = async (event) => {
 			missionControlAccess
 		});
 	} catch (error) {
-		const message = error instanceof Error ? error.message : String(error);
-		return json({ error: message }, { status: 500 });
+		return json({ error: 'Failed to load PRD result into canvas.' }, { status: 500 });
 	}
 };
