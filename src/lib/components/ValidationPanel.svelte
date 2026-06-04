@@ -14,6 +14,12 @@
 
 	let { onClose }: Props = $props();
 
+	function handleKeydown(event: KeyboardEvent) {
+		if (event.key === 'Escape') {
+			onClose();
+		}
+	}
+
 	let currentNodes = $state<CanvasNode[]>([]);
 	let currentConnections = $state<Connection[]>([]);
 	let result = $state<ValidationResult | null>(null);
@@ -123,6 +129,7 @@
 	}
 </script>
 
+<svelte:window onkeydown={handleKeydown} />
 <div class="fixed inset-0 flex items-center justify-center z-50" role="dialog" aria-modal="true" aria-label="Workflow validation">
 	<button class="absolute inset-0 bg-black/50" onclick={onClose} aria-label="Close validation panel"></button>
 	<div
