@@ -629,9 +629,13 @@
 		);
 	}
 
-	function copyToClipboard(text: string, successMessage: string) {
-		navigator.clipboard.writeText(text);
-		toasts.success(successMessage);
+	async function copyToClipboard(text: string, successMessage: string) {
+		try {
+			await navigator.clipboard.writeText(text);
+			toasts.success(successMessage);
+		} catch {
+			toasts.error('Could not copy — clipboard is blocked. Select the text manually.');
+		}
 	}
 
 	// Svelte 5: Use $effect with store subscriptions - run once and cleanup
