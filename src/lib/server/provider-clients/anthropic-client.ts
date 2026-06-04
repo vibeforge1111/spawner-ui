@@ -108,9 +108,20 @@ export async function executeAnthropicRequest(
 
 			if (!response.ok) {
 				const errorText = await response.text().catch(() => 'unknown error');
+				const detail = errorText.slice(0, 500);
+				let actionable: string;
+				if (response.status === 404) {
+					actionable = `${provider.label} returned HTTP 404 (not found): ${detail}. The configured Anthropic model name does not exist; check the active provider model in Mission Control settings.`;
+				} else if (response.status === 401 || response.status === 403) {
+					actionable = `${provider.label} returned HTTP ${response.status}: ${detail}. The provider rejected the API key; rotate the provider secret and retry.`;
+				} else if (response.status === 400) {
+					actionable = `${provider.label} returned HTTP 400 (bad request): ${detail}. The request payload was rejected; the most common cause is an unsupported parameter for the configured model.`;
+				} else {
+					actionable = `${provider.label} API error ${response.status}: ${detail}`;
+				}
 				return {
 					success: false,
-					error: `${provider.label} API error ${response.status}: ${errorText.slice(0, 500)}`,
+					error: actionable,
 					durationMs: Date.now() - startTime
 				};
 			}
