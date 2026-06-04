@@ -149,4 +149,31 @@ describe('/api/mcp', () => {
 		expect(body.authority.reasonCodes).toContain('native_governor_required');
 		expect(connectMCP).not.toHaveBeenCalled();
 	});
+
+	it('bounds connection failures without returning or logging local paths', async () => {
+		const localPath = '/Users/alice/private/mcp-connect-cache.json';
+		const errorMessages: string[] = [];
+		const originalError = console.error;
+		console.error = (...args: unknown[]) => {
+			errorMessages.push(args.map(String).join(' '));
+		};
+
+		try {
+			vi.mocked(connectMCP).mockRejectedValueOnce(new Error(`connect failed while reading ${localPath}`));
+
+			const response = await POST(event({
+				instanceId: 'filesystem',
+				mcpId: 'filesystem',
+				executionAuthority: connectAuthority()
+			}) as never);
+
+			expect(response.status).toBe(500);
+			await expect(response.json()).resolves.toEqual({ error: 'MCP connection failed' });
+		} finally {
+			console.error = originalError;
+		}
+
+		expect(errorMessages.join('\n')).toContain('<local-path>');
+		expect(errorMessages.join('\n')).not.toContain(localPath);
+	});
 });
