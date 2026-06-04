@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
 	import {
 		pipelines,
 		activePipeline,
@@ -33,6 +33,8 @@
 	let dropdownEl = $state<HTMLDivElement>();
 	let renameInputEl = $state<HTMLInputElement>();
 	let fileInputEl = $state<HTMLInputElement>();
+	let renameOpenTimer: ReturnType<typeof setTimeout> | null = null;
+	let renameFocusTimer: ReturnType<typeof setTimeout> | null = null;
 
 	// Get current values from stores
 	let currentPipelines = $state<PipelineMetadata[]>([]);
@@ -108,7 +110,9 @@
 			// User can rename manually
 		} else {
 			// Start renaming the new pipeline
-			setTimeout(() => {
+			if (renameOpenTimer) clearTimeout(renameOpenTimer);
+			renameOpenTimer = setTimeout(() => {
+				renameOpenTimer = null;
 				isOpen = true;
 				startRename(newPipeline);
 			}, 100);
@@ -118,8 +122,17 @@
 	function startRename(pipeline: PipelineMetadata) {
 		isRenaming = pipeline.id;
 		renameValue = pipeline.name;
-		setTimeout(() => renameInputEl?.focus(), 50);
+		if (renameFocusTimer) clearTimeout(renameFocusTimer);
+		renameFocusTimer = setTimeout(() => {
+			renameFocusTimer = null;
+			renameInputEl?.focus();
+		}, 50);
 	}
+
+	onDestroy(() => {
+		if (renameOpenTimer) clearTimeout(renameOpenTimer);
+		if (renameFocusTimer) clearTimeout(renameFocusTimer);
+	});
 
 	function commitRename() {
 		if (isRenaming && renameValue.trim()) {
