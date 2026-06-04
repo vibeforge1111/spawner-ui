@@ -111,7 +111,11 @@ async function _save(): Promise<void> {
   if (!_store) return;
   const file = schedulesFile();
   await fs.mkdir(path.dirname(file), { recursive: true });
-  const tmp = file + '.tmp';
+  // Unique tmp name (pid + monotonic counter + random suffix) so concurrent _save calls -
+  // e.g. createSchedule and deleteSchedule firing back-to-back, or a tick firing while a
+  // delete persists - cannot stomp on each other's `.tmp` file. Sister precedent #281
+  // applied the same hardening to mission-control-relay persistState.
+  const tmp = `${file}.${process.pid}.${Date.now()}.${randomBytes(4).toString('hex')}.tmp`;
   await fs.writeFile(tmp, JSON.stringify(_store, null, 2), 'utf-8');
   try {
     await fs.rename(tmp, file);
