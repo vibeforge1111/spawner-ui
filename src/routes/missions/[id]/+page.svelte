@@ -92,6 +92,7 @@
 	let missionControlPoller: ReturnType<typeof setInterval> | null = null;
 	let missionControlActionLoading = $state(false);
 	let missionControlActionMessage = $state<string | null>(null);
+	let copyResetTimer: ReturnType<typeof setTimeout> | null = null;
 
 	$effect(() => {
 		const unsub = page.subscribe((p) => {
@@ -159,6 +160,7 @@
 	onDestroy(() => {
 		stopLogPolling();
 		stopMissionControlPolling();
+		if (copyResetTimer) clearTimeout(copyResetTimer);
 	});
 
 	// Reload when missionId changes
@@ -233,7 +235,11 @@
 		const prompt = generateClaudeCodePrompt(currentState.currentMission);
 		navigator.clipboard.writeText(prompt);
 		copiedPrompt = true;
-		setTimeout(() => copiedPrompt = false, 2000);
+		if (copyResetTimer) clearTimeout(copyResetTimer);
+		copyResetTimer = setTimeout(() => {
+			copyResetTimer = null;
+			copiedPrompt = false;
+		}, 2000);
 	}
 
 	const mission = $derived(currentState.currentMission);
