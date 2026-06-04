@@ -15,6 +15,8 @@ import { externalProjectPathsAllowed, resolveContainedPath, sparkWorkspaceRoot }
 export const MAX_OUTPUT_LENGTH = 5000;
 export const COMMAND_TIMEOUT_MS = commandTimeoutMs();
 const SIGTERM_GRACE_MS = 5000;
+const LOCAL_USER_PATH_RE =
+	/(?<![\w/\\])(?:[A-Z]:[\\/](?:Users|Documents and Settings)[\\/][^\s'"<>]+|\/(?:Users|home)\/[^\s'"<>]+)/gi;
 
 export interface CommandResult {
 	exitCode: number;
@@ -24,8 +26,9 @@ export interface CommandResult {
 }
 
 export function truncateOutput(output: string): string {
-	if (output.length <= MAX_OUTPUT_LENGTH) return output;
-	return output.slice(-MAX_OUTPUT_LENGTH) + '\n...(truncated)';
+	const redacted = output.replace(LOCAL_USER_PATH_RE, '[local path]');
+	if (redacted.length <= MAX_OUTPUT_LENGTH) return redacted;
+	return redacted.slice(-MAX_OUTPUT_LENGTH) + '\n...(truncated)';
 }
 
 /**

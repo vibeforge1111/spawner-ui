@@ -2,7 +2,13 @@ import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { isPathWithinProject, opaqueCommandPayloadReason, runCommand, validateProjectPath } from './command-runner';
+import {
+	isPathWithinProject,
+	opaqueCommandPayloadReason,
+	runCommand,
+	truncateOutput,
+	validateProjectPath
+} from './command-runner';
 
 const originalSparkWorkspaceRoot = process.env.SPARK_WORKSPACE_ROOT;
 const originalSpawnerWorkspaceRoot = process.env.SPAWNER_WORKSPACE_ROOT;
@@ -108,5 +114,20 @@ describe('runCommand', () => {
 		expect(opaqueCommandPayloadReason('cmd.exe', ['/c', 'echo unsafe'])).toContain('Opaque command payload flag "/c"');
 		expect(opaqueCommandPayloadReason('powershell.exe', ['-Command', 'Write-Output unsafe'])).toContain('Opaque command payload flag "-Command"');
 		expect(opaqueCommandPayloadReason('bash', ['-lc', 'echo unsafe'])).toContain('Opaque command payload flag "-lc"');
+	});
+});
+
+describe('truncateOutput', () => {
+	it('redacts local user-home paths from command output', () => {
+		const macPath = ['', 'Users', 'alice', 'private', 'auth.json'].join('/');
+		const linuxPath = ['', 'home', 'alice', 'private', 'poll.json'].join('/');
+		const windowsPath = ['C:', 'Users', 'Alice', 'private', 'cache.json'].join('\\');
+
+		const output = truncateOutput([macPath, linuxPath, windowsPath].join('\n'));
+
+		expect(output.match(/\[local path\]/g)).toHaveLength(3);
+		for (const leaked of [macPath, linuxPath, windowsPath, 'auth.json', 'poll.json', 'cache.json']) {
+			expect(output).not.toContain(leaked);
+		}
 	});
 });
