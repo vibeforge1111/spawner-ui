@@ -36,7 +36,7 @@
 				<a
 					href="/canvas"
 					aria-label="Canvas"
-					class="nav-pop group inline-flex items-center gap-2 px-2 py-2 font-sans text-[15px] font-medium text-text-secondary border border-transparent rounded-md sm:px-3.5"
+					class="nav-pop group inline-flex items-center justify-center gap-2 min-w-11 min-h-11 px-2.5 py-2 font-sans text-[15px] font-medium text-text-secondary border border-transparent rounded-md sm:min-w-0 sm:min-h-0 sm:px-3.5"
 				>
 					<Icon name="grid" size={14} class="nav-pop-icon" />
 					<span class="nav-pop-label hidden sm:inline">Canvas</span>
@@ -45,7 +45,7 @@
 				<a
 					href="/kanban"
 					aria-label="Kanban"
-					class="nav-pop group inline-flex items-center gap-2 px-2 py-2 font-sans text-[15px] font-medium text-text-secondary border border-transparent rounded-md sm:px-3.5"
+					class="nav-pop group inline-flex items-center justify-center gap-2 min-w-11 min-h-11 px-2.5 py-2 font-sans text-[15px] font-medium text-text-secondary border border-transparent rounded-md sm:min-w-0 sm:min-h-0 sm:px-3.5"
 				>
 					<Icon name="clipboard" size={14} class="nav-pop-icon" />
 					<span class="nav-pop-label hidden sm:inline">Kanban</span>
@@ -54,7 +54,7 @@
 				<a
 					href="/trace"
 					aria-label="Trace"
-					class="nav-pop group inline-flex items-center gap-2 px-2 py-2 font-sans text-[15px] font-medium text-text-secondary border border-transparent rounded-md sm:px-3.5"
+					class="nav-pop group inline-flex items-center justify-center gap-2 min-w-11 min-h-11 px-2.5 py-2 font-sans text-[15px] font-medium text-text-secondary border border-transparent rounded-md sm:min-w-0 sm:min-h-0 sm:px-3.5"
 				>
 					<Icon name="scan" size={14} class="nav-pop-icon" />
 					<span class="nav-pop-label hidden sm:inline">Trace</span>
@@ -63,7 +63,7 @@
 				<a
 					href="/skills"
 					aria-label="Skills"
-					class="nav-pop group inline-flex items-center gap-2 px-2 py-2 font-sans text-[15px] font-medium text-text-secondary border border-transparent rounded-md sm:px-3.5"
+					class="nav-pop group inline-flex items-center justify-center gap-2 min-w-11 min-h-11 px-2.5 py-2 font-sans text-[15px] font-medium text-text-secondary border border-transparent rounded-md sm:min-w-0 sm:min-h-0 sm:px-3.5"
 				>
 					<Icon name="layers" size={14} class="nav-pop-icon" />
 					<span class="nav-pop-label hidden sm:inline">Skills</span>
@@ -72,7 +72,7 @@
 				<a
 					href="/settings"
 					aria-label="Settings"
-					class="nav-pop group inline-flex items-center gap-2 px-2 py-2 font-sans text-[15px] font-medium text-text-secondary border border-transparent rounded-md sm:px-3.5"
+					class="nav-pop group inline-flex items-center justify-center gap-2 min-w-11 min-h-11 px-2.5 py-2 font-sans text-[15px] font-medium text-text-secondary border border-transparent rounded-md sm:min-w-0 sm:min-h-0 sm:px-3.5"
 				>
 					<Icon name="settings" size={14} class="nav-pop-icon" />
 					<span class="nav-pop-label hidden sm:inline">Settings</span>
