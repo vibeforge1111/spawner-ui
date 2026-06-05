@@ -494,6 +494,7 @@
 	function formatDate(iso: string | null): string {
 		if (!iso) return '';
 		const d = new Date(iso);
+		if (Number.isNaN(d.getTime())) return iso;
 		const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' };
 		return d.toLocaleString(undefined, opts);
 	}
