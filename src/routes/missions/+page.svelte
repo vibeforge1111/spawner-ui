@@ -123,7 +123,8 @@
 
 	function formatDate(dateStr: string): string {
 		const date = new Date(dateStr);
-		return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+		if (Number.isNaN(date.getTime())) return dateStr;
+		return date.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 	}
 
 	function getSparkMetadata(mission: Mission): Record<string, unknown> | null {
