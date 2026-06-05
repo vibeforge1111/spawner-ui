@@ -1191,6 +1191,17 @@ export function getMissionControlBoard(): Record<string, MissionControlBoardEntr
 		maybeRecordTask(current, entry);
 	}
 
+	// Pre-bucket recent events by missionId once so the per-mission burst
+	// normalizer below stays O(M+N) instead of scanning the full
+	// relayState.recent ring (up to MISSION_CONTROL_RECENT_EVENT_LIMIT,
+	// default 1000) once per mission entry. With ~30 live missions and
+	// 1000 events that turns 30,000 string compares into 1000.
+	const eventsByMission = new Map<string, MissionControlRelayStatusEntry[]>();
+	for (const event of relayState.recent) {
+		const bucket = eventsByMission.get(event.missionId);
+		if (bucket) bucket.push(event);
+		else eventsByMission.set(event.missionId, [event]);
+	}
 	const board: Record<MissionControlBoardStatus, MissionControlBoardEntry[]> = {
 		running: [],
 		paused: [],
@@ -1201,7 +1212,7 @@ export function getMissionControlBoard(): Record<string, MissionControlBoardEntr
 	};
 
 	for (const entry of byMission.values()) {
-		const missionEvents = relayState.recent.filter((event) => event.missionId === entry.missionId);
+		const missionEvents = eventsByMission.get(entry.missionId) ?? [];
 		normalizeSingleSourceRunningTaskBurst(entry, missionEvents);
 		closeOpenTasksForTerminalMission(entry);
 		recalculateTaskStatusCounts(entry);
