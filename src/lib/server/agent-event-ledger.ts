@@ -211,7 +211,11 @@ export function readRecentAgentEvents(
 	return [...ledgerEntries, ...finalAnswerEntries]
 		.filter((entry) => !requestId || entry.request_id === requestId)
 		.filter((entry) => !sessionId || entry.session_id === sessionId)
-		.sort((a, b) => createdAtMs(a) - createdAtMs(b))
+		.sort(
+			(a, b) =>
+				createdAtMs(a) - createdAtMs(b) ||
+				a.event_id.localeCompare(b.event_id)
+		)
 		.slice(-limit)
 		.reverse();
 }
