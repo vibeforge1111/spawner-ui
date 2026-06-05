@@ -141,12 +141,13 @@ function matchSkillsLocal(goal: AnalyzedGoal, maxResults: number): MatchedSkill[
 		});
 	}
 
-	// Sort by score
+	// Sort by score, then category priority, then skillId for full determinism
 	matched.sort((a, b) => {
 		if (b.score !== a.score) return b.score - a.score;
 		const priorityA = CATEGORY_PRIORITY[a.category] || 99;
 		const priorityB = CATEGORY_PRIORITY[b.category] || 99;
-		return priorityA - priorityB;
+		if (priorityA !== priorityB) return priorityA - priorityB;
+		return a.skillId.localeCompare(b.skillId);
 	});
 
 	return matched.slice(0, maxResults);
