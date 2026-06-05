@@ -444,7 +444,7 @@
 									{/if}
 								</div>
 
-								<div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+								<div class="flex items-center gap-2 transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100">
 									<a
 										href="/missions/{mission.id}"
 										class="px-3 py-1 text-xs font-mono text-text-secondary border border-surface-border hover:border-text-tertiary hover:text-text-primary transition-all"
