@@ -19,6 +19,7 @@
 
 	let visible = $state(false);
 	let timeoutId: ReturnType<typeof setTimeout> | null = null;
+	const tooltipId = `tooltip-${Math.random().toString(36).slice(2, 10)}`;
 
 	const positionClasses = {
 		top: 'bottom-full left-1/2 -translate-x-1/2 mb-2',
@@ -56,6 +57,7 @@
 	onmouseleave={hideTooltip}
 	onfocus={showTooltip}
 	onblur={hideTooltip}
+	aria-describedby={visible && text ? tooltipId : undefined}
 >
 	{@render children()}
 
@@ -63,6 +65,7 @@
 		<div
 			class="tooltip {positionClasses[position]} whitespace-nowrap"
 			role="tooltip"
+			id={tooltipId}
 		>
 			{text}
 			<span class="absolute w-0 h-0 border-4 {arrowClasses[position]}"></span>
