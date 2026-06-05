@@ -593,9 +593,13 @@ class SparkAgentBridgeService {
 		});
 		if (sessions.length === 0) return null;
 
-		sessions.sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
+		const updatedMs = (value: string | null | undefined): number => {
+			const parsed = Date.parse(value || '');
+			return Number.isFinite(parsed) ? parsed : 0;
+		};
+		sessions.sort((a, b) => updatedMs(b.updatedAt) - updatedMs(a.updatedAt));
 		const latest = sessions[0];
-		const latestTs = Date.parse(latest.updatedAt);
+		const latestTs = updatedMs(latest.updatedAt);
 		if (!Number.isNaN(sinceTs) && !Number.isNaN(latestTs) && latestTs <= sinceTs) {
 			return null;
 		}
