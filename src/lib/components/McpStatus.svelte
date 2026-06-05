@@ -47,8 +47,11 @@
 					? 'border-status-error/30 bg-status-error-bg text-status-error'
 					: 'border-surface-border bg-bg-secondary text-text-secondary hover:bg-surface-hover'}"
 		onclick={toggleDropdown}
+		aria-haspopup="menu"
+		aria-expanded={showDropdown}
+		aria-label={`MCP server: ${status.text}`}
 	>
-		<div class="w-1.5 h-1.5 {status.color} {status.pulse ? 'animate-pulse' : ''}"></div>
+		<div class="w-1.5 h-1.5 {status.color} {status.pulse ? 'animate-pulse' : ''}" aria-hidden="true"></div>
 		<span class="text-xs font-medium">MCP</span>
 		{#if $mcpState.status === 'connected'}
 			<span class="text-xs text-text-tertiary">{$mcpState.tools.length}</span>
