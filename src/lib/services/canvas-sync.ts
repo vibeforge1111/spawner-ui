@@ -1374,9 +1374,15 @@ function getExecutionOrder(currentNodes: CanvasNode[], currentConnections: Conne
 		return currentNodes.map(n => n.skill);
 	}
 
-	// Map back to skills in order
+	// Map back to skills in order. Build an id->node lookup once instead
+	// of running currentNodes.find on every orderedId — the prior shape
+	// was O(N^2) over the canvas node list which grows with project size.
+	const nodeById = new Map<string, CanvasNode>();
+	for (const node of currentNodes) {
+		nodeById.set(node.id, node);
+	}
 	return orderedIds
-		.map(id => currentNodes.find(n => n.id === id)?.skill)
+		.map(id => nodeById.get(id)?.skill)
 		.filter((s): s is Skill => s !== undefined);
 }
 
