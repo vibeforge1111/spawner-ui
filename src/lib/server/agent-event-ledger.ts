@@ -355,11 +355,17 @@ export function buildAgentBlackBoxReport(
 		checked_at: new Date().toISOString(),
 		request_id: normalizeNullable(options.requestId),
 		session_id: normalizeNullable(options.sessionId),
-		counts: {
-			entries: entries.length,
-			blocker_events: entries.filter((entry) => entry.blockers.length > 0).length,
-			memory_candidates: entries.filter((entry) => entry.memory_candidate !== null).length
-		},
+		// Single reduce pass instead of two .filter().length walks over the
+		// same entries array — the audit report routinely returns hundreds
+		// of entries and the prior shape traversed them twice.
+		counts: entries.reduce(
+			(acc, entry) => {
+				if (entry.blockers.length > 0) acc.blocker_events += 1;
+				if (entry.memory_candidate !== null) acc.memory_candidates += 1;
+				return acc;
+			},
+			{ entries: entries.length, blocker_events: 0, memory_candidates: 0 }
+		),
 		entries
 	};
 }
