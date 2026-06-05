@@ -201,13 +201,13 @@
 							</div>
 
 							<!-- State label -->
-							<div class="shrink-0 text-right hidden sm:block">
+							<div class="shrink-0 text-right">
 								{#if task.state === 'done'}
-									<span class="font-mono text-xs text-accent-primary tracking-widest">DONE</span>
+									<span class="font-mono text-[10px] sm:text-xs text-accent-primary tracking-widest">DONE</span>
 								{:else if task.state === 'running'}
-									<span class="font-mono text-xs text-accent-primary tracking-widest">RUNNING</span>
+									<span class="font-mono text-[10px] sm:text-xs text-accent-primary tracking-widest">RUNNING</span>
 								{:else}
-									<span class="font-mono text-xs text-text-tertiary tracking-widest">QUEUED</span>
+									<span class="font-mono text-[10px] sm:text-xs text-text-tertiary tracking-widest">QUEUED</span>
 								{/if}
 							</div>
 						</div>
