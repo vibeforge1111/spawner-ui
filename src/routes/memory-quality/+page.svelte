@@ -106,7 +106,9 @@
 	}
 
 	function formatTime(timestamp: string) {
-		return new Date(timestamp).toLocaleString();
+		const date = new Date(timestamp);
+		if (Number.isNaN(date.getTime())) return timestamp;
+		return date.toLocaleString();
 	}
 </script>
 
