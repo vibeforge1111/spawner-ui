@@ -62,7 +62,13 @@ export function countFailureModes(events: MemoryRecallEvent[]): FailureModeBreak
 export function summarizeLatency(events: MemoryRecallEvent[]): LatencySummary {
 	if (events.length === 0) return { p50: 0, p95: 0, slowest: null };
 	const latencies = events.map((event) => Math.max(0, event.latencyMs)).sort((a, b) => a - b);
-	const slowestEvent = [...events].sort((a, b) => b.latencyMs - a.latencyMs)[0];
+	// Find the slowest event in a single linear pass instead of allocating
+	// a spread copy of events and sorting the full list descending just to
+	// take index [0]. Same tiebreak (first-seen wins on equal latency).
+	let slowestEvent = events[0];
+	for (let i = 1; i < events.length; i += 1) {
+		if (events[i].latencyMs > slowestEvent.latencyMs) slowestEvent = events[i];
+	}
 	return {
 		p50: percentile(latencies, 0.5),
 		p95: percentile(latencies, 0.95),
