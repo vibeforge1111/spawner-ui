@@ -119,7 +119,14 @@
 
 			<!-- Progress -->
 			<div class="flex items-center gap-3 min-w-[180px] flex-1 max-w-[280px]">
-				<div class="flex-1 h-1.5 rounded-full bg-surface overflow-hidden" role="progressbar" aria-valuenow={sessionState.progress} aria-valuemin="0" aria-valuemax="100" aria-label="Mission progress">
+				<div
+					class="flex-1 h-1.5 rounded-full bg-surface overflow-hidden"
+					role="progressbar"
+					aria-valuenow={sessionState.progress}
+					aria-valuemin="0"
+					aria-valuemax="100"
+					aria-label={`Mission progress: ${sessionState.progress}% (${getStatusText(sessionState.status)})`}
+				>
 					<div
 						class="h-full rounded-full bg-accent-primary transition-all duration-500 ease-out"
 						style="width: {sessionState.progress}%"
@@ -161,4 +168,3 @@
 		</div>
 	</div>
 {/if}
-
