@@ -297,7 +297,8 @@
 							</div>
 
 							<!-- Actions -->
-							<div class="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+							<!-- On hover-capable pointers the row is quiet until hover; touch devices keep the actions visible since there is no hover state. -->
+							<div class="flex items-center gap-0.5 transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100">
 								<button
 									class="p-1.5 text-text-tertiary hover:text-text-primary hover:bg-bg-primary/50 rounded transition-colors"
 									onclick={(e) => { e.stopPropagation(); startRename(pipeline); }}
