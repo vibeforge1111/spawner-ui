@@ -10,10 +10,11 @@
 
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { readFile, writeFile, unlink } from 'fs/promises';
+import { readFile, unlink } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
 import { reconcilePendingPrdCanonicalResult } from '$lib/server/prd-canonical-result-reconciliation';
+import { writeFileAtomic } from '$lib/server/atomic-write';
 import { spawnerStateDir } from '$lib/server/spawner-state';
 import { requireControlAuth } from '$lib/server/mcp-auth';
 
@@ -128,7 +129,12 @@ export const DELETE: RequestHandler = async (event) => {
 			const requestMeta = JSON.parse(await readFile(pendingRequestFile, 'utf-8'));
 			requestMeta.status = 'processed';
 			requestMeta.processedAt = new Date().toISOString();
-			await writeFile(pendingRequestFile, JSON.stringify(requestMeta, null, 2), 'utf-8');
+			// Atomic so a concurrent GET /api/prd-bridge/pending poll
+			// (Welcome.svelte polls every 2s) can't read a half-written
+			// pending-request.json. The GET handler at line 37 JSON.parses
+			// this same file and would otherwise throw SyntaxError +
+			// return pending:false during the truncation window.
+			await writeFileAtomic(pendingRequestFile, JSON.stringify(requestMeta, null, 2));
 		}
 
 		return json({ success: true });
