@@ -88,12 +88,20 @@
 		<!-- Modal container -->
 		<div
 			class="bg-bg-secondary border border-surface-border w-full max-w-md"
+			role="dialog"
+			aria-modal="true"
+			aria-labelledby="prd-modal-title"
 			in:scale={{ duration: 250, start: 0.96, easing: backOut }}
 			out:scale={{ duration: 150, start: 0.96 }}
 		>
 			<!-- Progress bar at top -->
 			<div class="h-0.5 bg-surface w-full overflow-hidden">
 				<div
+					role="progressbar"
+					aria-valuenow={progressPercent}
+					aria-valuemin="0"
+					aria-valuemax="100"
+					aria-label="PRD processing progress"
 					class="h-full bg-accent-primary transition-all duration-500 ease-out"
 					style="width: {progressPercent}%"
 				></div>
@@ -104,7 +112,7 @@
 				<p class="font-mono text-xs text-accent-primary tracking-widest mb-1">
 					PRD → PIPELINE
 				</p>
-				<h2 class="font-serif text-xl text-text-primary">Generating Workflow</h2>
+				<h2 id="prd-modal-title" class="font-serif text-xl text-text-primary">Generating Workflow</h2>
 				{#if clarificationMode}
 					<p class="mt-2 text-sm text-text-secondary">
 						Spark understood that you are asking whether the previous message was understood. Share the missing audience, core workflow, saved memory, and vibe details to continue.
