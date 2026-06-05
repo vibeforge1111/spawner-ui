@@ -80,6 +80,7 @@ class SyncClient {
 	private config: SyncConfig;
 	private reconnectAttempts = 0;
 	private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+	private pongDeadlineTimer: ReturnType<typeof setTimeout> | null = null;
 	private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 	private clientId: string;
 
@@ -330,7 +331,8 @@ class SyncClient {
 
 		switch (type) {
 			case 'pong':
-				// Heartbeat response
+				// Heartbeat response — server is still alive, clear the watchdog.
+				this.clearPongDeadline();
 				break;
 
 			case 'event':
@@ -408,8 +410,32 @@ class SyncClient {
 	private startHeartbeat(): void {
 		this.stopHeartbeat();
 		this.heartbeatTimer = setInterval(() => {
-			this.send({ type: 'ping' });
+			const sent = this.send({ type: 'ping' });
+			if (!sent) return;
+			// Arm a one-shot deadline; if the server does not pong within
+			// the heartbeat interval, treat the socket as a zombie and reconnect.
+			this.armPongDeadline();
 		}, this.config.heartbeatInterval);
+	}
+
+	private armPongDeadline(): void {
+		this.clearPongDeadline();
+		this.pongDeadlineTimer = setTimeout(() => {
+			this.pongDeadlineTimer = null;
+			logger.info('[SyncClient] Pong deadline exceeded — closing zombie socket');
+			try {
+				this.ws?.close(4000, 'pong-timeout');
+			} catch {
+				// onclose will schedule reconnect
+			}
+		}, this.config.heartbeatInterval);
+	}
+
+	private clearPongDeadline(): void {
+		if (this.pongDeadlineTimer) {
+			clearTimeout(this.pongDeadlineTimer);
+			this.pongDeadlineTimer = null;
+		}
 	}
 
 	/**
@@ -420,6 +446,7 @@ class SyncClient {
 			clearInterval(this.heartbeatTimer);
 			this.heartbeatTimer = null;
 		}
+		this.clearPongDeadline();
 	}
 
 	/**
