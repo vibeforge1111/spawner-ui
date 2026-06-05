@@ -22,9 +22,10 @@ import { extractTraceRef } from '$lib/server/trace-ref';
 import { logger } from '$lib/utils/logger';
 import { parseJsonOrFallback } from '$lib/utils/safe-json';
 
-import { writeFile, mkdir, appendFile, readFile } from 'fs/promises';
+import { mkdir, appendFile, readFile } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
+import { writeFileAtomic } from '$lib/server/atomic-write';
 
 const EVENTS_AUTH_COOKIE = 'spawner_events_api_key';
 const log = logger.scope('EventBridge');
@@ -251,7 +252,13 @@ async function storePRDResult(requestId: string, result: unknown): Promise<void>
 		await mkdir(resultsDir, { recursive: true });
 	}
 	const resultFile = resolveWithinBaseDir(resultsDir, `${requestId}.json`);
-	await writeFile(resultFile, JSON.stringify(storedResult, null, 2), 'utf-8');
+	// Atomic so the /api/prd-bridge/result poller (every 2s during the
+	// wait UI) can't read a truncated `${requestId}.json` and bail out
+	// with the JSON.parse 500 path. Sibling result-file writer at
+	// claude-auto-analysis.ts:236 already uses writeFileAtomic; this is
+	// the events-side writer that lands the same file from a different
+	// producer.
+	await writeFileAtomic(resultFile, JSON.stringify(storedResult, null, 2));
 	log.info(`Stored PRD result for polling: ${requestId}`);
 }
 
