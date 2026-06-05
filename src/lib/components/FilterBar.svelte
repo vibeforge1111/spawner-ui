@@ -66,6 +66,8 @@
 				class:text-text-tertiary={viewMode !== 'cards'}
 				class:hover:text-text-primary={viewMode !== 'cards'}
 				title="Card view"
+				aria-label="Card view"
+				aria-pressed={viewMode === 'cards'}
 			>
 				<Icon name="grid" size={14} />
 			</button>
@@ -77,6 +79,8 @@
 				class:text-text-tertiary={viewMode !== 'rows'}
 				class:hover:text-text-primary={viewMode !== 'rows'}
 				title="List view"
+				aria-label="List view"
+				aria-pressed={viewMode === 'rows'}
 			>
 				<Icon name="menu" size={14} />
 			</button>
@@ -89,7 +93,7 @@
 			<span class="text-xs font-mono text-text-tertiary">Filtering:</span>
 			<span class="inline-flex items-center gap-1 px-2 py-0.5 bg-accent-primary/10 border border-accent-primary/30 text-accent-primary text-xs font-mono">
 				{$filters.category}
-				<button onclick={() => setFilter('category', 'all')} class="hover:text-accent-primary/70">
+				<button onclick={() => setFilter('category', 'all')} class="hover:text-accent-primary/70" aria-label="Remove {$filters.category} category filter">
 					<Icon name="x" size={10} />
 				</button>
 			</span>
