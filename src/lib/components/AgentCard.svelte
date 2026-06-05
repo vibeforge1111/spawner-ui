@@ -27,10 +27,14 @@
 	class:opacity-50={agent.required && !selected}
 	onclick={onToggle}
 	disabled={agent.required}
+	aria-pressed={selected}
+	aria-label={agent.required
+		? `${agent.name} agent (required, always included)`
+		: `${selected ? 'Deselect' : 'Select'} ${agent.name} agent`}
 >
 	<div class="flex items-start gap-3">
 		<!-- Icon -->
-		<div class="text-2xl flex-shrink-0">{agent.icon}</div>
+		<div class="text-2xl flex-shrink-0" aria-hidden="true">{agent.icon}</div>
 
 		<!-- Content -->
 		<div class="flex-1 min-w-0">
