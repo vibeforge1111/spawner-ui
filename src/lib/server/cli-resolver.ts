@@ -17,7 +17,22 @@ function configuredCliPath(binaryName: SparkCliBinary): string | null {
 		if (value.includes('/') || value.includes('\\')) {
 			return existsSync(value) ? value : null;
 		}
-		return value;
+		// Bare name (no path separator): the env var is asking us to trust
+		// PATH resolution. Confirm the bare name actually resolves on PATH
+		// before returning it, otherwise resolveCliBinary returns a string
+		// that execFileSync will reject with ENOENT — and isCliBinaryAvailable
+		// will have already lied to the caller about availability.
+		const locator = process.platform === 'win32' ? 'where.exe' : 'which';
+		try {
+			execFileSync(locator, [value], {
+				stdio: ['ignore', 'ignore', 'ignore'],
+				windowsHide: true,
+				timeout: 5000
+			});
+			return value;
+		} catch {
+			return null;
+		}
 	}
 
 	return null;
