@@ -350,7 +350,7 @@
 								type="text"
 								bind:value={missionName}
 								placeholder="e.g., Build User Dashboard"
-								class="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm focus:border-violet-500 focus:outline-none"
+								class="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-base focus:border-violet-500 focus:outline-none"
 							/>
 						</div>
 
@@ -361,7 +361,7 @@
 								bind:value={missionDescription}
 								placeholder="What should be built?"
 								rows="2"
-								class="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm focus:border-violet-500 focus:outline-none resize-none"
+								class="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-base focus:border-violet-500 focus:outline-none resize-none"
 							></textarea>
 						</div>
 
@@ -373,7 +373,7 @@
 									type="text"
 									bind:value={projectPath}
 									placeholder="/path/to/project"
-									class="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm focus:border-violet-500 focus:outline-none"
+									class="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-base focus:border-violet-500 focus:outline-none"
 								/>
 							</div>
 							<div>
@@ -381,7 +381,7 @@
 								<select
 									id="project-type"
 									bind:value={projectType}
-									class="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm focus:border-violet-500 focus:outline-none"
+									class="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-base focus:border-violet-500 focus:outline-none"
 								>
 									<option value="saas">SaaS</option>
 									<option value="marketplace">Marketplace</option>
@@ -400,7 +400,7 @@
 								type="text"
 								bind:value={techStack}
 								placeholder="e.g., Next.js, Supabase, Tailwind"
-								class="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm focus:border-violet-500 focus:outline-none"
+								class="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-base focus:border-violet-500 focus:outline-none"
 							/>
 						</div>
 
@@ -411,7 +411,7 @@
 								bind:value={goals}
 								placeholder="What does success look like?"
 								rows="3"
-								class="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm focus:border-violet-500 focus:outline-none resize-none"
+								class="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-base focus:border-violet-500 focus:outline-none resize-none"
 							></textarea>
 						</div>
 
@@ -442,18 +442,18 @@
 									type="text"
 									bind:value={newTaskTitle}
 									placeholder="Task title"
-									class="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm focus:border-violet-500 focus:outline-none"
+									class="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-base focus:border-violet-500 focus:outline-none"
 								/>
 								<textarea
 									bind:value={newTaskDescription}
 									placeholder="Task description"
 									rows="2"
-									class="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm focus:border-violet-500 focus:outline-none resize-none"
+									class="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-base focus:border-violet-500 focus:outline-none resize-none"
 								></textarea>
 								<div class="flex gap-2">
 									<select
 										bind:value={newTaskAssignee}
-										class="flex-1 px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm focus:border-violet-500 focus:outline-none"
+										class="flex-1 px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-base focus:border-violet-500 focus:outline-none"
 									>
 										<option value="">Assign to agent...</option>
 										{#each agents as agent}
@@ -462,7 +462,7 @@
 									</select>
 									<select
 										bind:value={newTaskHandoffType}
-										class="px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm focus:border-violet-500 focus:outline-none"
+										class="px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-base focus:border-violet-500 focus:outline-none"
 									>
 										<option value="sequential">Sequential</option>
 										<option value="parallel">Parallel</option>
