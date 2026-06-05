@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { appendFile, readFile, writeFile, mkdir } from 'fs/promises';
+import { appendFile, readFile, mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join } from 'path';
 import { relayMissionControlEvent } from '$lib/server/mission-control-relay';
@@ -491,10 +491,11 @@ export const POST: RequestHandler = async (event) => {
 		};
 
 		const persistedLoad = storedCanvasLoad(load);
-		await writeFile(pendingLoadFile, JSON.stringify(persistedLoad, null, 2), 'utf-8');
-		await writeFile(lastLoadFile, JSON.stringify(persistedLoad, null, 2), 'utf-8');
-		await writeFile(archivedLoadFileForPipeline(load.pipelineId), JSON.stringify(persistedLoad, null, 2), 'utf-8');
-		await writeFile(archivedLoadFileForMission(resolvedMissionId), JSON.stringify(persistedLoad, null, 2), 'utf-8');
+		const persistedLoadJson = JSON.stringify(persistedLoad, null, 2);
+		await writeFileAtomic(pendingLoadFile, persistedLoadJson);
+		await writeFileAtomic(lastLoadFile, persistedLoadJson);
+		await writeFileAtomic(archivedLoadFileForPipeline(load.pipelineId), persistedLoadJson);
+		await writeFileAtomic(archivedLoadFileForMission(resolvedMissionId), persistedLoadJson);
 		await appendPrdTrace(requestId, 'canvas_load_materialized', {
 			missionId: resolvedMissionId,
 			...traceRefDetails(resolvedTraceRef),
@@ -531,7 +532,7 @@ export const POST: RequestHandler = async (event) => {
 			// this request.
 			const scopedPendingRequestFile = pendingRequestFileForRequest(spawnerDir, requestId);
 			if (existsSync(scopedPendingRequestFile)) {
-				await writeFile(scopedPendingRequestFile, updatedPendingRequest, 'utf-8');
+				await writeFileAtomic(scopedPendingRequestFile, updatedPendingRequest);
 			}
 			if (existsSync(pendingRequestFile)) {
 				try {
