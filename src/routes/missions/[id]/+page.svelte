@@ -222,12 +222,14 @@
 
 	function formatTime(dateStr: string): string {
 		const date = new Date(dateStr);
-		return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+		if (Number.isNaN(date.getTime())) return dateStr;
+		return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 	}
 
 	function formatDate(dateStr: string): string {
 		const date = new Date(dateStr);
-		return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+		if (Number.isNaN(date.getTime())) return dateStr;
+		return date.toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 	}
 
 	function copyPrompt() {
