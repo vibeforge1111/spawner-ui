@@ -34,15 +34,23 @@
 	let menuEl: HTMLDivElement;
 
 	onMount(() => {
-		// Adjust position if menu goes off screen
+		// Adjust position if menu goes off screen.
+		// Clamp to viewport edges with a small inset so the menu never lands
+		// half-off-screen on narrow viewports (e.g. menu width > tap x on a phone).
 		if (menuEl) {
 			const rect = menuEl.getBoundingClientRect();
+			const INSET = 8;
 			if (rect.right > window.innerWidth) {
-				menuEl.style.left = `${x - rect.width}px`;
+				menuEl.style.left = `${Math.max(INSET, x - rect.width)}px`;
 			}
 			if (rect.bottom > window.innerHeight) {
-				menuEl.style.top = `${y - rect.height}px`;
+				menuEl.style.top = `${Math.max(INSET, y - rect.height)}px`;
 			}
+			// Re-clamp in case the flipped position still overflows the left/top edge
+			// (happens when menu width exceeds available space on either side).
+			const after = menuEl.getBoundingClientRect();
+			if (after.left < 0) menuEl.style.left = `${INSET}px`;
+			if (after.top < 0) menuEl.style.top = `${INSET}px`;
 		}
 
 		// Close on click outside
