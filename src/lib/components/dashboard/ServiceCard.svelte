@@ -48,8 +48,9 @@
 		</div>
 		<button
 			onclick={(e) => { e.stopPropagation(); onRemove(); }}
-			class="opacity-0 group-hover:opacity-100 p-1 text-text-tertiary hover:text-red-400 transition-all"
+			class="p-1 text-text-tertiary hover:text-red-400 transition-all [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
 			title="Remove service"
+			aria-label="Remove service"
 		>
 			<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
