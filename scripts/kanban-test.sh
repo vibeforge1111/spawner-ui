@@ -29,7 +29,7 @@ else
 	BOLD=''; DIM=''; RED=''; GREEN=''; YELLOW=''; CYAN=''; RESET=''
 fi
 
-json() { python -c "import sys,json; d=json.load(sys.stdin); $1"; }
+json() { python3 -c "import sys,json; d=json.load(sys.stdin); $1"; }
 
 # --- Canned tests. Each is: NAME | GOAL | PROVIDERS(comma or empty) ---
 TEST_NAMES=(trivial medium long-title only-zai only-minimax missing-goal)
@@ -75,10 +75,10 @@ dispatch() {
 	local body
 	if [ -n "$providers" ]; then
 		local prov_json
-		prov_json=$(python -c "import json,sys; print(json.dumps(sys.argv[1].split(',')))" "$providers")
-		body=$(python -c "import json,sys; print(json.dumps({'goal': sys.argv[1], 'providers': json.loads(sys.argv[2]), 'userId': 'kanban-test', 'requestId': sys.argv[3]}))" "$goal" "$prov_json" "$request_id")
+		prov_json=$(python3 -c "import json,sys; print(json.dumps(sys.argv[1].split(',')))" "$providers")
+		body=$(python3 -c "import json,sys; print(json.dumps({'goal': sys.argv[1], 'providers': json.loads(sys.argv[2]), 'userId': 'kanban-test', 'requestId': sys.argv[3]}))" "$goal" "$prov_json" "$request_id")
 	else
-		body=$(python -c "import json,sys; print(json.dumps({'goal': sys.argv[1], 'userId': 'kanban-test', 'requestId': sys.argv[2]}))" "$goal" "$request_id")
+		body=$(python3 -c "import json,sys; print(json.dumps({'goal': sys.argv[1], 'userId': 'kanban-test', 'requestId': sys.argv[2]}))" "$goal" "$request_id")
 	fi
 
 	local resp
@@ -133,7 +133,7 @@ watch_mission() {
 }
 
 board() {
-	curl -s "$BASE/api/mission-control/board" | python -c "
+	curl -s "$BASE/api/mission-control/board" | python3 -c "
 import json, sys
 d = json.load(sys.stdin)
 b = d.get('board', {})
@@ -153,7 +153,7 @@ for title, entries in cols:
 
 status() {
 	local id="$1"
-	curl -s "$BASE/api/mission-control/status?missionId=$id" | python -c "
+	curl -s "$BASE/api/mission-control/status?missionId=$id" | python3 -c "
 import json, sys
 d = json.load(sys.stdin)
 s = d.get('snapshot', {})
