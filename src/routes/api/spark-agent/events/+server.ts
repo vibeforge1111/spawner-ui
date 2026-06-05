@@ -97,6 +97,7 @@ export const GET: RequestHandler = async (event) => {
 		headers: {
 			'Content-Type': 'text/event-stream',
 			'Cache-Control': 'no-cache',
+			'X-Accel-Buffering': 'no',
 			Connection: 'keep-alive'
 		}
 	});
