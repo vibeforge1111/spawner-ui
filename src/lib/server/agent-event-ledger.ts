@@ -194,7 +194,8 @@ export function readRecentAgentEvents(
 				.filter(Boolean)
 				.map((line) => {
 					try {
-						return JSON.parse(line) as AgentEventLedgerEntry;
+						const parsed = JSON.parse(line) as unknown;
+						return normalizeAgentEventLedgerEntry(parsed);
 					} catch {
 						warnMalformedJsonlLine('agent-events', line);
 						return null;
@@ -236,6 +237,45 @@ function readFinalAnswerGateAuditEvents(): AgentEventLedgerEntry[] {
 
 function warnMalformedJsonlLine(source: string, line: string): void {
 	console.warn(`[agent-event-ledger] skipped malformed ${source} JSONL line (${line.length} chars)`);
+}
+
+function normalizeAgentEventLedgerEntry(value: unknown): AgentEventLedgerEntry | null {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		warnMalformedJsonlLine('agent-events', 'non-object payload');
+		return null;
+	}
+	const record = value as Record<string, unknown>;
+	const sources = Array.isArray(record.sources) ? (record.sources as AgentSourceRef[]) : [];
+	const assumptions = Array.isArray(record.assumptions) ? (record.assumptions as string[]) : [];
+	const blockers = Array.isArray(record.blockers) ? (record.blockers as string[]) : [];
+	const changed = Array.isArray(record.changed) ? (record.changed as string[]) : [];
+	const facts = record.facts && typeof record.facts === 'object' && !Array.isArray(record.facts)
+		? (record.facts as Record<string, unknown>)
+		: {};
+	const memoryCandidate = record.memory_candidate && typeof record.memory_candidate === 'object' && !Array.isArray(record.memory_candidate)
+		? (record.memory_candidate as Record<string, unknown>)
+		: null;
+	return {
+		schema_version: AGENT_EVENT_SCHEMA_VERSION,
+		event_type: (record.event_type as AgentEventType) ?? 'task_intent_detected',
+		summary: typeof record.summary === 'string' ? record.summary : '',
+		user_intent: typeof record.user_intent === 'string' ? record.user_intent : null,
+		selected_route: typeof record.selected_route === 'string' ? record.selected_route : null,
+		route_confidence: typeof record.route_confidence === 'string' ? record.route_confidence : null,
+		facts,
+		sources,
+		assumptions,
+		blockers,
+		changed,
+		memory_candidate: memoryCandidate,
+		event_id: typeof record.event_id === 'string' ? record.event_id : '',
+		component: AGENT_EVENT_COMPONENT,
+		created_at: typeof record.created_at === 'string' ? record.created_at : new Date(0).toISOString(),
+		request_id: typeof record.request_id === 'string' ? record.request_id : null,
+		trace_ref: typeof record.trace_ref === 'string' ? record.trace_ref : null,
+		session_id: typeof record.session_id === 'string' ? record.session_id : null,
+		actor_id: typeof record.actor_id === 'string' ? record.actor_id : null
+	};
 }
 
 function finalAnswerAuditToAgentEvent(record: Record<string, unknown>, index: number): AgentEventLedgerEntry {
