@@ -43,9 +43,12 @@
 	class="{variantClasses[variant]} {sizeClasses[size]} {className}"
 	class:opacity-50={disabled || loading}
 	class:cursor-not-allowed={disabled || loading}
+	aria-busy={loading ? 'true' : undefined}
+	aria-disabled={disabled || loading ? 'true' : undefined}
 >
 	{#if loading}
-		<span class="inline-block w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></span>
+		<span class="inline-block w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" aria-hidden="true"></span>
+		<span class="sr-only">Loading</span>
 	{/if}
 	{@render children()}
 </button>
