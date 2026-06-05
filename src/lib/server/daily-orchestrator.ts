@@ -75,7 +75,7 @@ export function buildDailyTopMissions(missions: Mission[], limit = 3): DailyTopM
 				reason: scored.reason
 			};
 		})
-		.sort((a, b) => b.score - a.score)
+		.sort((a, b) => b.score - a.score || a.id.localeCompare(b.id))
 		.slice(0, limit);
 }
 
