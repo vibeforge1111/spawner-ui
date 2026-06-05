@@ -26,6 +26,7 @@
 
 	function formatTime(dateStr: string | Date): string {
 		const date = typeof dateStr === 'string' ? new Date(dateStr) : dateStr;
+		if (Number.isNaN(date.getTime())) return typeof dateStr === 'string' ? dateStr : '';
 		return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 	}
 
