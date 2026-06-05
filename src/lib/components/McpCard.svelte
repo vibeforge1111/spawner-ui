@@ -24,10 +24,15 @@
 		: 'bg-bg-secondary border-surface-border hover:border-text-tertiary'}"
 >
 	<!-- Header -->
-	<button class="w-full text-left p-4" onclick={onToggle}>
+	<button
+		class="w-full text-left p-4"
+		onclick={onToggle}
+		aria-pressed={selected}
+		aria-label={`${selected ? 'Deselect' : 'Select'} ${mcp.name} MCP`}
+	>
 		<div class="flex items-start gap-3">
 			<!-- Icon -->
-			<div class="text-2xl flex-shrink-0">{mcp.icon}</div>
+			<div class="text-2xl flex-shrink-0" aria-hidden="true">{mcp.icon}</div>
 
 			<!-- Content -->
 			<div class="flex-1 min-w-0">
@@ -64,6 +69,8 @@
 			<button
 				class="w-full px-4 py-2 flex items-center justify-between text-sm text-text-secondary hover:text-text-primary transition-colors"
 				onclick={() => (showConfig = !showConfig)}
+				aria-expanded={showConfig}
+				aria-label={`${showConfig ? 'Hide' : 'Show'} ${mcp.name} configuration`}
 			>
 				<span class="font-mono text-xs">{mcp.installCommand}</span>
 				<Icon name={showConfig ? 'chevron-up' : 'chevron-down'} size={14} />
