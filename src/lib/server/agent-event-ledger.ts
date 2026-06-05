@@ -203,10 +203,14 @@ export function readRecentAgentEvents(
 				.filter((entry): entry is AgentEventLedgerEntry => Boolean(entry))
 		: [];
 	const finalAnswerEntries = readFinalAnswerGateAuditEvents();
+	const createdAtMs = (entry: AgentEventLedgerEntry): number => {
+		const parsed = Date.parse(entry.created_at);
+		return Number.isFinite(parsed) ? parsed : 0;
+	};
 	return [...ledgerEntries, ...finalAnswerEntries]
 		.filter((entry) => !requestId || entry.request_id === requestId)
 		.filter((entry) => !sessionId || entry.session_id === sessionId)
-		.sort((a, b) => (Date.parse(a.created_at) || 0) - (Date.parse(b.created_at) || 0))
+		.sort((a, b) => createdAtMs(a) - createdAtMs(b))
 		.slice(-limit)
 		.reverse();
 }
