@@ -608,15 +608,20 @@ function mapEventTypeToBoardStatus(eventType: string): MissionControlBoardStatus
 	}
 }
 
+// Hoisted to module scope so recordLifecycleTimestamps (called once per
+// relayState.recent entry inside getMissionControlBoard) doesn't allocate
+// a fresh 6-element array per call.
+const MISSION_START_EVENT_TYPES = new Set<string>([
+	'mission_started',
+	'mission_resumed',
+	'dispatch_started',
+	'task_started',
+	'task_progress',
+	'progress'
+]);
+
 function isMissionStartEvent(eventType: string): boolean {
-	return [
-		'mission_started',
-		'mission_resumed',
-		'dispatch_started',
-		'task_started',
-		'task_progress',
-		'progress'
-	].includes(eventType);
+	return MISSION_START_EVENT_TYPES.has(eventType);
 }
 
 function isExecutionStartEvent(eventType: string): boolean {
