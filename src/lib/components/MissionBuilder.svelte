@@ -172,6 +172,13 @@
 				return '*';
 		}
 	}
+
+	function formatLogTime(value: string | null | undefined): string {
+		if (!value) return '';
+		const date = new Date(value);
+		if (Number.isNaN(date.getTime())) return value;
+		return date.toLocaleTimeString();
+	}
 </script>
 
 <div class="space-y-6">
@@ -322,7 +329,7 @@
 								<div class="space-y-1 max-h-48 overflow-y-auto bg-zinc-800/50 rounded-lg p-2">
 									{#each $missionLogs as log}
 										<div class="text-xs font-mono flex gap-2">
-											<span class="text-zinc-600">{new Date(log.created_at).toLocaleTimeString()}</span>
+											<span class="text-zinc-600">{formatLogTime(log.created_at)}</span>
 											<span class="w-4">{getLogTypeIcon(log.type)}</span>
 											<span class="{log.type === 'error' ? 'text-red-400' : 'text-zinc-300'}">{log.message}</span>
 										</div>
