@@ -23,7 +23,12 @@ interface StreamChunkChoice {
 interface StreamChunk {
 	id?: string;
 	choices?: StreamChunkChoice[];
-	usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
+	usage?: {
+		prompt_tokens?: number;
+		completion_tokens?: number;
+		total_tokens?: number;
+		prompt_tokens_details?: { cached_tokens?: number };
+	};
 }
 
 const MAX_RETRIES = 3;
@@ -65,7 +70,8 @@ export async function executeOpenAICompatRequest(
 					model: provider.model,
 					messages,
 					stream: streaming,
-					max_tokens: 16384
+					max_tokens: 16384,
+					...(streaming ? { stream_options: { include_usage: true } } : {})
 				}),
 				signal
 			});
@@ -164,10 +170,12 @@ async function handleStreamingResponse(
 						fullContent += content;
 					}
 					if (chunk.usage) {
+						const cachedPrompt = chunk.usage.prompt_tokens_details?.cached_tokens;
 						tokenUsage = {
 							prompt: chunk.usage.prompt_tokens || 0,
 							completion: chunk.usage.completion_tokens || 0,
-							total: chunk.usage.total_tokens || 0
+							total: chunk.usage.total_tokens || 0,
+							...(typeof cachedPrompt === 'number' ? { cachedPrompt } : {})
 						};
 					}
 				} catch {
@@ -252,11 +260,13 @@ async function handleNonStreamingResponse(
 
 	const content = data.choices?.[0]?.message?.content || '';
 	const usage = data.usage;
+	const cachedPrompt = usage?.prompt_tokens_details?.cached_tokens;
 	const tokenUsage = usage
 		? {
 				prompt: usage.prompt_tokens || 0,
 				completion: usage.completion_tokens || 0,
-				total: usage.total_tokens || 0
+				total: usage.total_tokens || 0,
+				...(typeof cachedPrompt === 'number' ? { cachedPrompt } : {})
 			}
 		: undefined;
 
