@@ -146,6 +146,7 @@ export function calculateAverageResponseTime(checks: HealthCheck[]): number {
  */
 export class HealthCheckerManager {
 	private intervals: Map<string, ReturnType<typeof setInterval>> = new Map();
+	private intervalMs: Map<string, number> = new Map();
 	private onCheck: ((serviceId: string, result: CheckResult) => void) | null = null;
 
 	/**
@@ -166,15 +167,20 @@ export class HealthCheckerManager {
 			const result = await checkServiceHealth(service.url);
 			this.onCheck?.(service.id, result);
 
-			// Adjust interval based on new status (adaptive polling)
+			// Adjust interval based on new status (adaptive polling). Only swap
+			// the underlying interval when the cadence actually changes; the
+			// previous implementation rebuilt the timer on every poll cycle even
+			// when status was steady, churning clearInterval + setInterval each
+			// tick for no behavior change.
 			const newInterval = getPollingInterval(result.status, config);
 			const currentInterval = this.intervals.get(service.id);
+			const currentMs = this.intervalMs.get(service.id);
 
-			// If interval needs to change, restart with new interval
-			if (currentInterval) {
+			if (currentInterval && currentMs !== newInterval) {
 				this.stopPolling(service.id);
 				const intervalId = setInterval(poll, newInterval);
 				this.intervals.set(service.id, intervalId);
+				this.intervalMs.set(service.id, newInterval);
 			}
 		};
 
@@ -185,6 +191,7 @@ export class HealthCheckerManager {
 		const interval = getPollingInterval(service.status, config);
 		const intervalId = setInterval(poll, interval);
 		this.intervals.set(service.id, intervalId);
+		this.intervalMs.set(service.id, interval);
 	}
 
 	/**
@@ -196,6 +203,7 @@ export class HealthCheckerManager {
 			clearInterval(intervalId);
 			this.intervals.delete(serviceId);
 		}
+		this.intervalMs.delete(serviceId);
 	}
 
 	/**
