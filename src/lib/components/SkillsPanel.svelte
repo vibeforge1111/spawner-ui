@@ -11,6 +11,7 @@
 	let allSkillsLoadError = $state<string | null>(null);
 	let allSkillsList = $state<Skill[]>([]);
 	let currentNodes = $state<CanvasNode[]>([]);
+	let draggingSkillId = $state<string | null>(null);
 
 	// Subscribe to canvas nodes
 	$effect(() => {
@@ -99,6 +100,11 @@
 		if (!e.dataTransfer) return;
 		e.dataTransfer.setData('application/json', JSON.stringify(skill));
 		e.dataTransfer.effectAllowed = 'copy';
+		draggingSkillId = skill.id;
+	}
+
+	function handleDragEnd() {
+		draggingSkillId = null;
 	}
 
 	function handleAddToCanvas(skill: Skill) {
@@ -150,10 +156,12 @@
 					<div class="pb-2">
 						{#each categorySkills as skill}
 							{@const inPipeline = isInPipeline(skill.id)}
+							{@const isDragging = draggingSkillId === skill.id}
 							<div
-								class="skill-item mx-2 mb-1 p-2 bg-bg-primary border rounded-md transition-colors {inPipeline ? 'border-accent-mid bg-accent-subtle' : 'border-surface-border hover:border-accent-primary cursor-grab'}"
+								class="skill-item mx-2 mb-1 p-2 bg-bg-primary border rounded-md transition-all {inPipeline ? 'border-accent-mid bg-accent-subtle' : 'border-surface-border hover:border-accent-primary cursor-grab'} {isDragging ? 'opacity-50 scale-[0.98] border-accent-primary shadow-md' : ''}"
 								draggable={!inPipeline}
 								ondragstart={(e) => !inPipeline && handleDragStart(e, skill)}
+								ondragend={handleDragEnd}
 								role="button"
 								tabindex="0"
 							>
