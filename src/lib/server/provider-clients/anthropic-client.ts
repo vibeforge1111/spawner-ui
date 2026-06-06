@@ -150,16 +150,22 @@ export async function executeAnthropicRequest(
 		}
 	}
 
+	const failureMessage = lastError || `${provider.label} failed after ${MAX_RETRIES} retries`;
 	onEvent(
-		createBridgeEvent('error', options, {
+		createBridgeEvent('task_failed', options, {
 			message: `${provider.label} failed after ${MAX_RETRIES} attempts: ${lastError}`,
-			data: { error: lastError }
+			data: {
+				success: false,
+				error: failureMessage,
+				provider: provider.id,
+				providerLabel: provider.label
+			}
 		})
 	);
 
 	return {
 		success: false,
-		error: lastError || `${provider.label} failed after ${MAX_RETRIES} retries`,
+		error: failureMessage,
 		durationMs: Date.now() - startTime
 	};
 }
