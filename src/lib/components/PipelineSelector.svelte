@@ -35,6 +35,14 @@
 	let fileInputEl = $state<HTMLInputElement>();
 	let renameOpenTimer: ReturnType<typeof setTimeout> | null = null;
 	let renameFocusTimer: ReturnType<typeof setTimeout> | null = null;
+	let nowTick = $state(Date.now());
+
+	// Keep relative timestamps fresh while the dropdown is open
+	$effect(() => {
+		if (!isOpen) return;
+		const id = setInterval(() => { nowTick = Date.now(); }, 60_000);
+		return () => clearInterval(id);
+	});
 
 	// Get current values from stores
 	let currentPipelines = $state<PipelineMetadata[]>([]);
@@ -176,11 +184,10 @@
 		}
 	}
 
-	function formatDate(dateStr: string): string {
+	function formatDate(dateStr: string, ref: number = nowTick): string {
 		const date = new Date(dateStr);
 		if (Number.isNaN(date.getTime())) return dateStr;
-		const now = new Date();
-		const diffMs = now.getTime() - date.getTime();
+		const diffMs = ref - date.getTime();
 		const diffMins = Math.floor(diffMs / 60000);
 		const diffHours = Math.floor(diffMs / 3600000);
 		const diffDays = Math.floor(diffMs / 86400000);
@@ -293,7 +300,7 @@
 										{pipeline.nodeCount} nodes
 									</span>
 									<span class="text-text-quaternary">|</span>
-									<span>{formatDate(pipeline.updatedAt)}</span>
+									<span>{formatDate(pipeline.updatedAt, nowTick)}</span>
 								</div>
 							</div>
 
