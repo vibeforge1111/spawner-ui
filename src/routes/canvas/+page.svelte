@@ -1218,6 +1218,15 @@ import { get } from 'svelte/store';
 	});
 
 	function handleKeydown(e: KeyboardEvent) {
+		// Escape closes open modals first, even when typing in their inputs.
+		// Without this, focus inside the mission-name field swallows Escape entirely
+		// and the operator's only dismiss path is hunting for the small X.
+		if (e.key === 'Escape') {
+			if (showMissionExport) { closeMissionExport(); return; }
+			if (showClearConfirm) { cancelClear(); return; }
+			if (showSearch) { toggleSearch(); return; }
+		}
+
 		// Don't handle shortcuts if typing in an input
 		if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
 			return;
