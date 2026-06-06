@@ -982,7 +982,10 @@
 										bind:value={quickAddFeedback}
 										onkeydown={(e) => {
 											if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') handleQuickAdd();
-											if (e.key === 'Escape') resetQuickAdd();
+											if (e.key === 'Escape') {
+												if (quickAddFeedback.trim() && !confirm('Discard iteration brief?')) return;
+												resetQuickAdd();
+											}
 										}}
 										class="w-full resize-none rounded-md border border-surface-border bg-bg-primary px-3 py-2 font-mono text-sm leading-6 text-text-primary placeholder:text-text-tertiary focus:border-accent-primary focus:outline-none"
 									></textarea>
