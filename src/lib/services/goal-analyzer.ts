@@ -208,7 +208,7 @@ export function extractKeywords(input: string): string[] {
 
 	// Sort by frequency and return unique
 	return [...new Set(words)]
-		.sort((a, b) => (frequency[b] || 0) - (frequency[a] || 0))
+		.sort((a, b) => (frequency[b] || 0) - (frequency[a] || 0) || a.localeCompare(b))
 		.slice(0, 20);
 }
 
