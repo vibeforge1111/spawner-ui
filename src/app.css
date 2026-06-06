@@ -306,6 +306,10 @@
     @apply inline-flex items-center justify-center gap-2 font-medium transition-all duration-fast rounded-lg;
   }
 
+  .btn:disabled {
+    @apply opacity-50 cursor-not-allowed;
+  }
+
   .btn-primary {
     @apply btn bg-accent-primary text-bg-primary hover:bg-accent-primary-hover active:scale-[0.98];
   }
