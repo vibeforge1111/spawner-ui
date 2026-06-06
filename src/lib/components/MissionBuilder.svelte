@@ -116,7 +116,8 @@
 	}
 
 	async function handleDeleteMission(missionId: string) {
-		if (confirm('Are you sure you want to delete this mission?')) {
+		const name = $currentMission?.name?.trim() || 'this mission';
+		if (confirm(`Delete "${name}"? This cannot be undone.`)) {
 			await deleteMission(missionId);
 		}
 	}
