@@ -1409,7 +1409,7 @@
 						</svg>
 					</button>
 				{/if}
-				<button onclick={handleClose} class="p-2 rounded-md text-text-tertiary hover:text-text-primary hover:bg-surface transition-all" disabled={isRunning} aria-label="Close execution panel">
+				<button onclick={handleClose} class="p-2 rounded-md text-text-tertiary hover:text-text-primary hover:bg-surface transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-text-tertiary disabled:hover:bg-transparent" disabled={isRunning} aria-label="Close execution panel" title={isRunning ? 'Cancel or pause the mission before closing' : 'Close execution panel'}>
 					<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
 					</svg>
