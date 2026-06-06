@@ -215,9 +215,14 @@ export async function executeCodexCliRequest(
 		child.on('error', (err) => {
 			releaseAbortListener();
 			onEvent(
-				createBridgeEvent('error', options, {
+				createBridgeEvent('task_failed', options, {
 					message: `${provider.label} process error: ${err.message}`,
-					data: { error: err.message }
+					data: {
+						success: false,
+						error: err.message,
+						provider: provider.id,
+						providerLabel: provider.label
+					}
 				})
 			);
 			resolve({
@@ -250,9 +255,16 @@ export async function executeCodexCliRequest(
 				);
 			} else {
 				onEvent(
-					createBridgeEvent('error', options, {
+					createBridgeEvent('task_failed', options, {
 						message: `${provider.label} exited with code ${code}: ${stderr.slice(0, 500)}`,
-						data: { exitCode: code, stderr: stderr.slice(0, 500) }
+						data: {
+							success: false,
+							error: `Exit code ${code}: ${stderr.slice(0, 500)}`,
+							exitCode: code,
+							stderr: stderr.slice(0, 500),
+							provider: provider.id,
+							providerLabel: provider.label
+						}
 					})
 				);
 			}
