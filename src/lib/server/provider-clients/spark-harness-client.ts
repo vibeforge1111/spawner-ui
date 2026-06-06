@@ -556,9 +556,23 @@ async function waitForSparkTask(input: {
 		progress = Math.min(90, progress + 3);
 	}
 
+	const timeoutError = `Spark task ${taskId} timed out after ${Math.round(DEFAULT_TIMEOUT_MS / 1000)}s`;
+	onEvent(
+		createBridgeEvent('task_failed', { provider, missionId, onEvent, signal }, {
+			message: `${provider.label}: ${timeoutError}`,
+			data: {
+				success: false,
+				error: timeoutError,
+				provider: provider.id,
+				providerLabel: provider.label,
+				sparkTaskId: taskId,
+				sparkStatus: 'timed_out'
+			}
+		})
+	);
 	return {
 		success: false,
-		error: `Spark task ${taskId} timed out after ${Math.round(DEFAULT_TIMEOUT_MS / 1000)}s`,
+		error: timeoutError,
 		durationMs: Date.now() - startedAt
 	};
 }
