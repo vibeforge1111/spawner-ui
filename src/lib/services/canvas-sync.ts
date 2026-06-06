@@ -114,6 +114,8 @@ export interface WorkflowTemplate {
 let isInitialized = false;
 let unsubscribe: (() => void) | null = null;
 let isProcessing = false; // Prevent duplicate event processing
+let initialBroadcastTimer: ReturnType<typeof setTimeout> | null = null;
+const processingResetTimers = new Set<ReturnType<typeof setTimeout>>();
 
 /**
  * Initialize canvas sync - call this from the canvas page
@@ -139,8 +141,12 @@ export function initCanvasSync(): () => void {
 	syncClient.connect().then((connected) => {
 		if (connected) {
 			log.debug(' Connected to sync server');
-			// Broadcast initial canvas state once connected
-			setTimeout(() => {
+			// Broadcast initial canvas state once connected. Track the handle so
+			// cleanup can dispose it - otherwise a fast unmount fires the
+			// broadcast after syncClient.disconnect() and logs "not connected".
+			initialBroadcastTimer = setTimeout(() => {
+				initialBroadcastTimer = null;
+				if (!isInitialized) return;
 				broadcastCanvasState();
 			}, 500);
 		} else {
@@ -158,6 +164,17 @@ export function initCanvasSync(): () => void {
 			unsubscribe();
 			unsubscribe = null;
 		}
+		if (initialBroadcastTimer) {
+			clearTimeout(initialBroadcastTimer);
+			initialBroadcastTimer = null;
+		}
+		// Dispose pending isProcessing-reset timers so trailing callbacks do
+		// not flip module-level state after a fresh re-init.
+		for (const timer of processingResetTimers) {
+			clearTimeout(timer);
+		}
+		processingResetTimers.clear();
+		isProcessing = false;
 		syncClient.disconnect();
 		isInitialized = false;
 	};
@@ -252,8 +269,14 @@ async function handleSyncEvent(event: SyncEvent): Promise<void> {
 		log.error(' Error handling event:', error);
 		broadcastError(error instanceof Error ? error.message : 'Unknown error');
 	} finally {
-		// Reset processing flag after a short delay to debounce duplicate events
-		setTimeout(() => { isProcessing = false; }, 100);
+		// Reset processing flag after a short delay to debounce duplicate events.
+		// Track the handle so cleanup can dispose pending resets and prevent a
+		// trailing callback from flipping module state after a fresh re-init.
+		const resetTimer: ReturnType<typeof setTimeout> = setTimeout(() => {
+			processingResetTimers.delete(resetTimer);
+			isProcessing = false;
+		}, 100);
+		processingResetTimers.add(resetTimer);
 	}
 }
 
