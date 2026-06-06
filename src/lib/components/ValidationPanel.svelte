@@ -166,7 +166,7 @@
 					<button
 						onclick={runMcpValidation}
 						disabled={loadingMcp}
-						class="mt-3 w-full px-3 py-2 text-xs font-mono border border-accent-primary/50 text-accent-primary hover:bg-accent-primary/10 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+						class="mt-3 w-full px-3 py-2 text-xs font-mono border border-accent-primary/50 text-accent-primary hover:bg-accent-primary/10 transition-all disabled:opacity-50 disabled:cursor-wait flex items-center justify-center gap-2"
 					>
 						{#if loadingMcp}
 							<div class="w-3 h-3 border-2 border-accent-primary border-t-transparent rounded-full animate-spin"></div>
