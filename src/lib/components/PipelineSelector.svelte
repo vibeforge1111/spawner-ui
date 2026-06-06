@@ -143,10 +143,13 @@
 	});
 
 	function commitRename() {
-		if (isRenaming && renameValue.trim()) {
+		if (!isRenaming) return;
+		if (renameValue.trim()) {
 			renamePipeline(isRenaming, renameValue.trim());
+			isRenaming = null;
+		} else {
+			setTimeout(() => renameInputEl?.focus(), 0);
 		}
-		isRenaming = null;
 	}
 
 	function handleRenameKeydown(e: KeyboardEvent) {
