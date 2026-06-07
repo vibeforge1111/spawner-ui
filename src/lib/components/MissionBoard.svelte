@@ -1104,7 +1104,7 @@
 					{ title: 'Completed', items: done, empty: 'No history yet' }
 				] as col}
 					<section class="flex flex-col min-h-[320px]">
-						<div class="sticky top-0 z-10 flex items-center justify-between gap-2 px-1 py-4 mb-1 bg-bg-primary/90 backdrop-blur-sm border-b border-surface-border">
+						<div class="sticky top-[52px] z-10 flex items-center justify-between gap-2 px-1 py-4 mb-1 bg-bg-primary/90 backdrop-blur-sm border-b border-surface-border">
 							<div class="flex items-center gap-2.5">
 								<span class="w-2 h-2 rounded-full {columnDot(col.title)}"></span>
 								<span class="font-mono text-xs font-semibold text-text-bright tracking-widest uppercase">{col.title}</span>
