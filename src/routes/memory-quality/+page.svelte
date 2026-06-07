@@ -190,7 +190,7 @@
 				</div>
 				<div class="mt-2 bg-bg-primary p-2">
 					<p class="font-mono text-xs text-text-tertiary">slowest recent recall</p>
-					<p class="mt-1 text-sm">{aggregates.latency.slowest?.latencyMs ?? 0}ms</p>
+					<p class="mt-1 text-sm">{aggregates.latency.slowest ? `${aggregates.latency.slowest.latencyMs}ms` : '—'}</p>
 					<p class="mt-1 line-clamp-2 text-xs text-text-secondary">{aggregates.latency.slowest?.query ?? 'No recall events yet.'}</p>
 				</div>
 			</section>
