@@ -1811,7 +1811,7 @@ import { get } from 'svelte/store';
 		<div class="absolute inset-0 bg-black/60" onclick={closeMissionExport} role="presentation"></div>
 
 		<!-- Modal -->
-		<div class="relative w-full max-w-md bg-bg-secondary border border-surface-border rounded-lg shadow-xl overflow-hidden">
+		<div class="relative w-full max-w-md max-h-[90dvh] overflow-y-auto overscroll-contain bg-bg-secondary border border-surface-border rounded-lg shadow-xl">
 			<div class="p-4 border-b border-surface-border flex items-center justify-between">
 				<h2 class="text-lg font-medium text-text-primary">Export to Mission</h2>
 				<button onclick={closeMissionExport} class="text-text-tertiary hover:text-text-secondary" aria-label="Close export dialog">
