@@ -18,12 +18,22 @@
 		}
 	}
 
+	function handleKeydown(event: KeyboardEvent) {
+		if (event.key === 'Escape') {
+			showDropdown = false;
+		}
+	}
+
 	$effect(() => {
 		if (!showDropdown) {
 			return;
 		}
 		document.addEventListener('click', handleClickOutside);
-		return () => document.removeEventListener('click', handleClickOutside);
+		document.addEventListener('keydown', handleKeydown);
+		return () => {
+			document.removeEventListener('click', handleClickOutside);
+			document.removeEventListener('keydown', handleKeydown);
+		};
 	});
 
 	const statusConfig = {
@@ -47,9 +57,9 @@
 					? 'border-status-error/30 bg-status-error-bg text-status-error'
 					: 'border-surface-border bg-bg-secondary text-text-secondary hover:bg-surface-hover'}"
 		onclick={toggleDropdown}
-		aria-haspopup="menu"
 		aria-expanded={showDropdown}
-		aria-label={`MCP server: ${status.text}`}
+		aria-haspopup="dialog"
+		aria-label={`MCP server status: ${status.text}${$mcpState.status === 'connected' ? `, ${$mcpState.tools.length} tools available` : ''}`}
 	>
 		<div class="w-1.5 h-1.5 {status.color} {status.pulse ? 'animate-pulse' : ''}" aria-hidden="true"></div>
 		<span class="text-xs font-medium">MCP</span>
@@ -60,7 +70,7 @@
 
 	<!-- Dropdown -->
 	{#if showDropdown}
-		<div class="absolute right-0 top-full mt-1 w-72 bg-bg-secondary border border-surface-border shadow-lg z-50 animate-fade-in">
+		<div class="absolute right-0 top-full mt-1 w-72 bg-bg-secondary border border-surface-border shadow-lg z-50 animate-fade-in" role="dialog" aria-label="MCP server connection details">
 			<!-- Header -->
 			<div class="flex items-center justify-between px-4 py-3 border-b border-surface-border">
 				<span class="text-sm font-medium text-text-primary">MCP Server</span>
