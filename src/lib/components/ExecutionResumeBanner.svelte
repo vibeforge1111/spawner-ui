@@ -17,7 +17,7 @@
 	let { mission, onContinue, onDismiss }: Props = $props();
 </script>
 
-<div class="p-3 bg-blue-500/10 border-b border-blue-500/30" role="status" aria-label="Resumable mission found">
+<div class="p-3 bg-blue-500/10 border-b border-blue-500/30" role="status" aria-live="polite" aria-label="Resumable mission found">
 	<div class="flex items-center justify-between">
 		<div class="flex items-center gap-3">
 			<div class="w-8 h-8 bg-blue-500/20 border border-blue-500/30 flex items-center justify-center" aria-hidden="true">
@@ -28,7 +28,7 @@
 			<div>
 				<p class="text-sm font-medium text-text-primary">Previous Mission Found</p>
 				<p class="text-xs text-text-secondary">
-					<span class="font-mono text-blue-400">{mission.name}</span>
+					<span class="font-mono text-blue-400 truncate max-w-[24ch] inline-block align-bottom" title={mission.name}>{mission.name}</span>
 					 - {mission.progress}% complete
 					{#if mission.status === 'paused'}
 						<span class="ml-1 text-blue-400">(Paused)</span>
@@ -42,12 +42,14 @@
 			<button
 				onclick={onContinue}
 				class="px-3 py-1.5 text-xs font-mono bg-blue-500 text-white hover:bg-blue-600 transition-all"
+				aria-label={`Continue mission ${mission.name}`}
 			>
 				Continue
 			</button>
 			<button
 				onclick={onDismiss}
 				class="px-3 py-1.5 text-xs font-mono text-text-secondary border border-surface-border hover:border-text-tertiary rounded-md transition-all"
+				aria-label={`Dismiss resume prompt for ${mission.name}`}
 			>
 				Dismiss
 			</button>
