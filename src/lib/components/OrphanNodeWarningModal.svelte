@@ -19,9 +19,9 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-<div class="fixed inset-0 flex items-center justify-center z-[60]" role="dialog" aria-modal="true" aria-label="Orphan node warning">
+<div class="fixed inset-0 flex items-center justify-center z-[60] overflow-y-auto overscroll-contain p-4" role="dialog" aria-modal="true" aria-label="Orphan node warning">
 	<button class="absolute inset-0 bg-black/60" onclick={onDismiss} aria-label="Close orphan warning"></button>
-	<div class="relative bg-bg-secondary border border-surface-border w-full max-w-md max-h-[90dvh] overflow-y-auto overscroll-contain p-6">
+	<div class="relative bg-bg-secondary border border-surface-border w-full max-w-md p-6 max-h-[90dvh] my-auto overflow-y-auto">
 		<div class="flex items-center gap-3 mb-4">
 			<div class="w-10 h-10 bg-status-warning/20 border border-status-warning/30 flex items-center justify-center">
 				<svg class="w-6 h-6 text-status-warning" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
