@@ -35,6 +35,7 @@
 				return 'ℹ';
 		}
 	}
+
 </script>
 
 {#if currentToasts.length > 0}
