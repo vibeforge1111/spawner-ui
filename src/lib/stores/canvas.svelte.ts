@@ -213,7 +213,7 @@ export function addNode(skill: Skill, position: { x: number; y: number }): strin
 	pushHistory();
 
 	nodeIdCounter++;
-	const id = 'node-' + nodeIdCounter + '-' + Math.random().toString(36).slice(2, 8);
+	const id = 'node-' + nodeIdCounter + '-' + crypto.randomUUID().replace(/-/g, '').slice(0, 8);
 	const node: CanvasNode = {
 		id,
 		skillId: skill.id,
@@ -249,7 +249,7 @@ export function addNodesWithConnections(
 	// Add all nodes
 	for (const nodeDef of nodeDefs) {
 		nodeIdCounter++;
-		const id = 'node-' + nodeIdCounter + '-' + Math.random().toString(36).slice(2, 8);
+		const id = 'node-' + nodeIdCounter + '-' + crypto.randomUUID().replace(/-/g, '').slice(0, 8);
 		const node: CanvasNode = {
 			id,
 			skillId: nodeDef.skill.id,
@@ -420,7 +420,7 @@ export function duplicateSelected(): string[] {
 
 	nodesToDuplicate.forEach((node) => {
 		nodeIdCounter++;
-		const newId = 'node-' + nodeIdCounter + '-' + Math.random().toString(36).slice(2, 8);
+		const newId = 'node-' + nodeIdCounter + '-' + crypto.randomUUID().replace(/-/g, '').slice(0, 8);
 		idMap[node.id] = newId;
 		newNodeIds.push(newId);
 
@@ -478,7 +478,7 @@ export function pasteFromClipboard(): string[] {
 	// Create new nodes from clipboard
 	const newNodes: CanvasNode[] = clipboard.nodes.map((node) => {
 		nodeIdCounter++;
-		const newId = 'node-' + nodeIdCounter + '-' + Math.random().toString(36).slice(2, 8);
+		const newId = 'node-' + nodeIdCounter + '-' + crypto.randomUUID().replace(/-/g, '').slice(0, 8);
 		idMap[node.id] = newId;
 		newNodeIds.push(newId);
 
