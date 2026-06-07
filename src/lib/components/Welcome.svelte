@@ -71,7 +71,7 @@
 	} | null = null;
 
 	function createQueuedPipelineId(): string {
-		return `pipe-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+		return `pipe-${crypto.randomUUID()}`;
 	}
 
 	async function handlePRDUpload(e: Event) {
