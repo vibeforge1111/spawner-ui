@@ -510,3 +510,22 @@
 		</div>
 	{/if}
 </div>
+
+
+<style>
+	/* Restore a visible focus ring for keyboard users on the mission form.
+	   Tailwind utilities apply `focus:outline-none` to every input/textarea/select
+	   in this component; `focus:border-violet-500` alone is a sub-2:1 border-color
+	   shift against the surrounding zinc-700 border on a zinc-800 fill — which
+	   fails WCAG 2.4.7 (Focus Visible) and 1.4.11 (Non-text Contrast 3:1).
+	   The `:focus-visible` ring only activates on keyboard focus, so sighted mouse
+	   users see no change. */
+	input:focus-visible,
+	textarea:focus-visible,
+	select:focus-visible {
+		box-shadow:
+			0 0 0 2px rgb(139 92 246 / 0.7),
+			0 0 0 4px rgb(24 24 27);
+		border-color: rgb(139 92 246) !important;
+	}
+</style>
