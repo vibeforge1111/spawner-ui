@@ -79,7 +79,11 @@
 	}
 
 	$effect(() => {
-		if (displayLogs.length > 0 && logsContainer) {
+		if (displayLogs.length === 0 || !logsContainer) return;
+		// Auto-scroll only if the reader is already pinned within ~32px of the bottom;
+		// otherwise preserve their scroll position so older logs stay legible.
+		const distanceFromBottom = logsContainer.scrollHeight - logsContainer.scrollTop - logsContainer.clientHeight;
+		if (distanceFromBottom <= 32) {
 			logsContainer.scrollTop = logsContainer.scrollHeight;
 		}
 	});
@@ -148,7 +152,7 @@
 						</div>
 						<button
 							onclick={() => copyLogMessage(log)}
-							class="rounded-md p-1.5 text-xs text-text-tertiary opacity-0 transition-all hover:bg-bg-primary hover:text-vibe-teal group-hover:opacity-100"
+							class="rounded-md p-1.5 text-xs text-text-tertiary opacity-0 transition-all hover:bg-bg-primary hover:text-vibe-teal group-hover:opacity-100 focus-visible:opacity-100"
 							title="Copy this log"
 							aria-label="Copy this log"
 						>
