@@ -744,7 +744,7 @@ export function detachFromTeam(mcpId: string, teamId: string) {
 export function addFeedback(feedback: Omit<MCPFeedback, 'id' | 'createdAt' | 'status'>) {
 	const newFeedback: MCPFeedback = {
 		...feedback,
-		id: `feedback_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+		id: `feedback_${Date.now()}_${crypto.randomUUID().replace(/-/g, '').slice(0, 9)}`,
 		status: 'pending',
 		createdAt: new Date().toISOString()
 	};
