@@ -266,7 +266,15 @@ async function _relayToTelegram(record: ScheduleRecord, result: { ok: boolean; s
     logger.info('[scheduler] relay skipped: no TELEGRAM_BOT_TOKEN or BOT_TOKEN in env');
     return;
   }
-  const text = `[sched ${record.id}] ${record.action} ${result.ok ? 'ok' : 'fail'}\n${result.summary}`;
+  // Telegram's sendMessage rejects text longer than 4096 chars with HTTP 400
+  // (and the catch below would only log "fetch error" without the operator
+  // ever seeing the schedule fire). result.summary can carry an
+  // unbounded body.error from the spark/run mission response, so cap the
+  // summary portion at 3500 chars to leave room for the prefix.
+  const summaryForRelay = result.summary.length > 3500
+    ? result.summary.slice(0, 3500) + '... [truncated]'
+    : result.summary;
+  const text = `[sched ${record.id}] ${record.action} ${result.ok ? 'ok' : 'fail'}\n${summaryForRelay}`;
   try {
     const resp = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: 'POST',
