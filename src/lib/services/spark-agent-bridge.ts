@@ -1519,10 +1519,15 @@ class SparkAgentBridgeService {
 				workerState.process = child;
 			}
 
+			let releaseAbortListener: (() => void) | null = null;
 			const finalize = (result: { success: boolean; response?: string; error?: string }) => {
 				if (finished) return;
 				finished = true;
 				if (timeout) clearTimeout(timeout);
+				if (releaseAbortListener) {
+					releaseAbortListener();
+					releaseAbortListener = null;
+				}
 				resolve(result);
 			};
 
@@ -1546,17 +1551,19 @@ class SparkAgentBridgeService {
 			}, providerTimeoutMs);
 
 			if (context.signal) {
+				const signal = context.signal;
 				const onAbort = () => {
 					if (timeout) clearTimeout(timeout);
 					clearKillTimeout();
 					terminateProcessTree(child, 'SIGTERM');
 					finalize({ success: false, error: CANCELLED_ERROR });
 				};
-				if (context.signal.aborted) {
+				if (signal.aborted) {
 					onAbort();
 					return;
 				}
-				context.signal.addEventListener('abort', onAbort, { once: true });
+				signal.addEventListener('abort', onAbort, { once: true });
+				releaseAbortListener = () => signal.removeEventListener('abort', onAbort);
 			}
 
 			child.stdout?.on('data', (chunk: Buffer) => {
