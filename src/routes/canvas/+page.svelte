@@ -225,7 +225,7 @@ import { get } from 'svelte/store';
 					const targetNodeId = skillToNodeId.get(conn.targetId);
 					if (!sourceNodeId || !targetNodeId) return null;
 					return {
-						id: `conn-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+						id: `conn-${crypto.randomUUID()}`,
 						sourceNodeId,
 						sourcePortId: conn.sourcePort,
 						targetNodeId,
