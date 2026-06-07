@@ -40,7 +40,8 @@
 
 {#if currentToasts.length > 0}
 	<div
-		class="fixed bottom-4 inset-x-4 sm:inset-x-auto sm:right-4 z-[100] flex flex-col gap-2 sm:max-w-md"
+		class="fixed inset-x-4 sm:inset-x-auto sm:right-4 z-[100] flex flex-col gap-2 sm:max-w-md"
+		style="bottom: calc(1rem + env(safe-area-inset-bottom, 0px));"
 		role="region"
 		aria-label="Notifications"
 	>
@@ -92,5 +93,11 @@
 
 	.animate-slide-in {
 		animation: slide-in 0.2s ease-out;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.animate-slide-in {
+			animation: none;
+		}
 	}
 </style>
