@@ -29,8 +29,8 @@
 	disabled={agent.required}
 	aria-pressed={selected}
 	aria-label={agent.required
-		? `${agent.name} agent (required, always included)`
-		: `${selected ? 'Deselect' : 'Select'} ${agent.name} agent`}
+		? `${agent.name} agent${agent.tier === 'premium' ? ' (Pro tier)' : ''} (required, always included)`
+		: `${selected ? 'Deselect' : 'Select'} ${agent.name} agent${agent.tier === 'premium' ? ' (Pro tier)' : ''}`}
 >
 	<div class="flex items-start gap-3">
 		<!-- Icon -->
@@ -39,7 +39,7 @@
 		<!-- Content -->
 		<div class="flex-1 min-w-0">
 			<div class="flex items-center gap-2 mb-1">
-				<h3 class="font-medium text-text-primary">{agent.name}</h3>
+				<h3 class="font-medium text-text-primary" title={agent.name}>{agent.name}</h3>
 				{#if agent.tier === 'premium'}
 					<span class="px-1.5 py-0.5 text-[10px] font-medium bg-accent-secondary/20 text-accent-secondary">
 						PRO
@@ -52,7 +52,7 @@
 				{/if}
 			</div>
 
-			<p class="text-sm text-text-secondary mb-2 line-clamp-2">{agent.description}</p>
+			<p class="text-sm text-text-secondary mb-2 line-clamp-2" title={agent.description}>{agent.description}</p>
 
 			<!-- Skills -->
 			<div class="flex flex-wrap gap-1">
@@ -62,7 +62,7 @@
 					</span>
 				{/each}
 				{#if agent.skills.length > 3}
-					<span class="px-1.5 py-0.5 text-[10px] font-mono text-text-tertiary">
+					<span class="px-1.5 py-0.5 text-[10px] font-mono text-text-tertiary" title={agent.skills.slice(3).join(', ')}>
 						+{agent.skills.length - 3}
 					</span>
 				{/if}
