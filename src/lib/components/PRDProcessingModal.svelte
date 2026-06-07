@@ -81,13 +81,13 @@
 {#if isOpen}
 	<!-- Backdrop -->
 	<div
-		class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+		class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto overscroll-contain"
 		in:fade={{ duration: 200 }}
 		out:fade={{ duration: 150 }}
 	>
 		<!-- Modal container -->
 		<div
-			class="bg-bg-secondary border border-surface-border w-full max-w-md max-h-[90dvh] overflow-y-auto overscroll-contain"
+			class="bg-bg-secondary border border-surface-border w-full max-w-md max-h-[90dvh] my-auto overflow-y-auto overscroll-contain"
 			role="dialog"
 			aria-modal="true"
 			aria-labelledby="prd-modal-title"
