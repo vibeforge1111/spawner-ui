@@ -648,15 +648,20 @@ export const GET: RequestHandler = async (event) => {
 			controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'connected', timestamp: new Date().toISOString(), source: 'event-bridge' })}\n\n`));
 
 			// Subscribe to events
-			const unsubscribe = eventBridge.subscribe((event) => {
+			let unsubscribe: () => void = () => {};
+			unsubscribe = eventBridge.subscribe((event) => {
 				if (isClosed) return;
 				try {
 					const safeEvent = hasControlAuth ? event : sanitizeBridgeEventForLoopback(event as unknown as Record<string, unknown>);
 					const data = `data: ${JSON.stringify(safeEvent)}\n\n`;
 					controller.enqueue(encoder.encode(data));
 				} catch (e) {
-					// Client disconnected
+					// Client disconnected mid-enqueue. Release the subscription
+					// callback from eventBridge.subscribers so the now-dead
+					// closure doesn't accumulate in the broadcast Set and run
+					// on every subsequent emit() until process restart.
 					isClosed = true;
+					unsubscribe();
 					logger.info('[EventBridge] Client disconnected');
 				}
 			});
