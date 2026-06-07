@@ -466,7 +466,7 @@ export const POST: RequestHandler = async (event) => {
 			...payload,
 			timestamp: payload.timestamp || new Date().toISOString(),
 			source: payload.source || 'claude-code',
-			id: payload.id || `evt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+			id: payload.id || `evt-${Date.now()}-${crypto.randomUUID().replace(/-/g, '').slice(0, 8)}`
 		};
 		if (typeof fullEvent.missionId === 'string') {
 			const relayMeta = await relayMetadataForMission(fullEvent.missionId);
