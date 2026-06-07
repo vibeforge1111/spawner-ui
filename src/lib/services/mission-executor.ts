@@ -612,7 +612,7 @@ class MissionExecutor {
 
 	private appendTaskTransition(event: Omit<TaskTransitionEvent, 'id' | 'timestamp'>): void {
 		const transition: TaskTransitionEvent = {
-			id: `transition-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+			id: `transition-${Date.now()}-${crypto.randomUUID().replace(/-/g, '').slice(0, 8)}`,
 			timestamp: new Date().toISOString(),
 			...event
 		};
