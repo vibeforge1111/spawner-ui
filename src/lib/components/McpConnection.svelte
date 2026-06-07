@@ -140,8 +140,10 @@
 			<div class="flex gap-2">
 				<input
 					id="custom-mcp-url"
-					type="text"
+					type="url"
 					inputmode="url"
+					spellcheck="false"
+					autocapitalize="off"
 					autocomplete="off"
 					bind:value={customUrl}
 					placeholder="Set PUBLIC_MCP_URL or enter a bridge URL"
