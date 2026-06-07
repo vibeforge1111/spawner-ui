@@ -26,7 +26,7 @@
 		md: 'max-w-lg',
 		lg: 'max-w-2xl',
 		xl: 'max-w-4xl',
-		full: 'max-w-[90vw] max-h-[90vh]'
+		full: 'max-w-[90vw] max-h-[90dvh]'
 	};
 
 	function handleOverlayClick() {
@@ -76,7 +76,7 @@
 			</div>
 		{/if}
 
-		<div class="p-6 max-h-[70vh] overflow-y-auto">
+		<div class="p-6 max-h-[70dvh] overflow-y-auto overscroll-contain">
 			{@render children()}
 		</div>
 
