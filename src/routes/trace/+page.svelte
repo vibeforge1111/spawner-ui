@@ -127,7 +127,7 @@
 	let autoRefresh = $state(true);
 	let poller: ReturnType<typeof setInterval> | null = null;
 
-	const phaseClass = $derived(() => {
+	const phaseClass = $derived.by(() => {
 		switch (trace?.phase) {
 			case 'completed':
 				return 'border-green-500/30 bg-green-500/10 text-green-300';
