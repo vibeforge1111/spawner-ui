@@ -113,13 +113,13 @@
 				{/if}
 				<div class="flex flex-col min-w-0">
 					<span class="font-mono text-xs text-accent-primary tracking-widest uppercase">{getStatusText(sessionState.status)}</span>
-					<span class="text-base font-sans font-semibold text-text-primary truncate">{sessionState.mission?.name || 'Mission'}</span>
+					<span class="text-base font-sans font-semibold text-text-primary truncate" title={sessionState.mission?.name ?? ''}>{sessionState.mission?.name || 'Mission'}</span>
 				</div>
 			</div>
 
 			<!-- Progress -->
 			<div class="flex items-center gap-3 min-w-[180px] flex-1 max-w-[280px]">
-				<div class="flex-1 h-1.5 rounded-full bg-surface overflow-hidden">
+				<div class="flex-1 h-1.5 rounded-full bg-surface overflow-hidden" role="progressbar" aria-valuenow={sessionState.progress} aria-valuemin="0" aria-valuemax="100" aria-label="Mission progress">
 					<div
 						class="h-full rounded-full bg-accent-primary transition-all duration-500 ease-out"
 						style="width: {sessionState.progress}%"
@@ -132,7 +132,7 @@
 			{#if sessionState.currentTaskName}
 				<div class="flex items-center gap-2.5 px-3 py-1.5 rounded-md bg-bg-primary/60 border border-surface-border min-w-0 max-w-[420px]">
 					<span class="font-mono text-[10px] text-text-tertiary tracking-widest uppercase shrink-0">Current</span>
-					<span class="text-sm text-text-secondary truncate">{sessionState.currentTaskName}</span>
+					<span class="text-sm text-text-secondary truncate" title={sessionState.currentTaskName}>{sessionState.currentTaskName}</span>
 				</div>
 			{/if}
 
@@ -142,6 +142,7 @@
 					type="button"
 					class="px-4 py-2 rounded-md text-sm font-semibold bg-accent-primary text-accent-fg hover:opacity-85 active:scale-[0.98] transition-all"
 					onclick={handleResume}
+					aria-label={`${sessionState.status === 'paused' ? 'Resume' : 'Open'} mission ${sessionState.mission?.name ?? ''}`}
 				>
 					{sessionState.status === 'paused' ? 'Resume' : 'Open'}
 				</button>
