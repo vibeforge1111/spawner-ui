@@ -175,7 +175,16 @@ export async function createSchedule(input: {
   timezone?: string | null;
 }): Promise<ScheduleRecord> {
   const store = await _load();
+  // Distinguish "no timezone provided" (null/empty - legacy server-tz behavior)
+  // from "a non-empty string that failed IANA validation" (typo such as
+  // "America/NewYork"). Silently dropping the latter to null made the
+  // schedule fire in server TZ while the operator believed it was using
+  // their zone; reject it with a clear message instead.
+  const timezoneProvided = typeof input.timezone === 'string' && input.timezone.trim().length > 0;
   const timezone = _validTimezone(input.timezone);
+  if (timezoneProvided && !timezone) {
+    throw new Error(`Invalid IANA timezone: ${String(input.timezone).trim()}`);
+  }
   const nextFireAt = _computeNext(input.cron, timezone);
   if (!nextFireAt) {
     throw new Error(`Invalid cron expression: ${input.cron}`);
