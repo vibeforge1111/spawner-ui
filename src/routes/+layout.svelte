@@ -10,6 +10,15 @@
 
 	let { children } = $props();
 
+	function skipToMain(event: MouseEvent) {
+		event.preventDefault();
+		const main = document.querySelector('main');
+		if (!main) return;
+		if (!main.hasAttribute('tabindex')) main.setAttribute('tabindex', '-1');
+		main.focus({ preventScroll: false });
+		main.scrollIntoView({ block: 'start' });
+	}
+
 	// Initialize app state and optional local sync on app load
 	onMount(async () => {
 		if (!browser) return;
@@ -57,5 +66,17 @@
 	<meta name="description" content="Build AI workflows visually. Connect skills, validate with sharp edges, deploy anywhere." />
 </svelte:head>
 
+<a class="skip-link" href="#main-content" onclick={skipToMain}>Skip to main content</a>
+
 {@render children()}
 <ToastContainer />
+
+<style>
+	.skip-link {
+		position: absolute; top: -100px; left: 0; z-index: 100;
+		padding: 12px 16px; background: var(--accent, #2fca94);
+		color: var(--accent-fg, #0a3820); font: 600 14px/1 ui-sans-serif, system-ui, sans-serif;
+		text-decoration: none; border-radius: 0 0 6px 0;
+	}
+	.skip-link:focus { top: 0; outline: 2px solid var(--text-bright, #fff); outline-offset: 2px; }
+</style>
