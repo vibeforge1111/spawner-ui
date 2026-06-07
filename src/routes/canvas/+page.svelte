@@ -1777,7 +1777,7 @@ import { get } from 'svelte/store';
 
 <!-- Node Details Panel - absolute positioned overlay with slide animation -->
 {#if showNodeDetails && currentSelectedNode}
-	<div class="fixed top-0 right-0 h-screen z-50 shadow-xl slide-in">
+	<div class="fixed top-0 right-0 h-screen h-[100dvh] z-50 shadow-xl slide-in">
 		<NodeConfigPanel
 			node={currentSelectedNode}
 			onClose={() => (showNodeDetails = false)}
