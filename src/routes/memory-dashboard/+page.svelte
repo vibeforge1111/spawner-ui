@@ -87,8 +87,12 @@
 				{data.error}
 			</section>
 		{:else if data.dataset.warnings.length > 0}
-			<section class="border border-status-warning/30 bg-status-warning-bg p-3 text-sm text-status-warning" aria-label="Memory dashboard data notice">
-				{data.dataset.warnings[0]}
+			<section class="border border-status-warning/30 bg-status-warning-bg p-3 text-sm text-status-warning" aria-label={`Memory dashboard data notices (${data.dataset.warnings.length})`}>
+				<ul class="grid gap-1">
+					{#each data.dataset.warnings as warning}
+						<li>{warning}</li>
+					{/each}
+				</ul>
 			</section>
 		{/if}
 
