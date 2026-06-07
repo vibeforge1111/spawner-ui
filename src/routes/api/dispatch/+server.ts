@@ -290,9 +290,9 @@ export const POST: RequestHandler = async (event) => {
 		if (err instanceof CapabilityPolicyError) {
 			return json({ success: false, error: err.message, code: err.code }, { status: err.status });
 		}
-		const error = err instanceof Error ? err.message : 'Unknown error';
-		console.error('[Dispatch API] POST error:', error);
-		return json({ success: false, error }, { status: 500 });
+		const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+		console.error('[Dispatch API] POST error:', errorMsg);
+		return json({ success: false, error: 'Internal dispatch error' }, { status: 500 });
 	}
 };
 
