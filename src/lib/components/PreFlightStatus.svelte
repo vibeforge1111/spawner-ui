@@ -20,16 +20,16 @@
 	}
 </script>
 
-<div class="bg-surface-secondary border border-surface-border p-4">
+<div class="bg-surface-secondary border border-surface-border p-4" aria-label="Pre-flight checks">
 	<h3 class="text-lg font-mono mb-4">Pre-Flight Checks</h3>
 
 	{#if !result}
-		<p class="text-text-secondary">Running checks...</p>
+		<p class="text-text-secondary" role="status" aria-live="polite">Running checks...</p>
 	{:else}
 		<!-- Status Header -->
-		<div class="flex items-center gap-2 mb-4">
+		<div class="flex items-center gap-2 mb-4" role="status" aria-live="polite">
 			<span class="text-2xl">{result.passed ? '✅' : '❌'}</span>
-			<span class="font-mono text-lg {result.passed ? 'text-green-400' : 'text-red-400'}">
+			<span class="font-mono text-lg {result.passed ? 'text-green-400' : 'text-red-400'}" aria-label={result.passed ? 'Pre-flight checks passed' : 'Pre-flight checks failed'}>
 				{result.passed ? 'PASSED' : 'FAILED'}
 			</span>
 		</div>
@@ -71,7 +71,7 @@
 		</div>
 
 		{#if !result.canProceed}
-			<p class="mt-4 text-red-400 text-sm font-mono">
+			<p class="mt-4 text-red-400 text-sm font-mono" role="alert">
 				⛔ Cannot proceed - fix errors above before executing mission
 			</p>
 		{/if}
