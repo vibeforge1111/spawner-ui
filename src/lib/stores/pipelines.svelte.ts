@@ -97,7 +97,7 @@ export const isLoading = derived(pipelinesState, $state => $state.isLoading);
  * Generate a unique pipeline ID
  */
 function generateId(): string {
-	return `pipe-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+	return `pipe-${Date.now().toString(36)}-${crypto.randomUUID().replace(/-/g, '').slice(0, 8)}`;
 }
 
 /**
