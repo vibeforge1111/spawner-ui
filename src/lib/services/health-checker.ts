@@ -112,7 +112,7 @@ export function createHealthCheck(
 	result: CheckResult
 ): HealthCheck {
 	return {
-		id: `check-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+		id: `check-${Date.now()}-${crypto.randomUUID().replace(/-/g, '').slice(0, 8)}`,
 		serviceId,
 		status: result.status,
 		responseTime: result.responseTime,
