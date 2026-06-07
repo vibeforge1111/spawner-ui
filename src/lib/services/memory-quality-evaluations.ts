@@ -80,7 +80,7 @@ export async function appendManualEvaluation(
 	await ensureMemoryQualityDir(paths);
 	const existing = await readExistingEvaluations(paths.evaluationsFile);
 	const event: MemoryRecallEvent = {
-		id: `manual-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+		id: `manual-${Date.now()}-${crypto.randomUUID().replace(/-/g, '').slice(0, 8)}`,
 		timestamp: new Date().toISOString(),
 		query: String(input.query).trim(),
 		source: input.source as MemorySource,
