@@ -130,10 +130,10 @@
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
-<div class="fixed inset-0 flex items-center justify-center z-50" role="dialog" aria-modal="true" aria-label="Workflow validation">
+<div class="fixed inset-0 flex items-center justify-center z-50 p-4 overflow-y-auto overscroll-contain" role="dialog" aria-modal="true" aria-label="Workflow validation">
 	<button class="absolute inset-0 bg-black/50" onclick={onClose} aria-label="Close validation panel"></button>
 	<div
-		class="relative bg-bg-secondary border border-surface-border w-full max-w-lg max-h-[80vh] flex flex-col"
+		class="relative bg-bg-secondary border border-surface-border w-full max-w-lg max-h-[80dvh] flex flex-col my-auto"
 	>
 		<!-- Header -->
 		<div class="flex items-center justify-between p-4 border-b border-surface-border">
