@@ -9,6 +9,12 @@
 
 	let { service, onRemove, onSelect }: Props = $props();
 
+	function handleRemove(event: MouseEvent) {
+		event.stopPropagation();
+		if (!confirm(`Remove monitored service "${service.name}"?\n\nUptime history and recent response samples for this endpoint will be cleared.`)) return;
+		onRemove();
+	}
+
 	function getStatusColor(status: string): string {
 		switch (status) {
 			case 'healthy': return 'bg-green-500';
@@ -38,7 +44,7 @@
 	onclick={onSelect}
 	role="button"
 	tabindex="0"
-	onkeydown={(e) => e.key === 'Enter' && onSelect()}
+	onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onSelect())}
 >
 	<!-- Header -->
 	<div class="flex items-start justify-between mb-3">
@@ -47,10 +53,10 @@
 			<h3 class="font-mono text-sm text-text-primary truncate">{service.name}</h3>
 		</div>
 		<button
-			onclick={(e) => { e.stopPropagation(); onRemove(); }}
-			class="p-1 text-text-tertiary hover:text-red-400 transition-all [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
+			onclick={handleRemove}
+			class="p-1 text-text-tertiary hover:text-red-400 focus-visible:text-red-400 transition-all [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 focus-visible:opacity-100"
 			title="Remove service"
-			aria-label="Remove service"
+			aria-label={`Remove service ${service.name}`}
 		>
 			<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
