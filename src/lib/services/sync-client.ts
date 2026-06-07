@@ -86,7 +86,7 @@ class SyncClient {
 
 	constructor(config?: Partial<SyncConfig>) {
 		this.config = { ...DEFAULT_CONFIG, ...config };
-		this.clientId = `spawner-ui-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+		this.clientId = `spawner-ui-${Date.now()}-${crypto.randomUUID().replace(/-/g, '').slice(0, 8)}`;
 	}
 
 	/**
