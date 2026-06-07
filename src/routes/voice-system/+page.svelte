@@ -73,9 +73,13 @@
 		</header>
 
 		{#if dashboard.warnings.length > 0}
-			<section class="grid gap-2 border border-status-warning/30 bg-status-warning-bg p-3 text-sm text-status-warning sm:grid-cols-[auto_1fr]" aria-label="Voice dashboard notice">
+			<section class="grid gap-2 border border-status-warning/30 bg-status-warning-bg p-3 text-sm text-status-warning sm:grid-cols-[auto_1fr]" aria-label={`Voice dashboard notices (${dashboard.warnings.length})`}>
 				<span class="font-mono uppercase">Needs proof</span>
-				<p>{dashboard.warnings[0]}</p>
+				<ul class="grid gap-1">
+					{#each dashboard.warnings as warning}
+						<li>{warning}</li>
+					{/each}
+				</ul>
 			</section>
 		{/if}
 
