@@ -87,7 +87,7 @@
 	>
 		<!-- Modal container -->
 		<div
-			class="bg-bg-secondary border border-surface-border w-full max-w-md"
+			class="bg-bg-secondary border border-surface-border w-full max-w-md max-h-[90dvh] overflow-y-auto overscroll-contain"
 			role="dialog"
 			aria-modal="true"
 			aria-labelledby="prd-modal-title"
