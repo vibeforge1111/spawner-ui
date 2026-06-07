@@ -476,7 +476,10 @@ function extractExplicitFeatures(content: string, techStack: TechStack): Actiona
 		const title = makeActionable(rawContent);
 
 		// Deduplicate
-		const normalizedTitle = title.toLowerCase().replace(/[^a-z0-9]/g, '');
+		// Use Unicode letter/number classes so non-ASCII PRDs (CJK, Cyrillic,
+		// Arabic, accented Latin) keep distinct feature titles instead of all
+		// collapsing to "" and getting deduped down to a single feature.
+		const normalizedTitle = title.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
 		if (seenTitles.has(normalizedTitle)) continue;
 		seenTitles.add(normalizedTitle);
 
