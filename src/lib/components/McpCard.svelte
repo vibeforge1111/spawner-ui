@@ -28,7 +28,7 @@
 		class="w-full text-left p-4"
 		onclick={onToggle}
 		aria-pressed={selected}
-		aria-label={`${selected ? 'Deselect' : 'Select'} ${mcp.name} MCP`}
+		aria-label={`${selected ? 'Deselect' : 'Select'} ${mcp.name} MCP${mcp.tier === 'premium' ? ' (Pro tier)' : ''}`}
 	>
 		<div class="flex items-start gap-3">
 			<!-- Icon -->
@@ -70,7 +70,7 @@
 				class="w-full px-4 py-2 flex items-center justify-between text-sm text-text-secondary hover:text-text-primary transition-colors"
 				onclick={() => (showConfig = !showConfig)}
 				aria-expanded={showConfig}
-				aria-label={`${showConfig ? 'Hide' : 'Show'} ${mcp.name} configuration`}
+				aria-label={showConfig ? `Hide ${mcp.name} install command` : `Show ${mcp.name} install command`}
 			>
 				<span class="font-mono text-xs">{mcp.installCommand}</span>
 				<Icon name={showConfig ? 'chevron-up' : 'chevron-down'} size={14} />
@@ -84,6 +84,7 @@
 							<button
 								class="text-xs text-accent-primary hover:underline"
 								onclick={copyConfig}
+								aria-label={`Copy ${mcp.name} configuration to clipboard`}
 							>
 								{copyState === 'copied' ? 'Copied' : copyState === 'failed' ? 'Select & copy' : 'Copy'}
 							</button>
