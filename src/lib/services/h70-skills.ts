@@ -211,8 +211,17 @@ export const getH70SkillLabPath = getSkillsLabPath;
  */
 function isCacheValid(skillId: string): boolean {
 	const timestamp = cacheTimestamps.get(skillId);
-	if (!timestamp) return false;
-	return Date.now() - timestamp < CACHE_TTL_MS;
+	if (timestamp === undefined) return false;
+	if (Date.now() - timestamp < CACHE_TTL_MS) return true;
+	// Expired. Evict both maps in one place so they stay in sync. Without
+	// this, an expired skillCache entry persists when the next fetch fails
+	// (network error or skill removed from the lab), and downstream callers
+	// that bypass isCacheValid would read the stale row. It also bounds
+	// growth of cacheTimestamps for skills that get queried once and never
+	// re-requested.
+	skillCache.delete(skillId);
+	cacheTimestamps.delete(skillId);
+	return false;
 }
 
 /**
