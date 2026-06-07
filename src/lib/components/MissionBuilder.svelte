@@ -219,7 +219,7 @@
 									<span class="text-xs px-2 py-1 rounded {getStatusColor(mission.status)}">{mission.status}</span>
 								</div>
 								<p class="text-xs text-zinc-500 mt-1">
-									{mission.agents.length} agents, {mission.tasks.length} tasks
+									{mission.agents.length} agent{mission.agents.length === 1 ? '' : 's'}, {mission.tasks.length} task{mission.tasks.length === 1 ? '' : 's'}
 								</p>
 							</button>
 						{/each}
