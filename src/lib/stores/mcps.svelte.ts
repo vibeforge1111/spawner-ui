@@ -266,7 +266,7 @@ export function createInstance(
 	}
 
 	const instance: MCPInstance = {
-		id: `mcp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+		id: `mcp_${Date.now()}_${crypto.randomUUID().replace(/-/g, '').slice(0, 9)}`,
 		definitionId: mcpId,
 		name: name || mcpDef.name,
 		status: 'disconnected',
