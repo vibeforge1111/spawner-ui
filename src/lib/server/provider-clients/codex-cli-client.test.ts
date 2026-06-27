@@ -3,7 +3,7 @@ import { parseCodexCliCommand, persistCodexPrompt } from './codex-cli-client';
 
 describe('parseCodexCliCommand', () => {
 	it('adds skip-git-repo-check for model-based Codex exec commands', () => {
-		expect(parseCodexCliCommand('codex exec --model gpt-5.5')).toEqual({
+		expect(parseCodexCliCommand('codex exec --model gpt-5.5', { env: {} })).toEqual({
 			binary: 'codex',
 			args: ['exec', '--skip-git-repo-check', '--model', 'gpt-5.5', '--sandbox', 'workspace-write']
 		});
@@ -25,7 +25,7 @@ describe('parseCodexCliCommand', () => {
 	});
 
 	it('preserves explicit profile selection while adding sandbox enforcement', () => {
-		expect(parseCodexCliCommand('codex exec --model gpt-5.5 --profile speed')).toEqual({
+		expect(parseCodexCliCommand('codex exec --model gpt-5.5 --profile speed', { env: {} })).toEqual({
 			binary: 'codex',
 			args: [
 				'exec',
