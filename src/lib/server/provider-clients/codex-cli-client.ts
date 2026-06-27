@@ -14,7 +14,8 @@ import { spawnHidden } from '../hidden-process';
 import {
 	assertHighAgencyWorkerAllowed,
 	highAgencyWorkersAllowed,
-	HIGH_AGENCY_WORKERS_ENV
+	HIGH_AGENCY_WORKERS_ENV,
+	resolveCodexSandbox
 } from '../high-agency-workers';
 import { spawnerStateDir } from '../spawner-state';
 import { prepareProviderWorkingDirectory } from '$lib/services/spark-agent-bridge';
@@ -33,6 +34,7 @@ export interface CodexCliCommand {
 
 export interface ParseCodexCliCommandOptions {
 	allowHighAgency?: boolean;
+	env?: Record<string, string | undefined>;
 }
 
 interface PromptPersistence {
@@ -84,10 +86,36 @@ export function parseCodexCliCommand(
 		}
 		return { binary: 'codex', args: ['exec', '--skip-git-repo-check', '--yolo'] };
 	}
-	if (tokens.length === 4 && tokens[2] === '--model') {
-		return { binary: 'codex', args: ['exec', '--skip-git-repo-check', '--model', tokens[3]] };
+	if (tokens[2] === '--model' && tokens[3]) {
+		const args = ['exec', '--skip-git-repo-check', '--model', tokens[3]];
+		let sandboxSpecified = false;
+		for (let i = 4; i < tokens.length; i += 2) {
+			const flag = tokens[i];
+			const value = tokens[i + 1];
+			if (!value) {
+				throw new Error(
+					'Codex command template must be: codex exec --model <model> [--profile <profile>] [--sandbox read-only|workspace-write|danger-full-access]'
+				);
+			}
+			if (flag === '--profile' || flag === '-p') {
+				args.push(flag, value);
+				continue;
+			}
+			if (flag === '--sandbox') {
+				args.push('--sandbox', resolveCodexSandbox({ ...(options.env || process.env), SPARK_CODEX_SANDBOX: value }));
+				sandboxSpecified = true;
+				continue;
+			}
+			throw new Error(
+				'Codex command template must be: codex exec --model <model> [--profile <profile>] [--sandbox read-only|workspace-write|danger-full-access]'
+			);
+		}
+		if (!sandboxSpecified) {
+			args.push('--sandbox', resolveCodexSandbox(options.env));
+		}
+		return { binary: 'codex', args };
 	}
-	throw new Error('Codex command template must be: codex exec --model <model>');
+	throw new Error('Codex command template must be: codex exec --model <model> [--profile <profile>] [--sandbox read-only|workspace-write|danger-full-access]');
 }
 
 export async function isCliBinaryAvailable(binaryName: 'codex'): Promise<boolean> {
