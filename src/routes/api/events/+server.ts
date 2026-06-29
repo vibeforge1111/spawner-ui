@@ -7,7 +7,6 @@
 
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { env } from '$env/dynamic/private';
 import { eventBridge } from '$lib/services/event-bridge';
 import { assertSafeId, PathSafetyError, resolveWithinBaseDir } from '$lib/server/path-safety';
 import { controlQueryApiKeysAllowed, enforceRateLimit, requireControlAuth } from '$lib/server/mcp-auth';
