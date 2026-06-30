@@ -303,7 +303,7 @@ async function _tick(): Promise<void> {
     } finally {
       _firingIds.delete(rec.id);
     }
-    rec.nextFireAt = nextFireAt;
+    rec.nextFireAt = _computeNext(rec.cron, rec.timezone);
     dirty = true;
   }
   if (dirty) await _save();
