@@ -71,7 +71,7 @@ export const POST: RequestHandler = async (event) => {
 		const message = error instanceof Error ? error.message : 'creator mission execution failed';
 		const status = /read-only|stage-only|already published/i.test(message) ? 409 : 500;
 		return json(
-			{ ok: false, error: message },
+			{ ok: false, error: status === 409 ? message : 'Internal error' },
 			{ status }
 		);
 	}
