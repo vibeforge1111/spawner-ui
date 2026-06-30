@@ -90,6 +90,8 @@
 	let missionControl = $state<MissionControlSnapshot | null>(null);
 	let missionTrace = $state<MissionTraceSnapshot | null>(null);
 	let missionControlPoller: ReturnType<typeof setInterval> | null = null;
+	let missionControlActionLoading = $state(false);
+	let missionControlActionMessage = $state<string | null>(null);
 
 	$effect(() => {
 		const unsub = page.subscribe((p) => {
