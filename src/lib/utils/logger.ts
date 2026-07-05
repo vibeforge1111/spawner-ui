@@ -18,6 +18,7 @@ type LogLevel = keyof typeof LOG_LEVELS;
 // In production and tests, only show warnings and errors.
 // Vitest runs with DEV semantics, so check MODE first to keep green test output readable.
 const currentLevel: LogLevel = import.meta.env.MODE === 'test' ? 'warn' : import.meta.env.DEV ? 'debug' : 'warn';
+const jsonLogging = typeof process !== 'undefined' && process.env?.JSON_LOGGING === '1';
 
 function shouldLog(level: LogLevel): boolean {
 	return LOG_LEVELS[level] >= LOG_LEVELS[currentLevel];
@@ -28,6 +29,19 @@ function formatPrefix(level: LogLevel, context?: string): string {
 	return context ? `[${levelStr}][${context}]` : `[${levelStr}]`;
 }
 
+function logEntry(level: LogLevel, msg: string, context?: string, ...args: unknown[]): void {
+	if (jsonLogging) {
+		const entry = JSON.stringify({ level, context, message: msg, timestamp: new Date().toISOString() });
+		if (level === 'error') console.error(entry, ...args);
+		else if (level === 'warn') console.warn(entry, ...args);
+		else console.log(entry, ...args);
+	} else {
+		if (level === 'error') console.error(formatPrefix(level, context), msg, ...args);
+		else if (level === 'warn') console.warn(formatPrefix(level, context), msg, ...args);
+		else console.log(formatPrefix(level, context), msg, ...args);
+	}
+}
+
 export const logger = {
 	/**
 	 * Debug logs - only shown in development
@@ -35,7 +49,7 @@ export const logger = {
 	 */
 	debug: (msg: string, ...args: unknown[]): void => {
 		if (shouldLog('debug')) {
-			console.debug(formatPrefix('debug'), msg, ...args);
+			logEntry('debug', msg, undefined, ...args);
 		}
 	},
 
@@ -45,7 +59,7 @@ export const logger = {
 	 */
 	info: (msg: string, ...args: unknown[]): void => {
 		if (shouldLog('info')) {
-			console.info(formatPrefix('info'), msg, ...args);
+			logEntry('info', msg, undefined, ...args);
 		}
 	},
 
@@ -55,7 +69,7 @@ export const logger = {
 	 */
 	warn: (msg: string, ...args: unknown[]): void => {
 		if (shouldLog('warn')) {
-			console.warn(formatPrefix('warn'), msg, ...args);
+			logEntry('warn', msg, undefined, ...args);
 		}
 	},
 
@@ -64,7 +78,7 @@ export const logger = {
 	 * Use for errors and exceptions
 	 */
 	error: (msg: string, ...args: unknown[]): void => {
-		console.error(formatPrefix('error'), msg, ...args);
+		logEntry('error', msg, undefined, ...args);
 	},
 
 	/**
@@ -74,21 +88,21 @@ export const logger = {
 	scope: (context: string) => ({
 		debug: (msg: string, ...args: unknown[]): void => {
 			if (shouldLog('debug')) {
-				console.debug(formatPrefix('debug', context), msg, ...args);
+				logEntry('debug', msg, context, ...args);
 			}
 		},
 		info: (msg: string, ...args: unknown[]): void => {
 			if (shouldLog('info')) {
-				console.info(formatPrefix('info', context), msg, ...args);
+				logEntry('info', msg, context, ...args);
 			}
 		},
 		warn: (msg: string, ...args: unknown[]): void => {
 			if (shouldLog('warn')) {
-				console.warn(formatPrefix('warn', context), msg, ...args);
+				logEntry('warn', msg, context, ...args);
 			}
 		},
 		error: (msg: string, ...args: unknown[]): void => {
-			console.error(formatPrefix('error', context), msg, ...args);
+			logEntry('error', msg, context, ...args);
 		}
 	})
 };
