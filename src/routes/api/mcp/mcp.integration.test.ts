@@ -149,4 +149,36 @@ describe('/api/mcp', () => {
 		expect(body.authority.reasonCodes).toContain('native_governor_required');
 		expect(connectMCP).not.toHaveBeenCalled();
 	});
+
+	it('returns 400 for empty request body instead of 500', async () => {
+		const response = await POST({
+			request: new Request('http://127.0.0.1/api/mcp', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json', 'x-api-key': 'mcp-test-secret' },
+				body: ''
+			}),
+			url: new URL('http://127.0.0.1/api/mcp'),
+			getClientAddress: () => '127.0.0.1'
+		} as never);
+
+		expect(response.status).toBe(400);
+		expect(await response.json()).toMatchObject({ error: expect.stringContaining('JSON body') });
+		expect(connectMCP).not.toHaveBeenCalled();
+	});
+
+	it('returns 400 for malformed JSON body instead of 500', async () => {
+		const response = await POST({
+			request: new Request('http://127.0.0.1/api/mcp', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json', 'x-api-key': 'mcp-test-secret' },
+				body: '{not valid json'
+			}),
+			url: new URL('http://127.0.0.1/api/mcp'),
+			getClientAddress: () => '127.0.0.1'
+		} as never);
+
+		expect(response.status).toBe(400);
+		expect(await response.json()).toMatchObject({ error: expect.stringContaining('JSON body') });
+		expect(connectMCP).not.toHaveBeenCalled();
+	});
 });
