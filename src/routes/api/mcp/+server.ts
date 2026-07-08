@@ -39,7 +39,12 @@ export const POST: RequestHandler = async (event) => {
 
 	try {
 		const { request } = event;
-		const body = await request.json();
+		let body: any;
+		try {
+			body = await request.json();
+		} catch {
+			return json({ error: 'Invalid or missing JSON body' }, { status: 400 });
+		}
 		const { instanceId, mcpId, config, npmPackage, defaultArgs, envVars, command, args } = body as {
 			instanceId: string;
 			mcpId?: string;
@@ -150,7 +155,12 @@ export const DELETE: RequestHandler = async (event) => {
 
 	try {
 		const { request } = event;
-		const body = await request.json();
+		let body: any;
+		try {
+			body = await request.json();
+		} catch {
+			return json({ error: 'Invalid or missing JSON body' }, { status: 400 });
+		}
 		const { instanceId } = body as { instanceId: string };
 
 		if (!instanceId) {

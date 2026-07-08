@@ -19,7 +19,12 @@ export const POST: RequestHandler = async (event) => {
 
 	try {
 		const { request } = event;
-		const body = await request.json();
+		let body: any;
+		try {
+			body = await request.json();
+		} catch {
+			return json({ error: 'Invalid or missing JSON body' }, { status: 400 });
+		}
 		const { instanceId, toolName, args, requestId } = body as {
 			instanceId: string;
 			toolName: string;
