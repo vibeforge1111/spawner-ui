@@ -25,6 +25,7 @@ import { resolveCliBinary } from './cli-resolver';
 import { spawnHidden } from './hidden-process';
 import { claudeAutoAnalysisTimeoutMs } from './timeout-config';
 import { BoundedProcessOutput } from './bounded-process-output';
+import { stripProviderDeterministicArtifactProof } from './prd-deterministic-artifact-proof';
 
 const CLAUDE_TIMEOUT_MS = claudeAutoAnalysisTimeoutMs();
 
@@ -231,6 +232,8 @@ export async function startClaudeAutoAnalysis(opts: {
 
 			parsed.requestId = requestId;
 			parsed.success = true;
+			delete parsed.deterministicArtifactProof;
+			parsed.metadata = stripProviderDeterministicArtifactProof(parsed.metadata);
 
 			const safe = normalizeRequestId(requestId);
 			const resultPath = join(paths.resultsDir, `${safe}.json`);

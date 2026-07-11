@@ -8,9 +8,9 @@ import { logger } from '$lib/utils/logger';
 
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { writeFile, mkdir, readFile } from 'fs/promises';
-import { basename, dirname, join, resolve } from 'path';
-import { existsSync, realpathSync } from 'fs';
+import { writeFile, mkdir, readFile, readdir } from 'fs/promises';
+import { isAbsolute, join, resolve } from 'path';
+import { existsSync } from 'fs';
 import { sparkAgentBridge } from '$lib/services/spark-agent-bridge';
 import { enforceRateLimit, requireControlAuth } from '$lib/server/mcp-auth';
 import { resolveCliBinary } from '$lib/server/cli-resolver';
@@ -25,8 +25,11 @@ import { formatVerificationPlanGuidance, generateVerificationPlan } from '$lib/s
 import { enrichBrief, isSparseUnderstandingClarification } from '$lib/server/brief-enricher';
 import { spawnerStateDir } from '$lib/server/spawner-state';
 import {
-	externalProjectPathsAllowed,
-	isWithinDirectory,
+	assertSafeLocalProjectPath,
+	ensureContainedDirectoryInRoots,
+	recheckContainedDirectoryInRoots,
+	resolveSparkRunProjectPath,
+	resolveContainedPathInRoots,
 	sparkWorkspaceRoot
 } from '$lib/server/spark-run-workspace';
 import { writeFileAtomic } from '$lib/server/atomic-write';
@@ -58,7 +61,13 @@ import {
 	resolveExecutionAuthority
 } from '$lib/server/harness-authority';
 import { recoverOverduePrdAutoAnalysisFromPending } from '$lib/server/prd-auto-analysis-timeout';
-import { resolveSparkRunProjectPath } from '$lib/server/spark-run-workspace';
+import {
+	createWrittenDeterministicArtifactProof,
+	expectedDeterministicArtifactTargetFromPending,
+	verifyWrittenDeterministicArtifactProof,
+	type DeterministicArtifactProof,
+	type DeterministicArtifactVerification
+} from '$lib/server/prd-deterministic-artifact-proof';
 
 function getPrdBridgePaths() {
 	const spawnerDir = spawnerStateDir();
@@ -116,7 +125,7 @@ function missionIdFromRequestId(requestId: string): string {
 	return `mission-${stamp || normalized}`;
 }
 
-async function relayCanonicalPrdAnalysisComplete(input: {
+export async function _relayCanonicalPrdAnalysisComplete(input: {
 	requestId: string;
 	projectName: string;
 	buildMode: 'direct' | 'advanced_prd';
@@ -128,7 +137,8 @@ async function relayCanonicalPrdAnalysisComplete(input: {
 	durationMs?: number | null;
 	sessionId?: string | null;
 	terminal?: boolean;
-}): Promise<void> {
+	terminalVerification?: () => Promise<boolean>;
+}, relay: typeof relayMissionControlEvent = relayMissionControlEvent): Promise<void> {
 	const missionId = missionIdFromRequestId(input.requestId);
 	const completionData = {
 		requestId: input.requestId,
@@ -143,7 +153,7 @@ async function relayCanonicalPrdAnalysisComplete(input: {
 		durationMs: input.durationMs ?? null,
 		sessionId: input.sessionId ?? null
 	};
-	await relayMissionControlEvent({
+	await relay({
 		type: 'task_completed',
 		missionId,
 		missionName: input.projectName,
@@ -152,8 +162,11 @@ async function relayCanonicalPrdAnalysisComplete(input: {
 		source: 'prd-bridge',
 		data: completionData
 	});
-	if (input.terminal) {
-		await relayMissionControlEvent({
+	const terminalStillVerified = input.terminal && input.terminalVerification
+		? await input.terminalVerification()
+		: input.terminal === true;
+	if (terminalStillVerified) {
+		await relay({
 			type: 'mission_completed',
 			missionId,
 			missionName: input.projectName,
@@ -423,66 +436,86 @@ function slugifyTaskId(value: string, fallback: string): string {
 	return slug || fallback;
 }
 
-// Resolve through symlinks so containment comparisons are stable across platforms (e.g.
-// macOS exposes os.tmpdir() as /var/folders/... which is a symlink to /private/var/...).
-// The target folder usually does not exist yet, so we canonicalize the nearest existing
-// ancestor and re-append the missing trailing segments — otherwise a not-yet-created
-// target would compare as /var/... against a /private/var/... realpath'd root.
-function canonicalize(candidatePath: string): string {
-	const absolute = resolve(candidatePath);
-	const missing: string[] = [];
-	let cursor = absolute;
-	while (!existsSync(cursor)) {
-		const parent = dirname(cursor);
-		if (parent === cursor) return absolute;
-		missing.unshift(basename(cursor));
-		cursor = parent;
+interface ServerProjectPathDecision {
+	requestedProjectPath: string | null;
+	usedProjectPath: string | null;
+	evidenceOnly: boolean;
+	rejectedReason: string | null;
+}
+
+function deterministicArtifactAllowedRoots(): string[] {
+	return [sparkWorkspaceRoot(), spawnerStateDir()];
+}
+
+function classifyServerProjectPath(
+	content: string,
+	callerRequestedProjectPath?: string | null
+): ServerProjectPathDecision {
+	const requestedProjectPath = extractExplicitProjectPath(content) || callerRequestedProjectPath?.trim() || null;
+	if (!requestedProjectPath) {
+		return {
+			requestedProjectPath: null,
+			usedProjectPath: null,
+			evidenceOnly: false,
+			rejectedReason: null
+		};
 	}
+	const allowedRoots = deterministicArtifactAllowedRoots();
 	try {
-		return resolve(realpathSync(cursor), ...missing);
+		assertSafeLocalProjectPath(requestedProjectPath, 'Target folder', allowedRoots);
+	} catch (error) {
+		const message = error instanceof Error ? error.message : '';
+		return {
+			requestedProjectPath,
+			usedProjectPath: null,
+			evidenceOnly: true,
+			rejectedReason: /foreign operating-system/i.test(message)
+				? 'foreign_operating_system_path'
+				: 'unsafe_project_path'
+		};
+	}
+	const absoluteCandidate = isAbsolute(requestedProjectPath)
+		? resolve(requestedProjectPath)
+		: resolve(sparkWorkspaceRoot(), requestedProjectPath);
+	try {
+		const usedProjectPath = resolveContainedPathInRoots(
+			allowedRoots,
+			absoluteCandidate,
+			'Target folder'
+		);
+		return {
+			requestedProjectPath,
+			usedProjectPath,
+			evidenceOnly: false,
+			rejectedReason: null
+		};
 	} catch {
-		return absolute;
+		return {
+			requestedProjectPath,
+			usedProjectPath: null,
+			evidenceOnly: true,
+			rejectedReason: 'outside_configured_workspace_roots'
+		};
 	}
 }
 
-// A target folder is in-workspace when it sits under one of the Spark-controlled roots:
-// the configured Spark workspace root or the spawner state directory. We intentionally do
-// NOT use process.cwd() (the SvelteKit app root) — the spawner writes generated projects
-// and static proofs under its own state/workspace tree, not under the server source tree.
-// The SPARK_ALLOW_EXTERNAL_PROJECT_PATHS escape hatch keeps trusted local-dev flows working.
-function isPathWithinWorkspace(candidatePath: string): boolean {
-	if (externalProjectPathsAllowed()) return true;
-	const resolvedCandidate = canonicalize(candidatePath);
-	const allowedRoots = [sparkWorkspaceRoot(), spawnerStateDir()]
-		.filter((root): root is string => Boolean(root && root.trim()))
-		.map((root) => canonicalize(root));
-	return allowedRoots.some(
-		(root) => resolvedCandidate === root || isWithinDirectory(root, resolvedCandidate)
-	);
-}
-
-// A Windows drive-letter path (C:\...) on a POSIX host — or a POSIX-absolute path on a
-// Windows host — denotes the user's own machine build location, not a path on this server.
-// It cannot reference a server file (resolve() would mangle it under cwd), so it is preserved
-// verbatim as the declared OS target rather than run through the server workspace guard, which
-// matches inferProjectPathFromPrdLoad's treatment of explicit project paths.
-function isForeignOsAbsolutePath(candidate: string): boolean {
-	const looksWindows = /^[A-Za-z]:[\\/]/.test(candidate);
-	const looksPosix = candidate.startsWith('/');
-	return process.platform === 'win32' ? looksPosix : looksWindows;
-}
-
-function extractTargetFolder(content: string): string | null {
-	const candidate = extractExplicitProjectPath(content);
-	if (!candidate) return null;
-	// Explicit foreign-OS target paths are the user's declared build location; keep them as-is.
-	if (isForeignOsAbsolutePath(candidate)) return candidate;
-	const resolved = resolve(candidate);
-	if (!isPathWithinWorkspace(resolved)) {
-		logger.warn('[prd-bridge-write] Rejected target folder outside workspace', { candidate, resolved });
-		return null;
-	}
-	return resolved;
+function operationalProjectLineage(
+	content: string,
+	projectName: string | undefined,
+	decision: ServerProjectPathDecision
+): ReturnType<typeof _extractPrdBridgeProjectLineage> {
+	if (decision.evidenceOnly) return null;
+	const extracted = _extractPrdBridgeProjectLineage(content, projectName);
+	if (!decision.usedProjectPath) return extracted;
+	const lineage = extracted || {
+		projectId: null,
+		projectPath: null,
+		previewUrl: null,
+		parentMissionId: null,
+		iterationNumber: null,
+		improvementFeedback: null
+	};
+	return { ...lineage, projectPath: decision.usedProjectPath, previewUrl: null, projectId: null };
 }
 
 function extractRequestedFiles(content: string): string[] {
@@ -543,16 +576,58 @@ function escapeHtml(value: string): string {
 		.replace(/'/g, '&#39;');
 }
 
-async function writeConstrainedStaticProofArtifacts(content: string): Promise<number> {
-	if (!isConstrainedSingleFileStaticHtml(content)) return 0;
-	const targetFolder = extractTargetFolder(content);
+function sameResolvedPath(left: string, right: string): boolean {
+	const leftResolved = resolve(left);
+	const rightResolved = resolve(right);
+	return process.platform === 'win32'
+		? leftResolved.toLowerCase() === rightResolved.toLowerCase()
+		: leftResolved === rightResolved;
+}
+
+async function writeConstrainedStaticProofArtifacts(
+	requestId: string,
+	content: string
+): Promise<DeterministicArtifactProof> {
+	if (!isConstrainedSingleFileStaticHtml(content)) {
+		return {
+			status: 'not_applicable',
+			fileCount: 0,
+			reason: 'request_is_not_constrained_static'
+		};
+	}
+	const projectPathDecision = classifyServerProjectPath(content);
 	const deliverableFiles = constrainedStaticDeliverableFiles(content);
-	if (!targetFolder || deliverableFiles.join(',') !== 'index.html,README.md') return 0;
+	if (!projectPathDecision.usedProjectPath || deliverableFiles.join(',') !== 'index.html,README.md') {
+		return {
+			status: 'not_written',
+			fileCount: 0,
+			reason: 'safe_exact_artifact_target_unavailable'
+		};
+	}
 
 	const { marker, sentence } = extractStaticProofVisibleRequirements(content);
-	if (!marker && !sentence) return 0;
+	if (!marker && !sentence) {
+		return {
+			status: 'not_written',
+			fileCount: 0,
+			reason: 'visible_proof_requirement_missing'
+		};
+	}
 
-	await mkdir(targetFolder, { recursive: true });
+	const allowedRoots = deterministicArtifactAllowedRoots();
+	const targetFolder = ensureContainedDirectoryInRoots(
+		allowedRoots,
+		projectPathDecision.usedProjectPath,
+		'Deterministic artifact target'
+	);
+	const existingEntries = await readdir(targetFolder);
+	if (existingEntries.some((entry) => !deliverableFiles.includes(entry))) {
+		return {
+			status: 'not_written',
+			fileCount: 0,
+			reason: 'deterministic_target_contains_unexpected_entries'
+		};
+	}
 	const markerHtml = marker ? `<p class="marker">${escapeHtml(marker)}</p>` : '';
 	const sentenceHtml = sentence ? `<p class="sentence">${escapeHtml(sentence)}</p>` : '';
 	const indexHtml = [
@@ -574,9 +649,39 @@ async function writeConstrainedStaticProofArtifacts(content: string): Promise<nu
 		'</html>'
 	].join('\n');
 	const readme = [marker, sentence].filter(Boolean).join('\n\n') + '\n';
-	await writeFile(join(targetFolder, 'index.html'), indexHtml, 'utf-8');
-	await writeFile(join(targetFolder, 'README.md'), readme, 'utf-8');
-	return 2;
+	const indexWriteRoot = recheckContainedDirectoryInRoots(
+		allowedRoots,
+		targetFolder,
+		'Deterministic artifact target'
+	);
+	if (!sameResolvedPath(indexWriteRoot, targetFolder)) {
+		throw new Error('Deterministic artifact target changed before index write.');
+	}
+	await writeFileAtomic(join(indexWriteRoot, 'index.html'), indexHtml);
+	const readmeWriteRoot = recheckContainedDirectoryInRoots(
+		allowedRoots,
+		targetFolder,
+		'Deterministic artifact target'
+	);
+	if (!sameResolvedPath(readmeWriteRoot, targetFolder)) {
+		throw new Error('Deterministic artifact target changed before README write.');
+	}
+	await writeFileAtomic(join(readmeWriteRoot, 'README.md'), readme);
+	try {
+		return createWrittenDeterministicArtifactProof({
+			requestId,
+			prdContent: content,
+			targetRoot: targetFolder,
+			expectedRelativeFiles: deliverableFiles,
+			allowedRoots
+		});
+	} catch {
+		return {
+			status: 'not_written',
+			fileCount: 0,
+			reason: 'deterministic_artifact_receipt_verification_failed'
+		};
+	}
 }
 
 function hasExactTwoFileProofIntent(lower: string): boolean {
@@ -720,7 +825,7 @@ export async function _buildFallbackAnalysisResult(
 		};
 	}
 
-	const targetFolder = extractTargetFolder(content);
+	const targetFolder = classifyServerProjectPath(content).usedProjectPath;
 	const requestedFiles = extractRequestedFiles(content);
 	const techStack = inferTechStack(content);
 	const lower = content.toLowerCase();
@@ -1141,6 +1246,38 @@ export async function _buildFallbackAnalysisResult(
 	};
 }
 
+async function verifyStoredDeterministicArtifactProof(
+	requestId: string,
+	paths: ReturnType<typeof getPrdBridgePaths> = getPrdBridgePaths()
+): Promise<DeterministicArtifactVerification> {
+	const resultFile = prdResultFile(paths, requestId);
+	if (!existsSync(resultFile)) {
+		return { ok: false, reason: 'artifact_proof_result_missing', proof: null };
+	}
+	try {
+		const [storedResultText, prdContent, pendingRequest] = await Promise.all([
+			readFile(resultFile, 'utf-8'),
+			pendingPrdContentForRequest(requestId, paths),
+			readPendingRequestRecord(paths.spawnerDir, requestId)
+		]);
+		const storedResult = JSON.parse(storedResultText) as Record<string, unknown>;
+		const expectedTargetRoot = expectedDeterministicArtifactTargetFromPending(pendingRequest);
+		if (!expectedTargetRoot) {
+			return { ok: false, reason: 'artifact_proof_expected_target_missing', proof: null };
+		}
+		return verifyWrittenDeterministicArtifactProof({
+			metadata: storedResult.metadata,
+			requestId,
+			prdContent,
+			projectType: typeof storedResult.projectType === 'string' ? storedResult.projectType : undefined,
+			allowedRoots: deterministicArtifactAllowedRoots(),
+			expectedTargetRoot
+		});
+	} catch {
+		return { ok: false, reason: 'artifact_proof_result_unreadable', proof: null };
+	}
+}
+
 async function writeFallbackAnalysisResult(
 	requestId: string,
 	projectName: string,
@@ -1150,12 +1287,27 @@ async function writeFallbackAnalysisResult(
 	traceRef?: string | null,
 	buildLane?: BuildLane,
 	options: { provisional?: boolean } = {}
-): Promise<void> {
+): Promise<DeterministicArtifactProof> {
 	const paths = getPrdBridgePaths();
 	const canonicalResultFile = prdResultFile(paths, requestId);
 	const outputFile = options.provisional ? provisionalPrdResultFile(paths, requestId) : canonicalResultFile;
-	if (existsSync(canonicalResultFile)) return;
-	if (options.provisional && existsSync(outputFile)) return;
+	if (existsSync(canonicalResultFile)) {
+		const verification = await verifyStoredDeterministicArtifactProof(requestId, paths);
+		return verification.ok && verification.proof
+			? verification.proof
+			: {
+					status: 'not_written',
+					fileCount: 0,
+					reason: verification.reason
+				};
+	}
+	if (options.provisional && existsSync(outputFile)) {
+		return {
+			status: 'not_applicable',
+			fileCount: 0,
+			reason: 'provisional_result_already_exists'
+		};
+	}
 
 	const outputDir = options.provisional ? paths.provisionalResultsDir : paths.resultsDir;
 	if (!existsSync(outputDir)) {
@@ -1163,21 +1315,53 @@ async function writeFallbackAnalysisResult(
 	}
 
 	const result = await _buildFallbackAnalysisResult(requestId, projectName, buildMode, tier, paths, buildLane);
-	if (options.provisional && existsSync(canonicalResultFile)) return;
+	if (options.provisional && existsSync(canonicalResultFile)) {
+		return {
+			status: 'not_applicable',
+			fileCount: 0,
+			reason: 'canonical_result_won_provisional_race'
+		};
+	}
 	const resolvedTraceRef = traceRef || await traceRefForRequest(requestId, {});
-	const resultWithTrace = resolvedTraceRef
-		? { ...result, traceRef: resolvedTraceRef, metadata: { ...((result as Record<string, unknown>).metadata as Record<string, unknown> | undefined), traceRef: resolvedTraceRef } }
-		: result;
+	const deterministicArtifactProof: DeterministicArtifactProof = options.provisional
+		? {
+				status: 'not_applicable',
+				fileCount: 0,
+				reason: 'provisional_analysis_never_writes_artifacts'
+			}
+		: await writeConstrainedStaticProofArtifacts(
+				requestId,
+				await pendingPrdContentForRequest(requestId, paths).catch(() => '')
+			);
+	const resultMetadata = (result as Record<string, unknown>).metadata;
+	const resultWithTrace = {
+		...result,
+		...(resolvedTraceRef ? { traceRef: resolvedTraceRef } : {}),
+		metadata: {
+			...(resultMetadata && typeof resultMetadata === 'object' && !Array.isArray(resultMetadata)
+				? (resultMetadata as Record<string, unknown>)
+				: {}),
+			...(resolvedTraceRef ? { traceRef: resolvedTraceRef } : {}),
+			deterministicArtifactProof
+		}
+	};
 	const stored = await projectStoredPrdAnalysisResultForTier(requestId, resultWithTrace, tier);
 	const output = options.provisional ? _demoteProvisionalPrdDraftResult(stored, reason) : stored;
 	await writeFile(outputFile, JSON.stringify(output, null, 2), 'utf-8');
-	const staticArtifactCount = options.provisional
-		? 0
-		: await writeConstrainedStaticProofArtifacts(await pendingPrdContentForRequest(requestId, paths).catch(() => ''));
-	if (!options.provisional && staticArtifactCount > 0) {
+	const verifiedArtifactProof = !options.provisional && deterministicArtifactProof.status === 'written'
+		? await verifyStoredDeterministicArtifactProof(requestId, paths)
+		: null;
+	const effectiveArtifactProof: DeterministicArtifactProof = verifiedArtifactProof && !verifiedArtifactProof.ok
+		? {
+				status: 'not_written',
+				fileCount: 0,
+				reason: verifiedArtifactProof.reason
+			}
+		: deterministicArtifactProof;
+	if (!options.provisional && effectiveArtifactProof.status === 'written') {
 		await appendPrdTrace(requestId, 'deterministic_static_artifacts_written', {
 			...traceRefDetails(resolvedTraceRef),
-			fileCount: staticArtifactCount
+			fileCount: effectiveArtifactProof.fileCount
 		});
 	}
 	await appendPrdTrace(requestId, options.provisional ? 'provisional_analysis_written' : 'fallback_analysis_written', {
@@ -1186,6 +1370,7 @@ async function writeFallbackAnalysisResult(
 		resultFile: outputFile,
 		taskCount: Array.isArray(result.tasks) ? result.tasks.length : 0
 	});
+	return effectiveArtifactProof;
 }
 
 function scheduleProvisionalPrdDraft(input: {
@@ -1306,7 +1491,7 @@ export async function _runAutoAnalysisWatchdog(input: {
 				provisionalDraftAvailable
 			}
 		});
-		await relayCanonicalPrdAnalysisComplete({
+		await _relayCanonicalPrdAnalysisComplete({
 			requestId,
 			projectName,
 			buildMode,
@@ -1989,7 +2174,7 @@ async function startAutoAnalysis(
 						});
 					}
 					if (effectiveSuccess) {
-						await relayCanonicalPrdAnalysisComplete({
+						await _relayCanonicalPrdAnalysisComplete({
 							requestId,
 							projectName,
 							buildMode,
@@ -2046,7 +2231,22 @@ async function startAutoAnalysis(
 	}
 }
 
+const activePrdWriteRequestIds = new Set<string>();
+
+export function _acquirePrdWriteRequestLock(requestId: string): (() => void) | null {
+	const key = normalizeRequestId(requestId);
+	if (activePrdWriteRequestIds.has(key)) return null;
+	activePrdWriteRequestIds.add(key);
+	let released = false;
+	return () => {
+		if (released) return;
+		released = true;
+		activePrdWriteRequestIds.delete(key);
+	};
+}
+
 export const POST: RequestHandler = async (event) => {
+	let releaseRequestLock: (() => void) | null = null;
 	try {
 		const unauthorized = requireControlAuth(event, {
 			surface: 'PRDBridgeWrite',
@@ -2078,7 +2278,7 @@ export const POST: RequestHandler = async (event) => {
 		const normalizedTier = normalizeTier(tier);
 		const normalizedTelegramRelay = normalizeTelegramRelay(telegramRelay);
 		const normalizedRunnerCapability = normalizeRunnerCapability(runnerCapability ?? runner_capability);
-		const normalizedProjectPathEvidence = normalizeProjectPathEvidence(projectPathEvidence ?? project_path_evidence);
+		const callerProjectPathEvidence = normalizeProjectPathEvidence(projectPathEvidence ?? project_path_evidence);
 		const normalizedCapabilityProposalPacket = normalizeCapabilityProposalPacket(
 			capabilityProposalPacket ?? capability_proposal_packet
 		);
@@ -2086,8 +2286,15 @@ export const POST: RequestHandler = async (event) => {
 		const skipClarification = forceDispatch === true;
 		const paths = getPrdBridgePaths();
 
-		if (!content || !requestId) {
+		if (!content || typeof requestId !== 'string' || !requestId.trim()) {
 			return json({ error: 'Content and requestId are required' }, { status: 400 });
+		}
+		releaseRequestLock = _acquirePrdWriteRequestLock(requestId);
+		if (!releaseRequestLock) {
+			return json(
+				{ error: 'A PRD write is already active for this requestId.', code: 'prd_write_request_in_flight' },
+				{ status: 409 }
+			);
 		}
 		const missionId = missionIdFromRequestId(requestId);
 		const normalizedTraceRef = normalizeTraceRef(traceRef ?? trace_ref) || traceRefFromMissionId(missionId);
@@ -2211,7 +2418,17 @@ export const POST: RequestHandler = async (event) => {
 		await mkdir(pendingRequestsDir(paths.spawnerDir), { recursive: true });
 		await writeFile(pendingPrdFileForRequest(paths.spawnerDir, requestId), finalContent, 'utf-8');
 		await writeFileAtomic(paths.pendingPrdFile, finalContent);
-		const projectLineage = _extractPrdBridgeProjectLineage(finalContent, projectName);
+		const serverProjectPathDecision = classifyServerProjectPath(
+			finalContent,
+			callerProjectPathEvidence?.requestedProjectPath
+		);
+		const normalizedProjectPathEvidence = serverProjectPathDecision.requestedProjectPath
+			? { ...serverProjectPathDecision }
+			: null;
+		const rejectedProjectPathIsEvidenceOnly = serverProjectPathDecision.evidenceOnly;
+		const projectLineage = operationalProjectLineage(finalContent, projectName, serverProjectPathDecision);
+		const normalizedChatId = typeof chatId === 'string' && chatId.trim() ? chatId.trim() : null;
+		const shouldPersistRelay = Boolean(normalizedChatId || normalizedProjectPathEvidence);
 		const rawBuildLaneReason = buildLaneReason ?? build_lane_reason;
 		const normalizedBuildLaneReason =
 			typeof rawBuildLaneReason === 'string' && rawBuildLaneReason.trim()
@@ -2251,15 +2468,19 @@ export const POST: RequestHandler = async (event) => {
 			...(normalizedCapabilityProposalPacket ? { capabilityProposalPacket: normalizedCapabilityProposalPacket } : {}),
 			...(normalizedCapabilityProposalSummary ? { capabilityProposalSummary: normalizedCapabilityProposalSummary } : {}),
 			relay:
-				typeof chatId === 'string' && chatId.trim()
+				shouldPersistRelay
 					? {
-							chatId: chatId.trim(),
-							userId: typeof userId === 'string' && userId.trim() ? userId.trim() : 'telegram',
+							...(normalizedChatId
+								? {
+									chatId: normalizedChatId,
+									userId: typeof userId === 'string' && userId.trim() ? userId.trim() : 'telegram'
+								}
+								: {}),
 							missionId,
 							requestId,
 							tier: normalizedTier,
 							...(normalizedTraceRef ? { traceRef: normalizedTraceRef } : {}),
-							goal: content.slice(0, 500),
+							...(!rejectedProjectPathIsEvidenceOnly ? { goal: content.slice(0, 500) } : {}),
 							...(projectLineage ? { projectLineage } : {}),
 							...(normalizedRunnerCapability ? { runnerCapability: normalizedRunnerCapability } : {}),
 							...(normalizedProjectPathEvidence ? { projectPathEvidence: normalizedProjectPathEvidence } : {}),
@@ -2329,6 +2550,7 @@ export const POST: RequestHandler = async (event) => {
 					normalizedTraceRef,
 					resolvedExecutionAuthority
 				);
+		let deterministicArtifactProof: DeterministicArtifactProof | null = null;
 		await appendPrdTrace(requestId, 'authority_verdict_evaluated', {
 			...(normalizedTraceRef ? { traceRef: normalizedTraceRef } : {}),
 			authorityVerdict: _buildAuthorityVerdict({
@@ -2344,7 +2566,7 @@ export const POST: RequestHandler = async (event) => {
 						? 'Fast direct lane request; deterministic lightweight analysis queued.'
 						: 'Constrained static file request; deterministic analysis queued to avoid app-scope expansion.'
 			});
-			await writeFallbackAnalysisResult(
+			deterministicArtifactProof = await writeFallbackAnalysisResult(
 				requestId,
 				requestMeta.projectName,
 				requestMeta.buildMode,
@@ -2353,7 +2575,17 @@ export const POST: RequestHandler = async (event) => {
 				normalizedTraceRef,
 				normalizedBuildLane
 			);
-			await relayCanonicalPrdAnalysisComplete({
+			let terminalArtifactVerification = deterministicArtifactProof.status === 'written'
+				? await verifyStoredDeterministicArtifactProof(requestId)
+				: { ok: false, reason: deterministicArtifactProof.reason, proof: null };
+			if (!terminalArtifactVerification.ok) {
+				deterministicArtifactProof = {
+					status: 'not_written',
+					fileCount: 0,
+					reason: terminalArtifactVerification.reason
+				};
+			}
+			await _relayCanonicalPrdAnalysisComplete({
 				requestId,
 				projectName: requestMeta.projectName,
 				buildMode: requestMeta.buildMode,
@@ -2362,7 +2594,10 @@ export const POST: RequestHandler = async (event) => {
 				provider: auto.provider,
 				providerProcessSuccess: true,
 				resultFileName: `${normalizeRequestId(requestId)}.json`,
-				terminal: true
+				terminal: terminalArtifactVerification.ok,
+				terminalVerification: terminalArtifactVerification.ok
+					? async () => (await verifyStoredDeterministicArtifactProof(requestId)).ok
+					: undefined
 			});
 		} else if (auto.started) {
 			scheduleProvisionalPrdDraft({
@@ -2396,7 +2631,7 @@ export const POST: RequestHandler = async (event) => {
 				`auto-analysis not started for provider ${auto.provider}`,
 				normalizedTraceRef
 			);
-			await relayCanonicalPrdAnalysisComplete({
+			await _relayCanonicalPrdAnalysisComplete({
 				requestId,
 				projectName: requestMeta.projectName,
 				buildMode: requestMeta.buildMode,
@@ -2419,7 +2654,8 @@ export const POST: RequestHandler = async (event) => {
 			...(normalizedTraceRef ? { traceRef: normalizedTraceRef } : {}),
 			autoAnalysis: {
 				provider: auto.provider,
-				started: auto.started
+				started: auto.started,
+				...(deterministicArtifactProof ? { deterministicArtifactProof } : {})
 			},
 			authority,
 			enrichment: {
@@ -2437,5 +2673,7 @@ export const POST: RequestHandler = async (event) => {
 		}
 		console.error('[PRDBridge] Error writing PRD:', error);
 		return json({ error: 'Failed to write PRD file' }, { status: 500 });
+	} finally {
+		releaseRequestLock?.();
 	}
 };

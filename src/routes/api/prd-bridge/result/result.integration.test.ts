@@ -88,6 +88,14 @@ describe('/api/prd-bridge/result integration', () => {
 			techStack: { framework: 'Existing Spawner UI', language: 'TypeScript' },
 			tasks: [{ id: 'TAS-1', title: 'Keep state aligned', skills: [], dependencies: [] }],
 			skills: [],
+			metadata: {
+				deterministicArtifactProof: {
+					status: 'written',
+					source: 'spawner_prd_deterministic_writer',
+					proofHmacSha256: '0'.repeat(64)
+				},
+				providerMetric: 'retained'
+			},
 			executionPrompt: 'Acknowledge understanding and ask for missing details.'
 		};
 
@@ -113,6 +121,8 @@ describe('/api/prd-bridge/result integration', () => {
 		const stored = await readFile(path.join(testSpawnerDir, 'results', `${requestId}.json`), 'utf-8');
 		expect(stored).not.toContain('executionPrompt');
 		expect(stored).not.toContain('Acknowledge understanding');
+		expect(stored).not.toContain('deterministicArtifactProof');
+		expect(stored).toContain('providerMetric');
 	});
 
 	it('rejects unauthenticated PRD result reads from non-local callers', async () => {

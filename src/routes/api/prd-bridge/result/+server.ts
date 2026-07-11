@@ -23,6 +23,7 @@ import { requireControlAuth } from '$lib/server/mcp-auth';
 import { logger } from '$lib/utils/logger';
 import { parseJsonOrThrow } from '$lib/utils/safe-json';
 import { appendPrdTraceWithContinuity } from '$lib/server/prd-trace-proof-continuity';
+import { stripProviderDeterministicArtifactProof } from '$lib/server/prd-deterministic-artifact-proof';
 
 const log = logger.scope('PRDBridge');
 
@@ -145,16 +146,21 @@ export const POST: RequestHandler = async (event) => {
 		const resultRecord = result && typeof result === 'object' && !Array.isArray(result)
 			? (result as Record<string, unknown>)
 			: {};
+		const {
+			deterministicArtifactProof: _untrustedTopLevelProof,
+			...safeResultRecord
+		} = resultRecord;
 		const metadataRecord = resultRecord.metadata && typeof resultRecord.metadata === 'object' && !Array.isArray(resultRecord.metadata)
 			? (resultRecord.metadata as Record<string, unknown>)
 			: {};
+		const safeProviderMetadata = stripProviderDeterministicArtifactProof(metadataRecord);
 		const storedResult = await projectStoredPrdAnalysisResultForTier(
 			requestId,
 			{
-				...resultRecord,
+				...safeResultRecord,
 				...(traceRef ? { traceRef } : {}),
 				metadata: {
-					...metadataRecord,
+					...safeProviderMetadata,
 					...(traceRef ? { traceRef } : {}),
 					canonical: true,
 					provisional: false,

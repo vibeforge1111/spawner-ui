@@ -624,6 +624,14 @@ describe('/api/events auth', () => {
 							techStack: { framework: 'Existing Spawner UI', language: 'TypeScript' },
 							tasks: [{ id: 'TAS-1', title: 'Store result consistently', skills: [], dependencies: [] }],
 							skills: [],
+							metadata: {
+								deterministicArtifactProof: {
+									status: 'written',
+									source: 'spawner_prd_deterministic_writer',
+									proofHmacSha256: '0'.repeat(64)
+								},
+								providerMetric: 'retained'
+							},
 							executionPrompt: 'Store result consistently.'
 						}
 					}
@@ -639,6 +647,8 @@ describe('/api/events auth', () => {
 		expect(storedJson.metadata.traceRef).toBe(traceRef);
 		expect(stored).not.toContain('executionPrompt');
 		expect(stored).not.toContain('Store result consistently.');
+		expect(stored).not.toContain('deterministicArtifactProof');
+		expect(stored).toContain('providerMetric');
 
 		const pending = JSON.parse(await readFile(path.join(testSpawnerDir, 'pending-request.json'), 'utf-8'));
 		expect(pending).toMatchObject({

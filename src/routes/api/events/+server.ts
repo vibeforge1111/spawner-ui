@@ -21,6 +21,7 @@ import { writeFileAtomic } from '$lib/server/atomic-write';
 import { extractTraceRef } from '$lib/server/trace-ref';
 import { logger } from '$lib/utils/logger';
 import { parseJsonOrFallback } from '$lib/utils/safe-json';
+import { stripProviderDeterministicArtifactProof } from '$lib/server/prd-deterministic-artifact-proof';
 
 import { writeFile, mkdir, appendFile, readFile } from 'fs/promises';
 import { join } from 'path';
@@ -220,16 +221,21 @@ async function storePRDResult(requestId: string, result: unknown): Promise<void>
 	const resultRecord = result && typeof result === 'object' && !Array.isArray(result)
 		? (result as Record<string, unknown>)
 		: {};
+	const {
+		deterministicArtifactProof: _untrustedTopLevelProof,
+		...safeResultRecord
+	} = resultRecord;
 	const metadataRecord = resultRecord.metadata && typeof resultRecord.metadata === 'object' && !Array.isArray(resultRecord.metadata)
 		? (resultRecord.metadata as Record<string, unknown>)
 		: {};
+	const safeProviderMetadata = stripProviderDeterministicArtifactProof(metadataRecord);
 	const storedResult = await projectStoredPrdAnalysisResultForTier(
 		requestId,
 		{
-			...resultRecord,
+			...safeResultRecord,
 			...(traceRef ? { traceRef } : {}),
 			metadata: {
-				...metadataRecord,
+				...safeProviderMetadata,
 				...(traceRef ? { traceRef } : {}),
 				canonical: true,
 				provisional: false,

@@ -3,11 +3,17 @@ import { existsSync, realpathSync } from 'fs';
 import { mkdtemp, readFile, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import path from 'path';
-import { POST, _runAutoAnalysisWatchdog } from './+server';
+import {
+	POST,
+	_acquirePrdWriteRequestLock,
+	_relayCanonicalPrdAnalysisComplete,
+	_runAutoAnalysisWatchdog
+} from './+server';
 import {
 	buildServerGovernorDecisionAuthority,
 	buildServerTurnIntentVNextAuthority
 } from '$lib/server/harness-authority';
+import { sha256Text } from '$lib/server/prd-deterministic-artifact-proof';
 
 const { PRIVATE_ENV, executeProviderTaskMock } = vi.hoisted(() => ({
 	PRIVATE_ENV: {
@@ -104,6 +110,23 @@ async function waitForMissionEventTypes(missionId: string, expected: string[]) {
 		.map((entry: { eventType: string }) => entry.eventType);
 }
 
+async function waitForTraceEvent(requestId: string, event: string) {
+	const tracePath = path.join(testSpawnerDir, 'prd-auto-trace.jsonl');
+	for (let attempt = 0; attempt < 50; attempt += 1) {
+		if (existsSync(tracePath)) {
+			const rows = (await readFile(tracePath, 'utf-8'))
+				.trim()
+				.split('\n')
+				.filter(Boolean)
+				.map((line) => JSON.parse(line));
+			const match = rows.find((row) => row.requestId === requestId && row.event === event);
+			if (match) return match;
+		}
+		await new Promise((resolve) => setTimeout(resolve, 10));
+	}
+	return null;
+}
+
 describe('/api/prd-bridge/write integration', () => {
 	beforeEach(async () => {
 		await resetTestSpawnerDir();
@@ -146,6 +169,57 @@ describe('/api/prd-bridge/write integration', () => {
 		expect(existsSync(path.join(testSpawnerDir, 'pending-request.json'))).toBe(false);
 		expect(existsSync(path.join(testSpawnerDir, 'results', `${requestId}.json`))).toBe(false);
 		expect(globalThis.fetch).not.toHaveBeenCalled();
+	});
+
+	it('rejects a concurrent write for the same requestId before state can cross-bind', async () => {
+		const requestId = 'tg-build-concurrent-request-lock';
+		const release = _acquirePrdWriteRequestLock(requestId);
+		expect(release).toEqual(expect.any(Function));
+		try {
+			const response = await POST({
+				request: new Request('http://localhost/api/prd-bridge/write', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json', 'x-api-key': BRIDGE_TEST_KEY },
+					body: JSON.stringify({
+						content: '# Concurrent request\n\nBuild a small local page.',
+						requestId,
+						projectName: 'Concurrent Request',
+						buildMode: 'direct',
+						executionAuthority: writeAuthority(requestId)
+					})
+				}),
+				getClientAddress: () => '127.0.0.1'
+			} as never);
+			const body = await response.json();
+
+			expect(response.status).toBe(409);
+			expect(body.code).toBe('prd_write_request_in_flight');
+			expect(existsSync(path.join(testSpawnerDir, 'pending-request.json'))).toBe(false);
+		} finally {
+			release?.();
+		}
+	});
+
+	it('re-verifies deterministic artifacts after the analysis relay and before terminal mission truth', async () => {
+		let proofStillValid = true;
+		const eventTypes: string[] = [];
+		await _relayCanonicalPrdAnalysisComplete(
+			{
+				requestId: 'terminal-boundary-reverify',
+				projectName: 'Terminal Boundary Reverify',
+				buildMode: 'direct',
+				provider: 'deterministic-static',
+				resultFileName: 'terminal-boundary-reverify.json',
+				terminal: true,
+				terminalVerification: async () => proofStillValid
+			},
+			async (event) => {
+				eventTypes.push(event.type || 'unknown');
+				if (event.type === 'task_completed') proofStillValid = false;
+			}
+		);
+
+		expect(eventTypes).toEqual(['task_completed']);
 	});
 
 	it('accepts Spark bridge key for hosted Telegram PRD writes before Harness authority evaluation', async () => {
@@ -301,7 +375,9 @@ describe('/api/prd-bridge/write integration', () => {
 			requestedProjectPath,
 			usedProjectPath: null,
 			evidenceOnly: true,
-			rejectedReason: 'outside_configured_workspace_root'
+			rejectedReason: process.platform === 'win32'
+				? 'outside_configured_workspace_roots'
+				: 'foreign_operating_system_path'
 		});
 		expect(pendingMeta.relay.projectPathEvidence).toEqual(pendingMeta.projectPathEvidence);
 		expect(pendingMeta.harnessProofRef).toMatch(/^turn:sha256:[a-f0-9]{16}$/);
@@ -325,7 +401,9 @@ describe('/api/prd-bridge/write integration', () => {
 				hasRequestedProjectPath: true,
 				usedProjectPath: false,
 				evidenceOnly: true,
-				rejectedReason: 'outside_configured_workspace_root'
+				rejectedReason: process.platform === 'win32'
+					? 'outside_configured_workspace_roots'
+					: 'foreign_operating_system_path'
 			}
 		});
 	});
@@ -598,11 +676,7 @@ describe('/api/prd-bridge/write integration', () => {
 			resultFileName: `${requestId}.json`
 		});
 
-		const traceRows = (await readFile(path.join(testSpawnerDir, 'prd-auto-trace.jsonl'), 'utf-8'))
-			.trim()
-			.split('\n')
-			.map((line) => JSON.parse(line));
-		expect(traceRows.find((row) => row.event === 'auto_worker_finished')).toMatchObject({
+		expect(await waitForTraceEvent(requestId, 'auto_worker_finished')).toMatchObject({
 			requestId,
 			traceRef,
 			success: false,
@@ -622,7 +696,7 @@ describe('/api/prd-bridge/write integration', () => {
 		expect(missionEvents.map((entry: { eventType: string }) => entry.eventType)).toContain('mission_failed');
 	});
 
-	it('relays terminal completion for fast_direct deterministic success', async () => {
+	it('withholds terminal completion for a fast_direct plan when deterministic artifacts were not written', async () => {
 		const requestId = 'tg-build-fastdirect-completion-1780950000000';
 		const missionId = 'mission-1780950000000';
 		const traceRef = 'trace:spawner-prd:mission-1780950000000';
@@ -653,11 +727,22 @@ describe('/api/prd-bridge/write integration', () => {
 		expect(response.status).toBe(200);
 		expect(body.autoAnalysis).toMatchObject({
 			provider: 'deterministic-fast-lane',
-			started: false
+			started: false,
+			deterministicArtifactProof: {
+				status: 'not_written',
+				fileCount: 0,
+				reason: 'safe_exact_artifact_target_unavailable'
+			}
 		});
 		expect(JSON.parse(await readFile(path.join(testSpawnerDir, 'results', `${requestId}.json`), 'utf-8'))).toMatchObject({
 			success: true,
-			projectName: 'Fast Direct Completion Board'
+			projectName: 'Fast Direct Completion Board',
+			metadata: {
+				deterministicArtifactProof: {
+					status: 'not_written',
+					fileCount: 0
+				}
+			}
 		});
 
 		const missionControl = JSON.parse(await readFile(path.join(testSpawnerDir, 'mission-control.json'), 'utf-8'));
@@ -667,18 +752,8 @@ describe('/api/prd-bridge/write integration', () => {
 		const completionEvents = missionEvents.filter((entry: { eventType: string }) =>
 			['task_completed', 'mission_completed'].includes(entry.eventType)
 		);
-		expect(completionEvents.map((entry: { eventType: string }) => entry.eventType)).toEqual(
-			expect.arrayContaining(['task_completed', 'mission_completed'])
-		);
 		expect(completionEvents.filter((entry: { eventType: string }) => entry.eventType === 'task_completed')).toHaveLength(1);
-		expect(completionEvents.filter((entry: { eventType: string }) => entry.eventType === 'mission_completed')).toHaveLength(1);
-		expect(
-			completionEvents.find((entry: { eventType: string }) => entry.eventType === 'mission_completed')
-		).toMatchObject({
-			requestId,
-			traceRef,
-			providerId: 'deterministic-fast-lane'
-		});
+		expect(completionEvents.filter((entry: { eventType: string }) => entry.eventType === 'mission_completed')).toHaveLength(0);
 	});
 
 	it('keeps exact two-file static proofs deterministic and scoped to the requested folder', async () => {
@@ -687,20 +762,21 @@ describe('/api/prd-bridge/write integration', () => {
 		const targetFolder = path.join(testSpawnerDir, 'spark-os-proof-s');
 		const proofMarker = 'SPARK_OS_TEST_STATIC_PROOF_S';
 		const proofSentence = 'Spawner trace parity runtime proof';
+		const content = [
+			`Create a local-only static proof in ${targetFolder}.`,
+			'You must create exactly 2 local proof files and no others: index.html and README.md.',
+			'Do not create app.js, styles.css, package.json, assets, folders, or any extra file.',
+			'Put all styling inline inside index.html.',
+			`Include the visible marker ${proofMarker} in both files.`,
+			`Include the exact sentence "${proofSentence}" in both files.`
+		].join(' ');
 
 		const response = await POST({
 			request: new Request('http://localhost/api/prd-bridge/write', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json', 'x-api-key': BRIDGE_TEST_KEY },
 				body: JSON.stringify({
-					content: [
-						`Create a local-only static proof in ${targetFolder}.`,
-						'You must create exactly 2 local proof files and no others: index.html and README.md.',
-						'Do not create app.js, styles.css, package.json, assets, folders, or any extra file.',
-						'Put all styling inline inside index.html.',
-						`Include the visible marker ${proofMarker} in both files.`,
-						`Include the exact sentence "${proofSentence}" in both files.`
-					].join(' '),
+					content,
 					requestId,
 					projectName: 'Spark OS Proof S',
 					buildMode: 'direct',
@@ -716,12 +792,42 @@ describe('/api/prd-bridge/write integration', () => {
 
 		const body = await response.json();
 		expect(response.status).toBe(200);
-		expect(body.autoAnalysis).toMatchObject({ provider: 'deterministic-static', started: false });
+		expect(body.autoAnalysis).toMatchObject({
+			provider: 'deterministic-static',
+			started: false,
+			deterministicArtifactProof: {
+				status: 'written',
+				fileCount: 2,
+				reason: 'artifacts_written_and_bound',
+				schemaVersion: 'spark.deterministic_artifact_proof.v1',
+				source: 'spawner_prd_deterministic_writer',
+				requestId,
+				prdContentSha256: sha256Text(content),
+				expectedRelativeFiles: ['index.html', 'README.md']
+			}
+		});
 		const storedText = await readFile(path.join(testSpawnerDir, 'results', `${requestId}.json`), 'utf-8');
 		const storedResult = JSON.parse(storedText);
 		expect(storedResult.projectType).toBe('static-exact-file-proof');
+		const deterministicArtifactProof = storedResult.metadata.deterministicArtifactProof;
+		expect(deterministicArtifactProof).toMatchObject({
+			status: 'written',
+			fileCount: 2,
+			reason: 'artifacts_written_and_bound',
+			schemaVersion: 'spark.deterministic_artifact_proof.v1',
+			source: 'spawner_prd_deterministic_writer',
+			requestId,
+			prdContentSha256: sha256Text(content),
+			targetRoot: realpathSync(targetFolder),
+			expectedRelativeFiles: ['index.html', 'README.md'],
+			fileSha256: {
+				'index.html': expect.stringMatching(/^[a-f0-9]{64}$/),
+				'README.md': expect.stringMatching(/^[a-f0-9]{64}$/)
+			}
+		});
+		expect(body.autoAnalysis.deterministicArtifactProof).toEqual(deterministicArtifactProof);
 		expect(storedResult.executionPrompt).toBeUndefined();
-		expect(storedResult.tasks[0].workspaceTargets).toEqual([targetFolder]);
+		expect(storedResult.tasks[0].workspaceTargets).toEqual([realpathSync(targetFolder)]);
 		expect(storedResult.tasks[0].acceptanceCriteria[0]).toContain('index.html, README.md');
 		expect(storedText).not.toContain(`${targetFolder}. You must`);
 		expect(await readFile(path.join(targetFolder, 'index.html'), 'utf-8')).toContain(proofMarker);
@@ -729,7 +835,7 @@ describe('/api/prd-bridge/write integration', () => {
 		expect(await readFile(path.join(targetFolder, 'README.md'), 'utf-8')).toContain(proofMarker);
 		expect(await readFile(path.join(targetFolder, 'README.md'), 'utf-8')).toContain(proofSentence);
 		const pendingMeta = JSON.parse(await readFile(path.join(testSpawnerDir, 'pending-request.json'), 'utf-8'));
-		expect(pendingMeta.projectLineage.projectPath).toBe(targetFolder);
+		expect(pendingMeta.projectLineage.projectPath).toBe(deterministicArtifactProof.targetRoot);
 		const traceRows = (await readFile(path.join(testSpawnerDir, 'prd-auto-trace.jsonl'), 'utf-8'))
 			.trim()
 			.split('\n')
@@ -759,5 +865,91 @@ describe('/api/prd-bridge/write integration', () => {
 			traceRef,
 			providerId: 'deterministic-static'
 		});
+	});
+
+	it('keeps a non-chat foreign static-proof target as evidence and records generated-workspace fallback readiness', async () => {
+		const requestId = 'tg-build-foreign-static-proof-evidence';
+		const foreignPath = process.platform === 'win32'
+			? '/tmp/spark-foreign-static-proof'
+			: 'C:\\Users\\USER\\Desktop\\spark-foreign-static-proof';
+		const accidentalLocalTarget = path.resolve(testSpawnerDir, foreignPath);
+		const proofMarker = 'SPARK_FOREIGN_PATH_EVIDENCE_ONLY';
+		const originalCwd = process.cwd();
+		let response: Response;
+
+		try {
+			process.chdir(testSpawnerDir);
+			response = await POST({
+				request: new Request('http://localhost/api/prd-bridge/write', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json', 'x-api-key': BRIDGE_TEST_KEY },
+					body: JSON.stringify({
+						content: [
+							`Create a local-only static proof in ${foreignPath}.`,
+							'You must create exactly 2 local proof files and no others: index.html and README.md.',
+							'Do not create app.js, styles.css, package.json, assets, folders, or any extra file.',
+							`Include the visible marker ${proofMarker} in both files.`
+						].join(' '),
+						requestId,
+						projectName: 'Foreign Static Proof Evidence',
+						buildMode: 'direct',
+						tier: 'pro',
+						forceDispatch: true,
+						projectPathEvidence: {
+							requestedProjectPath: foreignPath,
+							usedProjectPath: null,
+							evidenceOnly: true,
+							rejectedReason: 'foreign_operating_system_path'
+						},
+						executionAuthority: writeAuthority(requestId)
+					})
+				}),
+				getClientAddress: () => '127.0.0.1'
+			} as never);
+		} finally {
+			process.chdir(originalCwd);
+		}
+
+		const body = await response!.json();
+		expect(response!.status).toBe(200);
+		expect(body.autoAnalysis).toMatchObject({
+			provider: 'deterministic-static',
+			started: false,
+			deterministicArtifactProof: {
+				status: 'not_written',
+				fileCount: 0,
+				reason: 'safe_exact_artifact_target_unavailable'
+			}
+		});
+		expect(existsSync(accidentalLocalTarget)).toBe(false);
+		const storedResult = JSON.parse(
+			await readFile(path.join(testSpawnerDir, 'results', `${requestId}.json`), 'utf-8')
+		);
+		expect(storedResult.metadata.deterministicArtifactProof).toEqual({
+			status: 'not_written',
+			fileCount: 0,
+			reason: 'safe_exact_artifact_target_unavailable'
+		});
+		expect(storedResult.tasks.every((task: { workspaceTargets?: string[] }) => (task.workspaceTargets || []).length === 0)).toBe(true);
+		expect(JSON.stringify(storedResult.tasks)).not.toContain(foreignPath);
+		const pendingMeta = JSON.parse(await readFile(path.join(testSpawnerDir, 'pending-request.json'), 'utf-8'));
+		expect(pendingMeta.projectPathEvidence).toEqual({
+			requestedProjectPath: foreignPath,
+			usedProjectPath: null,
+			evidenceOnly: true,
+			rejectedReason: 'foreign_operating_system_path'
+		});
+		expect(pendingMeta.relay.projectPathEvidence).toEqual(pendingMeta.projectPathEvidence);
+		expect(pendingMeta.relay.chatId).toBeUndefined();
+		expect(pendingMeta.relay.goal).toBeUndefined();
+		expect(pendingMeta.relay.projectLineage).toBeUndefined();
+		expect(pendingMeta.projectLineage).toBeNull();
+		const traceText = await readFile(path.join(testSpawnerDir, 'prd-auto-trace.jsonl'), 'utf-8');
+		expect(traceText).not.toContain('deterministic_static_artifacts_written');
+		const missionControl = JSON.parse(await readFile(path.join(testSpawnerDir, 'mission-control.json'), 'utf-8'));
+		const missionEvents = missionControl.recent.filter(
+			(entry: { missionId?: string }) => entry.missionId === 'mission-tg-build-foreign-static-proof-evidence'
+		);
+		expect(missionEvents.map((entry: { eventType: string }) => entry.eventType)).not.toContain('mission_completed');
 	});
 });
