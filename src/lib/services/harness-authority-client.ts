@@ -1,10 +1,7 @@
-import { browser } from '$app/environment';
-import {
-	createHarnessCoreActionEnvelopeVNext,
-	createHarnessCoreAuthorizedGovernorDecision,
-	type GovernorDecisionV1,
-	type HarnessCoreActionMutationClass,
-	type TurnIntentEnvelopeVNext
+import type {
+	GovernorDecisionV1,
+	HarnessCoreActionMutationClass,
+	TurnIntentEnvelopeVNext
 } from '@spark/harness-core';
 
 export type SparkClientMutationClass = HarnessCoreActionMutationClass;
@@ -23,20 +20,8 @@ export function buildClientTurnIntentVNextAuthority(input: {
 	externalNetwork?: boolean;
 	publishes?: boolean;
 }): SparkClientTurnIntentEnvelopeVNext {
-	return createHarnessCoreActionEnvelopeVNext({
-		surface: 'spawner',
-		ownerSystem: 'spawner-ui',
-		source: input.source,
-		reason: input.reason,
-		toolName: input.toolName,
-		mutationClass: input.mutationClass,
-		requestId: input.requestId,
-		actorIdRef: input.actorId,
-		target: input.target,
-		externalNetwork: input.externalNetwork,
-		publishes: input.publishes,
-		confidence: 0.95
-	});
+	void input;
+	throw new Error('Browser clients cannot create Harness authority. Use an authorized server or Telegram action.');
 }
 
 export function buildClientGovernorDecisionAuthority(input: {
@@ -50,17 +35,6 @@ export function buildClientGovernorDecisionAuthority(input: {
 	externalNetwork?: boolean;
 	publishes?: boolean;
 }): SparkClientGovernorDecisionV1 {
-	if (browser) {
-		throw new Error('Browser clients must not mint GovernorDecisionV1 authority. Send the fresh UI action to a server Harness consumer.');
-	}
-	const envelope = buildClientTurnIntentVNextAuthority(input);
-	return createHarnessCoreAuthorizedGovernorDecision({
-		envelope,
-		tool_name: input.toolName,
-		restrictions: {
-			network_allowed: input.externalNetwork === true,
-			write_allowed: ['writes_files', 'creates_schedule', 'deletes_schedule', 'creates_chip', 'launches_mission'].includes(input.mutationClass),
-			publish_allowed: input.publishes === true || input.mutationClass === 'publishes'
-		}
-	});
+	void input;
+	throw new Error('Browser clients must not mint GovernorDecisionV1 authority. Send the fresh UI action to a server Harness consumer.');
 }

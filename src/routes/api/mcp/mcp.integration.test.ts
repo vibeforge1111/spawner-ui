@@ -21,9 +21,9 @@ vi.mock('$lib/services/mcp/client', async (importOriginal) => {
 import { POST } from './+server';
 import { connectMCP } from '$lib/services/mcp/client';
 import {
-	buildClientGovernorDecisionAuthority,
-	buildClientTurnIntentVNextAuthority
-} from '$lib/services/harness-authority-client';
+	buildServerGovernorDecisionAuthority,
+	buildServerTurnIntentVNextAuthority
+} from '$lib/server/harness-authority';
 
 function event(body: unknown) {
 	return {
@@ -38,7 +38,7 @@ function event(body: unknown) {
 }
 
 function connectAuthority() {
-	return buildClientGovernorDecisionAuthority({
+	return buildServerGovernorDecisionAuthority({
 		source: 'mcp.integration.test',
 		reason: 'Focused MCP connect authority regression.',
 		toolName: 'spawner.mcp.connect',
@@ -132,7 +132,7 @@ describe('/api/mcp', () => {
 		const response = await POST(event({
 			instanceId: 'filesystem',
 			mcpId: 'filesystem',
-			executionAuthority: buildClientTurnIntentVNextAuthority({
+			executionAuthority: buildServerTurnIntentVNextAuthority({
 				source: 'mcp.integration.test',
 				reason: 'Focused MCP connect bare-VNext regression.',
 				toolName: 'spawner.mcp.connect',

@@ -10,10 +10,10 @@ import {
 } from '$lib/services/spark-agent-bridge';
 import { getConnections } from '$lib/services/mcp/client';
 import {
-	buildClientGovernorDecisionAuthority,
-	buildClientTurnIntentVNextAuthority,
-	type SparkClientMutationClass
-} from '$lib/services/harness-authority-client';
+	buildServerGovernorDecisionAuthority,
+	buildServerTurnIntentVNextAuthority,
+	type SparkMutationClass
+} from '$lib/server/harness-authority';
 
 const TEST_API_KEY = 'spark-agent-route-test-secret';
 const originalMcpApiKey = process.env.MCP_API_KEY;
@@ -49,11 +49,11 @@ async function readChunk(response: Response, timeoutMs = 1000): Promise<string> 
 
 function commandAuthority(input: {
 	toolName: string;
-	mutationClass: SparkClientMutationClass;
+	mutationClass: SparkMutationClass;
 	target?: string;
 	externalNetwork?: boolean;
 }) {
-	return buildClientGovernorDecisionAuthority({
+	return buildServerGovernorDecisionAuthority({
 		source: 'spark-agent.integration.test',
 		reason: `Focused Spark Agent authority regression for ${input.toolName}.`,
 		toolName: input.toolName,
@@ -65,11 +65,11 @@ function commandAuthority(input: {
 
 function commandVNextAuthority(input: {
 	toolName: string;
-	mutationClass: SparkClientMutationClass;
+	mutationClass: SparkMutationClass;
 	target?: string;
 	externalNetwork?: boolean;
 }) {
-	return buildClientTurnIntentVNextAuthority({
+	return buildServerTurnIntentVNextAuthority({
 		source: 'spark-agent.integration.test',
 		reason: `Focused Spark Agent bare-VNext regression for ${input.toolName}.`,
 		toolName: input.toolName,

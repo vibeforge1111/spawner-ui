@@ -6,6 +6,7 @@
 		text: string;
 		position?: 'top' | 'bottom' | 'left' | 'right';
 		delay?: number;
+		wrap?: boolean;
 		class?: string;
 		children: Snippet;
 	}
@@ -14,6 +15,7 @@
 		text,
 		position = 'top',
 		delay = 200,
+		wrap = false,
 		class: className = '',
 		children
 	}: Props = $props();
@@ -71,7 +73,7 @@
 
 	{#if visible && text}
 		<div
-			class="tooltip {positionClasses[position]} whitespace-nowrap"
+			class="tooltip {positionClasses[position]} {wrap ? 'max-w-80 whitespace-normal text-left leading-5' : 'whitespace-nowrap'}"
 			role="tooltip"
 			id={tooltipId}
 		>

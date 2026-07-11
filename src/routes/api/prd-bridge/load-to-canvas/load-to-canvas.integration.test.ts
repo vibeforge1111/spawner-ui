@@ -7,9 +7,9 @@ import { POST } from './+server';
 import { providerRuntime } from '$lib/server/provider-runtime';
 import { getMissionControlRelaySnapshot } from '$lib/server/mission-control-relay';
 import {
-	buildClientGovernorDecisionAuthority,
-	buildClientTurnIntentVNextAuthority
-} from '$lib/services/harness-authority-client';
+	buildServerGovernorDecisionAuthority,
+	buildServerTurnIntentVNextAuthority
+} from '$lib/server/harness-authority';
 
 vi.mock('$lib/server/provider-runtime', () => ({
 	providerRuntime: {
@@ -41,7 +41,7 @@ const originalEventsApiKey = process.env.EVENTS_API_KEY;
 const originalMcpApiKey = process.env.MCP_API_KEY;
 
 function dispatchAuthority(requestId: string, missionId: string) {
-	return buildClientGovernorDecisionAuthority({
+	return buildServerGovernorDecisionAuthority({
 		source: 'prd-load-authority-test',
 		reason: 'Focused PRD load auto-dispatch authority regression.',
 		toolName: 'spawner.dispatch',
@@ -52,7 +52,7 @@ function dispatchAuthority(requestId: string, missionId: string) {
 }
 
 function dispatchVNextAuthority(requestId: string, missionId: string) {
-	return buildClientTurnIntentVNextAuthority({
+	return buildServerTurnIntentVNextAuthority({
 		source: 'prd-load-authority-test',
 		reason: 'Focused PRD load auto-dispatch authority regression.',
 		toolName: 'spawner.dispatch',

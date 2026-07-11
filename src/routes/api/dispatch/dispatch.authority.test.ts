@@ -29,9 +29,9 @@ vi.mock('$lib/server/provider-runtime', () => ({
 import { DELETE, GET, POST } from './+server';
 import { providerRuntime } from '$lib/server/provider-runtime';
 import {
-	buildClientGovernorDecisionAuthority,
-	buildClientTurnIntentVNextAuthority
-} from '$lib/services/harness-authority-client';
+	buildServerGovernorDecisionAuthority,
+	buildServerTurnIntentVNextAuthority
+} from '$lib/server/harness-authority';
 
 const TEST_API_KEY = 'dispatch-authority-route-test-secret';
 const originalMcpApiKey = process.env.MCP_API_KEY;
@@ -139,7 +139,7 @@ describe('/api/dispatch authority contract', () => {
 
 		const response = await POST(event({
 			executionPack,
-			executionAuthority: buildClientTurnIntentVNextAuthority({
+			executionAuthority: buildServerTurnIntentVNextAuthority({
 				source: 'dispatch-authority-test',
 				reason: 'User started provider dispatch from Spawner.',
 				toolName: 'spawner.dispatch',
@@ -166,7 +166,7 @@ describe('/api/dispatch authority contract', () => {
 		const response = await POST(event({
 			executionPack,
 			relay: { requestId },
-			executionAuthority: buildClientGovernorDecisionAuthority({
+			executionAuthority: buildServerGovernorDecisionAuthority({
 				source: 'dispatch-authority-test',
 				reason: 'User started provider dispatch from Spawner.',
 				toolName: 'spawner.dispatch',
@@ -227,7 +227,7 @@ describe('/api/dispatch authority contract', () => {
 		const response = await POST(event({
 			executionPack,
 			relay: { autoRun: true },
-			executionAuthority: buildClientGovernorDecisionAuthority({
+			executionAuthority: buildServerGovernorDecisionAuthority({
 				source: 'dispatch-authority-test',
 				reason: 'User started provider dispatch from Spawner.',
 				toolName: 'spawner.dispatch',
@@ -249,7 +249,7 @@ describe('/api/dispatch authority contract', () => {
 		const response = await POST(event({
 			executionPack,
 			relay: { requestId: 'request-b' },
-			executionAuthority: buildClientGovernorDecisionAuthority({
+			executionAuthority: buildServerGovernorDecisionAuthority({
 				source: 'dispatch-authority-test',
 				reason: 'User started provider dispatch from Spawner.',
 				toolName: 'spawner.dispatch',
@@ -286,7 +286,7 @@ describe('/api/dispatch authority contract', () => {
 	it('allows provider cancellation with native mission-control authority', async () => {
 		const cancelMission = vi.mocked(providerRuntime.cancelMission);
 		cancelMission.mockClear();
-		const executionAuthority = buildClientGovernorDecisionAuthority({
+		const executionAuthority = buildServerGovernorDecisionAuthority({
 			source: 'dispatch-cancel-authority-test',
 			reason: 'User cancelled provider dispatch from Spawner.',
 			toolName: 'spawner.mission_control.command',

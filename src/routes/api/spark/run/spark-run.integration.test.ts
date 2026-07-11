@@ -19,7 +19,7 @@ vi.mock('$lib/server/provider-runtime', () => ({
 import { GET, POST } from './+server';
 import { providerRuntime } from '$lib/server/provider-runtime';
 import { getMissionControlPersistPath } from '$lib/server/mission-control-relay';
-import { buildClientGovernorDecisionAuthority } from '$lib/services/harness-authority-client';
+import { buildServerGovernorDecisionAuthority } from '$lib/server/harness-authority';
 
 const originalSpawnerStateDir = process.env.SPAWNER_STATE_DIR;
 const originalMcpApiKey = process.env.MCP_API_KEY;
@@ -110,7 +110,7 @@ function vnextAuthority(options: { executable?: boolean; capabilityId?: string; 
 function governorAuthority(options: { executable?: boolean; withLedger?: boolean } = {}) {
 	const executable = options.executable !== false;
 	if (executable) {
-		return buildClientGovernorDecisionAuthority({
+		return buildServerGovernorDecisionAuthority({
 			source: 'spark-run.integration.test',
 			reason: 'Focused Spark run authority regression.',
 			toolName: 'spawner.run',

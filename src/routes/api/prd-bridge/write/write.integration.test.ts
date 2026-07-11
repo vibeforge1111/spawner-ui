@@ -5,9 +5,9 @@ import { tmpdir } from 'os';
 import path from 'path';
 import { POST, _runAutoAnalysisWatchdog } from './+server';
 import {
-	buildClientGovernorDecisionAuthority,
-	buildClientTurnIntentVNextAuthority
-} from '$lib/services/harness-authority-client';
+	buildServerGovernorDecisionAuthority,
+	buildServerTurnIntentVNextAuthority
+} from '$lib/server/harness-authority';
 
 const { PRIVATE_ENV, executeProviderTaskMock } = vi.hoisted(() => ({
 	PRIVATE_ENV: {
@@ -35,7 +35,7 @@ const BRIDGE_TEST_KEY = 'bridge-test-key';
 const originalBridgeKey = process.env.SPARK_BRIDGE_API_KEY;
 
 function writeAuthority(requestId: string) {
-	return buildClientGovernorDecisionAuthority({
+	return buildServerGovernorDecisionAuthority({
 		source: 'prd-write-authority-test',
 		reason: 'Focused PRD bridge write authority regression.',
 		toolName: 'spawner.prd.write',
@@ -46,7 +46,7 @@ function writeAuthority(requestId: string) {
 }
 
 function writeVNextAuthority(requestId: string) {
-	return buildClientTurnIntentVNextAuthority({
+	return buildServerTurnIntentVNextAuthority({
 		source: 'prd-write-authority-test',
 		reason: 'Focused PRD bridge write authority regression.',
 		toolName: 'spawner.prd.write',

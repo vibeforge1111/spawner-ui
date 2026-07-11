@@ -19,9 +19,9 @@ vi.mock('$lib/services/mcp/client', async (importOriginal) => {
 import { POST } from './+server';
 import { callTool, isConnected } from '$lib/services/mcp/client';
 import {
-	buildClientGovernorDecisionAuthority,
-	buildClientTurnIntentVNextAuthority
-} from '$lib/services/harness-authority-client';
+	buildServerGovernorDecisionAuthority,
+	buildServerTurnIntentVNextAuthority
+} from '$lib/server/harness-authority';
 
 function event(body: unknown) {
 	return {
@@ -36,7 +36,7 @@ function event(body: unknown) {
 }
 
 function callAuthority() {
-	return buildClientGovernorDecisionAuthority({
+	return buildServerGovernorDecisionAuthority({
 		source: 'mcp-call.authority.test',
 		reason: 'Focused MCP tool-call authority regression.',
 		toolName: 'spawner.mcp.call_tool',
@@ -92,7 +92,7 @@ describe('/api/mcp/call authority contract', () => {
 				instanceId: 'filesystem',
 				toolName: 'ping',
 				args: { value: 1 },
-				executionAuthority: buildClientTurnIntentVNextAuthority({
+				executionAuthority: buildServerTurnIntentVNextAuthority({
 					source: 'mcp-call.authority.test',
 					reason: 'Focused MCP tool-call bare-VNext regression.',
 					toolName: 'spawner.mcp.call_tool',

@@ -4,9 +4,9 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GET, POST } from './+server';
 import {
-	buildClientGovernorDecisionAuthority,
-	buildClientTurnIntentVNextAuthority
-} from '$lib/services/harness-authority-client';
+	buildServerGovernorDecisionAuthority,
+	buildServerTurnIntentVNextAuthority
+} from '$lib/server/harness-authority';
 import type { CreatorIntentPacket } from '$lib/server/creator-mission';
 
 const { PRIVATE_ENV, TEST_API_KEY } = vi.hoisted(() => ({
@@ -60,7 +60,7 @@ function machineAuthority() {
 }
 
 function creatorVNextAuthority() {
-	return buildClientTurnIntentVNextAuthority({
+	return buildServerTurnIntentVNextAuthority({
 		source: 'creator-mission-route-test',
 		reason: 'User started creator mission creation from Spark.',
 		toolName: 'creator.mission.create',
@@ -70,7 +70,7 @@ function creatorVNextAuthority() {
 }
 
 function creatorGovernorAuthority() {
-	return buildClientGovernorDecisionAuthority({
+	return buildServerGovernorDecisionAuthority({
 		source: 'creator-mission-route-test',
 		reason: 'User started creator mission creation from Spark.',
 		toolName: 'creator.mission.create',
