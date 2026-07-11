@@ -132,7 +132,12 @@ const DEFAULT_SPARK_TOKEN = env.SPARKD_TOKEN || '';
 function localEnvValue(key: string): string | null {
 	const envPath = path.resolve(process.cwd(), '.env');
 	if (!fs.existsSync(envPath)) return null;
-	const lines = fs.readFileSync(envPath, 'utf-8').split(/\r?\n/);
+	try {
+	  const lines = fs.readFileSync(envPath, 'utf-8').split(/\r?\n/);
+	} catch (error) {
+	  console.error('readFileSync failed:', error);
+	  throw error;
+	}
 	for (const line of [...lines].reverse()) {
 		const match = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)=(.*)\s*$/);
 		if (!match || match[1] !== key) continue;
