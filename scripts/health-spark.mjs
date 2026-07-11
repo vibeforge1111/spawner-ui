@@ -157,12 +157,11 @@ export function healthRequiresCodex(providers, env = process.env) {
     "";
   if (selectedProvider === "codex") return true;
   const codexProvider = providers.find((provider) => provider && provider.id === "codex");
-  return Boolean(
-    codexProvider &&
-      (codexProvider.configured === true ||
-        codexProvider.envKeyConfigured === true ||
-        codexProvider.cliConfigured === true),
-  );
+  if (!codexProvider) return false;
+  // OpenAI-compatible providers share OPENAI_API_KEY; do not treat that as Codex CLI selection.
+  if (codexProvider.sparkSelected === true) return true;
+  if (codexProvider.cliConfigured === true) return true;
+  return false;
 }
 
 async function main() {

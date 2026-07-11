@@ -70,8 +70,34 @@ describe("healthRequiresCodex", () => {
     ).toBe(true);
   });
 
-  it("requires Codex when the provider is actually configured", () => {
+  it("requires Codex when the Codex CLI is configured", () => {
     expect(healthRequiresCodex([{ id: "codex", cliConfigured: true }], {})).toBe(true);
+  });
+
+  it("requires Codex when Spark selected it for missions", () => {
+    expect(
+      healthRequiresCodex([{ id: "codex", cliConfigured: false, sparkSelected: true }], {
+        DEFAULT_MISSION_PROVIDER: "openai",
+      }),
+    ).toBe(true);
+  });
+
+  it("does not require Codex when only a shared OPENAI_API_KEY marks codex env-configured", () => {
+    expect(
+      healthRequiresCodex(
+        [
+          {
+            id: "codex",
+            configured: true,
+            envKeyConfigured: true,
+            cliConfigured: false,
+            sparkSelected: false,
+          },
+          { id: "openai", configured: true, sparkSelected: true },
+        ],
+        { DEFAULT_MISSION_PROVIDER: "openai" },
+      ),
+    ).toBe(false);
   });
 });
 
