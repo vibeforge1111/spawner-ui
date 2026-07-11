@@ -1,11 +1,12 @@
 import { existsSync } from 'fs';
-import { appendFile, mkdir, readFile, writeFile } from 'fs/promises';
+import { mkdir, readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { relayMissionControlEvent } from './mission-control-relay';
 import { reconcilePendingPrdCanonicalResult } from './prd-canonical-result-reconciliation';
 import { spawnerStateDir } from './spawner-state';
 import { extractTraceRef } from './trace-ref';
 import { parseJsonOrFallback } from '$lib/utils/safe-json';
+import { appendPrdTraceWithContinuity } from './prd-trace-proof-continuity';
 
 const DEFAULT_AUTO_ANALYSIS_TIMEOUT_MS = 420_000;
 
@@ -77,13 +78,7 @@ async function appendPrdTrace(
 	details: Record<string, unknown>
 ): Promise<void> {
 	try {
-		const row = {
-			ts: new Date().toISOString(),
-			requestId,
-			event,
-			...details
-		};
-		await appendFile(join(stateDir, 'prd-auto-trace.jsonl'), `${JSON.stringify(row)}\n`, 'utf-8');
+		await appendPrdTraceWithContinuity({ stateDir, requestId, event, details });
 	} catch {
 		// Recovery should not fail because trace persistence is unavailable.
 	}

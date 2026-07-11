@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { appendFile, readFile, mkdir } from 'fs/promises';
+import { readFile, mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join } from 'path';
 import { relayMissionControlEvent } from '$lib/server/mission-control-relay';
@@ -17,6 +17,7 @@ import {
 import { extractTraceRef, normalizeTraceRef, traceRefFromMissionId } from '$lib/server/trace-ref';
 import { pendingRequestFileForRequest, readPendingRequestRecord } from '$lib/server/prd-pending-requests';
 import { writeFileAtomic } from '$lib/server/atomic-write';
+import { appendPrdTraceWithContinuity } from '$lib/server/prd-trace-proof-continuity';
 import {
 	HarnessAuthorityError,
 	assertNativeGovernorHarnessAuthority,
@@ -54,13 +55,7 @@ function resultFilePath(requestId: string): string {
 
 async function appendPrdTrace(requestId: string, event: string, details: Record<string, unknown> = {}): Promise<void> {
 	try {
-		const row = {
-			ts: new Date().toISOString(),
-			requestId,
-			event,
-			...details
-		};
-		await appendFile(join(getSpawnerDir(), 'prd-auto-trace.jsonl'), `${JSON.stringify(row)}\n`, 'utf-8');
+		await appendPrdTraceWithContinuity({ stateDir: getSpawnerDir(), requestId, event, details });
 	} catch {
 		// Trace writes are evidence only; never fail the live build path.
 	}

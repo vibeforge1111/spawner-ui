@@ -304,11 +304,23 @@ describe('/api/prd-bridge/write integration', () => {
 			rejectedReason: 'outside_configured_workspace_root'
 		});
 		expect(pendingMeta.relay.projectPathEvidence).toEqual(pendingMeta.projectPathEvidence);
+		expect(pendingMeta.harnessProofRef).toMatch(/^turn:sha256:[a-f0-9]{16}$/);
+		expect(pendingMeta.proofCapsule).toMatchObject({
+			schema: 'spark.harness_proof.v1',
+			turnRef: pendingMeta.harnessProofRef,
+			route: 'spawner.prd_bridge.write',
+			authority: { decision: 'allowed', contract: 'governor-decision-v1' },
+			governor: { decision: 'allow', verified: true },
+			execution: { tool: 'spawner.prd.write', mutationClass: 'writes_files' }
+		});
 		const traceRows = (await readFile(path.join(testSpawnerDir, 'prd-auto-trace.jsonl'), 'utf-8'))
 			.trim()
 			.split('\n')
 			.map((line) => JSON.parse(line));
 		expect(traceRows.find((row) => row.event === 'request_written')).toMatchObject({
+			harnessProofRef: pendingMeta.harnessProofRef,
+			proofCapsule: { turnRef: pendingMeta.harnessProofRef },
+			privacy: 'metadata_only',
 			projectPathEvidence: {
 				hasRequestedProjectPath: true,
 				usedProjectPath: false,
@@ -401,7 +413,8 @@ describe('/api/prd-bridge/write integration', () => {
 		expect(traceRows.find((row) => row.event === 'auto_worker_dispatch')).toMatchObject({
 			requestId,
 			traceRef,
-			workingDirectory: expectedWorkingDirectory
+			workingDirectory: expect.stringMatching(/^path:sha256:[a-f0-9]{16}$/),
+			privacy: 'metadata_only'
 		});
 		expect(traceRows.find((row) => row.event === 'watchdog_timeout')).toMatchObject({
 			requestId,

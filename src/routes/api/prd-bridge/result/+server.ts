@@ -10,7 +10,7 @@
 
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { readFile, writeFile, mkdir, appendFile } from 'fs/promises';
+import { readFile, writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
 import { assertSafeId, PathSafetyError, resolveWithinBaseDir } from '$lib/server/path-safety';
@@ -22,6 +22,7 @@ import { extractTraceRef } from '$lib/server/trace-ref';
 import { requireControlAuth } from '$lib/server/mcp-auth';
 import { logger } from '$lib/utils/logger';
 import { parseJsonOrThrow } from '$lib/utils/safe-json';
+import { appendPrdTraceWithContinuity } from '$lib/server/prd-trace-proof-continuity';
 
 const log = logger.scope('PRDBridge');
 
@@ -42,16 +43,7 @@ function missionIdForPendingRequest(pending: Record<string, unknown>, requestId:
 
 async function appendPrdTrace(requestId: string, event: string, details: Record<string, unknown> = {}): Promise<void> {
 	try {
-		await appendFile(
-			join(spawnerStateDir(), 'prd-auto-trace.jsonl'),
-			`${JSON.stringify({
-				ts: new Date().toISOString(),
-				requestId,
-				event,
-				...details
-			})}\n`,
-			'utf-8'
-		);
+		await appendPrdTraceWithContinuity({ stateDir: spawnerStateDir(), requestId, event, details });
 	} catch {
 		// Trace failures are non-fatal.
 	}

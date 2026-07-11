@@ -8,7 +8,7 @@ import { logger } from '$lib/utils/logger';
 
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { writeFile, mkdir, appendFile, readFile } from 'fs/promises';
+import { writeFile, mkdir, readFile } from 'fs/promises';
 import { basename, dirname, join, resolve } from 'path';
 import { existsSync, realpathSync } from 'fs';
 import { sparkAgentBridge } from '$lib/services/spark-agent-bridge';
@@ -40,6 +40,10 @@ import {
 	normalizeCapabilityProposalPacket
 } from '$lib/server/capability-proposal-packet';
 import { extractTraceRef, normalizeTraceRef, traceRefFromMissionId } from '$lib/server/trace-ref';
+import {
+	appendPrdTraceWithContinuity,
+	buildPrdTraceGovernorProofCapsule,
+} from '$lib/server/prd-trace-proof-continuity';
 import {
 	pendingPrdFileForRequest,
 	pendingRequestFileForRequest,
@@ -166,14 +170,12 @@ export function _prdAutoAnalysisWorkingDirectory(requestId: string): string {
 
 async function appendPrdTrace(requestId: string, event: string, details: Record<string, unknown> = {}): Promise<void> {
 	try {
-		const { prdAutoTraceFile } = getPrdBridgePaths();
-		const row = {
-			ts: new Date().toISOString(),
+		await appendPrdTraceWithContinuity({
+			stateDir: getPrdBridgePaths().spawnerDir,
 			requestId,
 			event,
-			...details
-		};
-		await appendFile(prdAutoTraceFile, `${JSON.stringify(row)}\n`, 'utf-8');
+			details
+		});
 	} catch {
 		// Never fail request flow on trace write.
 	}
@@ -2097,6 +2099,14 @@ export const POST: RequestHandler = async (event) => {
 			mutationClass: 'writes_files',
 			requestId
 		});
+		const harnessProofCapsule = buildPrdTraceGovernorProofCapsule({
+			requestId,
+			traceId: authority.traceId,
+			route: 'spawner.prd_bridge.write',
+			tool: 'spawner.prd.write',
+			mutationClass: 'writes_files',
+			reasonSummary: 'Fresh Governor authority was verified for this PRD write request.'
+		});
 
 		// Ensure the configured Spawner state directory exists.
 		if (!existsSync(paths.spawnerDir)) {
@@ -2228,6 +2238,8 @@ export const POST: RequestHandler = async (event) => {
 			timestamp: new Date().toISOString(),
 			prdPath: paths.pendingPrdFile,
 			status: 'pending',
+			harnessProofRef: harnessProofCapsule.turnRef,
+			proofCapsule: harnessProofCapsule,
 			...(normalizedTraceRef ? { traceRef: normalizedTraceRef } : {}),
 			options: {
 				includeSkills: options?.includeSkills !== false,
