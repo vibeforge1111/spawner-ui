@@ -2,7 +2,15 @@ import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { _computeNext, _schedulerInternalsForTests, _validTimezone, createSchedule, listSchedules } from './scheduler';
+import {
+  _composeScheduleRelayText,
+  _computeNext,
+  _schedulerInternalsForTests,
+  _validTimezone,
+  createSchedule,
+  listSchedules
+} from './scheduler';
+import { providerRuntime } from './provider-runtime';
 
 // Regression test for the scheduled-mission timezone mismatch: _computeNext built
 // `new Cron(cron, { paused: true })` with no timezone, so cron fields were
@@ -176,6 +184,65 @@ describe('scheduler reliability guards', () => {
       summary: 'scheduled loop fire requires fresh Governor authority; stored schedule authority is evidence only',
     });
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('does not trust stored provider lanes or a replayed dispatch authority to fire a due loop', async () => {
+    const dispatch = vi.spyOn(providerRuntime, 'dispatch');
+    const result = await _schedulerInternalsForTests.fire(record({
+      action: 'loop',
+      payload: {
+        chipKey: 'domain-chip-prd-writing-proof-loop',
+        loopScheduleId: 'loop-schedule-private',
+        generatorProviderId: 'kimi',
+        evaluatorProviderId: 'zai',
+        dispatchExecutionAuthority: { schema_version: 'governor-decision-v1', outcome: 'execute' }
+      }
+    }));
+
+    expect(result).toEqual({
+      ok: false,
+      summary: 'scheduled loop fire requires fresh Governor authority; stored schedule authority is evidence only'
+    });
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  it('relays a due approval boundary as a natural sentence without raw schedule ids', async () => {
+    const dir = await tempStateDir();
+    process.env.TELEGRAM_BOT_TOKEN = 'dummy-scheduler-token';
+    await writeFile(
+      path.join(dir, 'schedules.json'),
+      JSON.stringify({
+        schedules: [record({
+          id: 'sched-private-raw-id',
+          action: 'loop',
+          payload: { chipKey: 'domain-chip-prd-writing-proof-loop' },
+          chatId: 'telegram-chat-test'
+        })]
+      }, null, 2),
+      'utf-8'
+    );
+    const fetchSpy = vi.fn(async (_url: string | URL, _init?: RequestInit) =>
+      new Response('{"ok":true}', { status: 200 }));
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await _schedulerInternalsForTests.tick();
+
+    expect(fetchSpy).toHaveBeenCalledOnce();
+    const [, init] = fetchSpy.mock.calls[0];
+    const body = JSON.parse(String(init?.body));
+    expect(body).toMatchObject({
+      chat_id: 'telegram-chat-test',
+      text: 'This scheduled loop is due, but it still needs fresh approval before I can run it.'
+    });
+    expect(body.text).not.toContain('sched-private-raw-id');
+    expect(body.text).not.toMatch(/^(Mission|Provider|Move|Status)\b/m);
+  });
+
+  it('keeps generic scheduler outcomes conversational', () => {
+    expect(_composeScheduleRelayText(record({ action: 'mission' }), { ok: true, summary: 'mission-id-hidden' }))
+      .toBe('The scheduled mission finished. You can inspect Spawner if you want the run details.');
+    expect(_composeScheduleRelayText(record({ action: 'loop' }), { ok: false, summary: 'internal stack detail' }))
+      .toBe('The scheduled loop didn’t make it through. Spawner has the exact failure if you want to inspect it.');
   });
 
   it('increments fireCount and persists the blocked-fire status when a tick fires a stored schedule', async () => {
