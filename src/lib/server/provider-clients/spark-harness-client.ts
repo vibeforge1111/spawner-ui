@@ -267,9 +267,12 @@ async function submitSparkTask(input: {
 	missionId: string;
 	signal?: AbortSignal;
 }): Promise<string> {
+	const controller = new AbortController();
+	const timeoutId = setTimeout(() => controller.abort(), input.timeoutMs ?? 120000);
 	const response = await fetch(`${input.baseUrl}/v1/tasks`, {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
+		signal: controller.signal,
 		body: JSON.stringify({
 			instruction: input.instruction,
 			priority: 10,

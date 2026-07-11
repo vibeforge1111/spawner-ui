@@ -370,7 +370,13 @@ export async function enrichBrief(content: string): Promise<EnrichmentResult> {
 			console.warn('[brief-enricher] no JSON in claude output, falling back to deterministic brief');
 			return buildDeterministicEnrichment(content);
 		}
-		const parsed = JSON.parse(json) as Partial<EnrichmentResult>;
+		let parsed: Partial<EnrichmentResult>;
+		try {
+			parsed = JSON.parse(json) as Partial<EnrichmentResult>;
+		} catch {
+			console.warn('[brief-enricher] invalid JSON from claude, falling back to deterministic brief');
+			return buildDeterministicEnrichment(content);
+		}
 		const enrichedContent = typeof parsed.enrichedContent === 'string' && parsed.enrichedContent.trim()
 			? parsed.enrichedContent
 			: content;
