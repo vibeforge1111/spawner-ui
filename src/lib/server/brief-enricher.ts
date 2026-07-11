@@ -1,3 +1,4 @@
+import { safeJsonParse } from '$lib/server/safe-json';
 /**
  * brief-enricher.ts — pre-generation pass that lifts vague briefs into
  * something the canvas generator can actually plan against.
@@ -370,7 +371,7 @@ export async function enrichBrief(content: string): Promise<EnrichmentResult> {
 			console.warn('[brief-enricher] no JSON in claude output, falling back to deterministic brief');
 			return buildDeterministicEnrichment(content);
 		}
-		const parsed = JSON.parse(json) as Partial<EnrichmentResult>;
+		const parsed = safeJsonParse<Partial<EnrichmentResult>>(json, {}, 'brief-enricher');
 		const enrichedContent = typeof parsed.enrichedContent === 'string' && parsed.enrichedContent.trim()
 			? parsed.enrichedContent
 			: content;
