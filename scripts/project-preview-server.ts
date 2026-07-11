@@ -10,6 +10,12 @@ function configuredPreviewPort(): number {
 	const explicitPort = Number(process.env.SPARK_PROJECT_PREVIEW_PORT || '');
 	if (Number.isFinite(explicitPort) && explicitPort > 0) return Math.trunc(explicitPort);
 
+	const cliIndex = process.argv.indexOf('--port');
+	if (cliIndex !== -1 && process.argv.length > cliIndex + 1) {
+		const cliPort = Number(process.argv[cliIndex + 1]);
+		if (Number.isFinite(cliPort) && cliPort > 0) return Math.trunc(cliPort);
+	}
+
 	const rawUrl = process.env.SPARK_PROJECT_PREVIEW_URL || 'http://127.0.0.1:5555';
 	try {
 		const parsed = new URL(rawUrl);
