@@ -94,9 +94,30 @@ export function controlQueryApiKeysAllowed(): boolean {
 	return !hostedUiLooksHosted(env);
 }
 
+const TRUSTED_PROXIES = new Set(
+	(process.env.TRUSTED_PROXIES || '').split(',').map((s) => s.trim()).filter(Boolean)
+);
+
 function getClientIdentity(event: RequestEvent): string {
 	const apiKey = extractApiKey(event);
 	if (apiKey) return `key:${apiKey}`;
+
+	// Prefer unspoofable socket remote address for rate limiting
+	const platform = event.platform as Record<string, unknown> | undefined;
+	const req = platform?.req as { socket?: { remoteAddress?: string } } | undefined;
+	const socketAddr = req?.socket?.remoteAddress;
+	if (socketAddr) {
+		// Only trust X-Forwarded-For behind known proxies
+		if (TRUSTED_PROXIES.size > 0 && TRUSTED_PROXIES.has(socketAddr)) {
+			try {
+				return `ip:${event.getClientAddress()}`;
+			} catch {
+				// fall through to socket address
+			}
+		}
+		return `ip:${socketAddr}`;
+	}
+
 	try {
 		return `ip:${event.getClientAddress()}`;
 	} catch {
