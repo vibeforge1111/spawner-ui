@@ -27,6 +27,12 @@ interface StreamChunk {
 
 const MAX_RETRIES = 3;
 const RETRY_BASE_MS = 1000;
+const ERROR_BODY_LIMIT = 500;
+const SECRET_PATTERNS = [
+	/\bBearer\s+[A-Za-z0-9._~+/=-]{12,}/gi,
+	/\bsk-[A-Za-z0-9_-]{12,}\b/g,
+	/\b\d{5,}:[A-Za-z0-9_-]{20,}\b/g
+];
 
 export async function executeOpenAICompatRequest(
 	options: OpenAICompatOptions,
@@ -85,7 +91,7 @@ export async function executeOpenAICompatRequest(
 				const errorText = await response.text().catch(() => 'unknown error');
 				return {
 					success: false,
-					error: `${provider.label} API error ${response.status}: ${errorText.slice(0, 500)}`,
+					error: `${provider.label} API error ${response.status}: ${sanitizeProviderErrorText(errorText)}`,
 					durationMs: Date.now() - startTime
 				};
 			}
@@ -124,6 +130,14 @@ export async function executeOpenAICompatRequest(
 		error: failureMessage,
 		durationMs: Date.now() - startTime
 	};
+}
+
+function sanitizeProviderErrorText(text: string): string {
+	let sanitized = text.slice(0, ERROR_BODY_LIMIT);
+	for (const pattern of SECRET_PATTERNS) {
+		sanitized = sanitized.replace(pattern, '[redacted]');
+	}
+	return sanitized;
 }
 
 async function handleStreamingResponse(
