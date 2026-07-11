@@ -36,16 +36,27 @@ function parseCsv(value) {
 }
 
 function localEnvValue(key, cwd = process.cwd()) {
-	const envPath = join(cwd, ".env");
-	if (!existsSync(envPath)) return "";
-	const lines = readFileSync(envPath, "utf-8").split(/\r?\n/);
-	for (const line of [...lines].reverse()) {
-		const match = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)=(.*)\s*$/);
-		if (!match || match[1] !== key) continue;
-		return match[2].trim().replace(/^(['"])(.*)\1$/, "$2");
+		const envPath = join(cwd, ".env");
+		if (!existsSync(envPath)) return "";
+		const lines = readFileSync(envPath, "utf-8").split(/\\r?\\n/);
+		for (const line of [...lines].reverse()) {
+			const match = line.match(/^\\s*([A-Za-z_][A-Za-z0-9_]*)=(.*)\\s*$/);
+			if (!match || match[1] !== key) continue;
+			return match[2].trim().replace(/^(['"])(.*)\\1$/, "$2");
+		}
+		return "";
 	}
-	return "";
-}
+
+	function moduleEnvValue(key, envPath) {
+		if (!existsSync(envPath)) return "";
+		const lines = readFileSync(envPath, "utf-8").split(/\\r?\\n/);
+		for (const line of [...lines].reverse()) {
+			const match = line.match(/^\\s*([A-Za-z_][A-Za-z0-9_]*)=(.*)\\s*$/);
+			if (!match || match[1] !== key) continue;
+			return match[2].trim().replace(/^(['"])(.*)\\1$/, "$2");
+		}
+		return "";
+	 }
 
 export function healthEnvValue(key, env = process.env, cwd = process.cwd()) {
 	if (Object.prototype.hasOwnProperty.call(env, key)) return env[key]?.trim() || "";

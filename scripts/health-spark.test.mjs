@@ -151,7 +151,31 @@ describe("healthEnvValue", () => {
 
     expect(healthEnvValue("TELEGRAM_RELAY_SECRET", { TELEGRAM_RELAY_SECRET: "" }, cwd)).toBe("");
   });
-});
+  it("falls back to Spark module config when the key is absent from process env", () => {
+    const cwd = mkdtempSync(join(tmpdir(), "spawner-health-env-"));
+    const sparkHome = join(cwd, ".spark");
+    const moduleDir = join(sparkHome, "config", "modules");
+    mkdirSync(moduleDir, { recursive: true });
+    writeFileSync(join(moduleDir, "spawner-ui.env"), "TELEGRAM_RELAY_SECRET=module-value\n");
+    // Also create a .env with a different value to ensure precedence
+    writeFileSync(join(cwd, ".env"), "TELEGRAM_RELAY_SECRET=local-value\n");
+    // Do not set TELEGRAM_RELAY_SECRET in process env
+    expect(
+      healthEnvValue("TELEGRAM_RELAY_SECRET", { SPARK_HOME: sparkHome }, cwd)
+    ).toBe("module-value");
+  });
+  it("returns empty string when Spark module config key is absent", () => {
+    const cwd = mkdtempSync(join(tmpdir(), "spawner-health-env-"));
+    const sparkHome = join(cwd, ".spark");
+    const moduleDir = join(sparkHome, "config", "modules");
+    mkdirSync(moduleDir, { recursive: true });
+    writeFileSync(join(moduleDir, "spawner-ui.env"), "OTHER_KEY=value\n");
+    writeFileSync(join(cwd, ".env"), "TELEGRAM_RELAY_SECRET=local-value\n");
+    expect(
+      healthEnvValue("TELEGRAM_RELAY_SECRET", { SPARK_HOME: sparkHome }, cwd)
+    ).toBe("local-value");
+  });
+});;
 
 describe("shouldRepairHostedWorkspaceOwnership", () => {
   it("repairs Spark workspaces when health checks are accidentally run as root", () => {
