@@ -166,7 +166,7 @@ export function appendAgentEvent(
 ): AgentEventLedgerEntry {
 	const entry: AgentEventLedgerEntry = {
 		...event,
-		event_id: `agent-${Date.now()}-${Math.random().toString(16).slice(2, 10)}`,
+		event_id: `agent-${Date.now()}-${crypto.randomUUID().replace(/-/g, '').slice(0, 8)}`,
 		component: AGENT_EVENT_COMPONENT,
 		created_at: new Date().toISOString(),
 		request_id: normalizeNullable(options.requestId),
