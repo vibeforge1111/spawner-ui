@@ -207,7 +207,7 @@ import { get } from 'svelte/store';
 			// Create nodes with proper IDs, keeping track of skill-to-node mapping
 			const skillToNodeId = new Map<string, string>();
 			const canvasNodes = pipeline.nodes.map(node => {
-				const nodeId = `node-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+				const nodeId = `node-${crypto.randomUUID()}`;
 				skillToNodeId.set(node.skillId, nodeId);
 				return {
 					id: nodeId,
