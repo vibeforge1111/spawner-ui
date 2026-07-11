@@ -176,7 +176,14 @@ export function appendAgentEvent(
 	};
 	const ledgerPath = getAgentEventLedgerPath();
 	fs.mkdirSync(path.dirname(ledgerPath), { recursive: true });
+	try {
 	fs.appendFileSync(ledgerPath, `${JSON.stringify(entry)}\n`, 'utf-8');
+	} catch (error) {
+		console.warn(
+			`[agent-event-ledger] failed to append to ${ledgerPath}; entry is returned but the on-disk ledger is unchanged for this write.`,
+			error
+		);
+	}
 	return entry;
 }
 
