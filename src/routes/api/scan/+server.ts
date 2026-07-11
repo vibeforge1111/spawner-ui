@@ -73,7 +73,7 @@ export const POST: RequestHandler = async (event) => {
 		}
 		const { projectPath, scanners } = body as {
 			projectPath: string;
-			scanners?: ScannerName[];
+			scanners?: unknown[];
 		};
 
 		const validation = validateProjectPath(projectPath);
@@ -81,7 +81,19 @@ export const POST: RequestHandler = async (event) => {
 			return json({ error: validation.error }, { status: 400 });
 		}
 
-		const requestedScanners = scanners && scanners.length > 0 ? scanners : ALL_SCANNERS;
+		// Security: Validate scanner names at runtime - TypeScript types are erased, so
+		// user-supplied values must be explicitly checked against the allowed set
+		const validatedScanners: ScannerName[] = [];
+		if (scanners && scanners.length > 0) {
+			for (const s of scanners) {
+				if (typeof s === 'string' && (ALL_SCANNERS as string[]).includes(s)) {
+					validatedScanners.push(s as ScannerName);
+				} else {
+					return json({ error: `Invalid scanner: ${String(s)}. Allowed: ${ALL_SCANNERS.join(', ')}` }, { status: 400 });
+				}
+			}
+		}
+		const requestedScanners = validatedScanners.length > 0 ? validatedScanners : ALL_SCANNERS;
 		const scanStart = Date.now();
 
 		// Run all scanners in parallel
