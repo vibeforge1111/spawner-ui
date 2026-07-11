@@ -13,5 +13,5 @@ export function completionEvidenceTooltipForDisplay(
 ): string | null {
 	if (!evidence || evidence.state === 'not_terminal') return null;
 	if (evidence.state === 'complete') return 'Completion proof is present.';
-	return 'Completion proof is incomplete.';
+	return evidence.summary || 'Completion proof is incomplete.';
 }
