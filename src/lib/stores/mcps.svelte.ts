@@ -127,6 +127,7 @@ export const filteredRegistry = derived(mcpStore, ($state) => {
 	}
 
 	// Sort by popularity
+	// NOTE: .sort() mutates the input array. Use .toSorted() (ES2023) or `[...arr].sort()` to avoid surprising callers. The function signature doesn't suggest in-place sort.
 	filtered = filtered.sort((a, b) => b.popularity - a.popularity);
 
 	return filtered;
