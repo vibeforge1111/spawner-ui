@@ -593,6 +593,7 @@ class SparkAgentBridgeService {
 		});
 		if (sessions.length === 0) return null;
 
+		// NOTE: .sort() mutates the input array. Use .toSorted() (ES2023) or `[...arr].sort()` to avoid surprising callers. The function signature doesn't suggest in-place sort.
 		sessions.sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
 		const latest = sessions[0];
 		const latestTs = Date.parse(latest.updatedAt);
