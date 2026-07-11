@@ -2509,6 +2509,22 @@ export async function completeLoopEngineeringRunEvent(input: {
 	const sourceRef = optionalEvidenceRef(input.sourceRef, 'sourceRef') || existingSourceRef || null;
 	const evaluatorVerdictRef = optionalEvidenceRef(input.evaluatorVerdictRef, 'evaluatorVerdictRef') || existingEvaluatorVerdictRef || null;
 	const provenance = input.provenance ?? existing.provenance ?? null;
+	const hasProofRef = evidenceRefs.length > 0 || Boolean(sourceRef) || Boolean(evaluatorVerdictRef);
+	const positiveImprovementClaim = status === 'passed' && typeof utilityDelta === 'number' && utilityDelta > 0;
+
+	if (!hasProofRef) throw new Error('completion requires at least one sourceRef, evaluatorVerdictRef, or evidenceRef');
+	if (input.evaluatorSeparated === true && !evaluatorVerdictRef) {
+		throw new Error('separated evaluator completion requires evaluatorVerdictRef');
+	}
+	if (status === 'passed' && provenance !== 'synthetic' && input.evaluatorSeparated !== true && existing.evaluatorSeparated !== true) {
+		throw new Error('passed completion requires separated evaluator evidence');
+	}
+	if (positiveImprovementClaim && provenance !== 'synthetic' && provenance !== 'computed') {
+		throw new Error('positive improvement claims require computed provenance');
+	}
+	if (positiveImprovementClaim && provenance !== 'synthetic' && completionEvidenceRefs.length === 0) {
+		throw new Error('positive improvement claims require separated evaluator evidence refs');
+	}
 	let evaluatorEvidenceBound = false;
 	if (input.evaluatorSeparated === true && evaluatorVerdictRef) {
 		await readEvaluatorVerdictPacket(evaluatorVerdictRef, existing.chipId, {
@@ -2530,13 +2546,6 @@ export async function completeLoopEngineeringRunEvent(input: {
 		evaluatorEvidenceBound = true;
 	}
 	const evaluatorSeparated = evaluatorEvidenceBound;
-	const hasProofRef = evidenceRefs.length > 0 || Boolean(sourceRef) || Boolean(evaluatorVerdictRef);
-	const positiveImprovementClaim = status === 'passed' && typeof utilityDelta === 'number' && utilityDelta > 0;
-
-	if (!hasProofRef) throw new Error('completion requires at least one sourceRef, evaluatorVerdictRef, or evidenceRef');
-	if (input.evaluatorSeparated === true && !evaluatorVerdictRef) {
-		throw new Error('separated evaluator completion requires evaluatorVerdictRef');
-	}
 	// Option B (doc 42 ruling 4): synthetic runs MAY complete locally for keep/defer iteration — they are
 	// labeled provenance:'synthetic' and evaluatorSeparated:false, so the promotion path (recordEvaluatorReview
 	// :606 / distillEvaluatorLessons :696, both requiring evaluatorSeparated===true) still rejects them. Only
@@ -2545,10 +2554,7 @@ export async function completeLoopEngineeringRunEvent(input: {
 	if (status === 'passed' && evaluatorEvidenceBound !== true && provenance !== 'synthetic') {
 		throw new Error('passed completion requires separated evaluator evidence');
 	}
-	if (positiveImprovementClaim && provenance !== 'synthetic' && provenance !== 'computed') {
-		throw new Error('positive improvement claims require computed provenance');
-	}
-	if (positiveImprovementClaim && provenance !== 'synthetic' && (evaluatorEvidenceBound !== true || completionEvidenceRefs.length === 0)) {
+	if (positiveImprovementClaim && provenance !== 'synthetic' && evaluatorEvidenceBound !== true) {
 		throw new Error('positive improvement claims require separated evaluator evidence refs');
 	}
 	const completedAt = cleanString(input.completedAt) || nowIso();
