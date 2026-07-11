@@ -22,6 +22,7 @@ import { extractTraceRef } from '$lib/server/trace-ref';
 import { logger } from '$lib/utils/logger';
 import { parseJsonOrFallback } from '$lib/utils/safe-json';
 
+import { createHash } from 'crypto';
 import { writeFile, mkdir, appendFile, readFile } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
@@ -132,8 +133,9 @@ function createAuthCookieHeader(request: Request): string | null {
 		return null;
 	}
 
+	const hashedKey = createHash('sha256').update(apiKey).digest('hex');
 	const isSecure = request.url.startsWith('https://');
-	return `${EVENTS_AUTH_COOKIE}=${encodeURIComponent(apiKey)}; Path=/; HttpOnly; SameSite=Lax${isSecure ? '; Secure' : ''}`;
+	return `${EVENTS_AUTH_COOKIE}=${encodeURIComponent(hashedKey)}; Path=/; HttpOnly; SameSite=Lax${isSecure ? '; Secure' : ''}`;
 }
 
 function eventStreamAuthPayload(event: Parameters<typeof requireControlAuth>[0]) {
