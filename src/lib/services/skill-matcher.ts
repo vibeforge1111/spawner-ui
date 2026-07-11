@@ -142,6 +142,7 @@ function matchSkillsLocal(goal: AnalyzedGoal, maxResults: number): MatchedSkill[
 	}
 
 	// Sort by score
+	// NOTE: .sort() mutates the input array. Use .toSorted() (ES2023) or `[...arr].sort()` to avoid surprising callers. The function signature doesn't suggest in-place sort.
 	matched.sort((a, b) => {
 		if (b.score !== a.score) return b.score - a.score;
 		const priorityA = CATEGORY_PRIORITY[a.category] || 99;
