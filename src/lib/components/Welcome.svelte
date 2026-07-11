@@ -124,7 +124,7 @@
 							headers: { 'Content-Type': 'application/json' },
 							body: JSON.stringify({
 								content,
-								requestId: `prd-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+								requestId: `prd-${crypto.randomUUID()}`,
 								projectName: processingProjectName,
 								options: { includeSkills, includeMCPs }
 							})
