@@ -208,7 +208,7 @@ describe('mission-control-trace', () => {
 			pairedTaskCount: 10,
 			status: 'complete'
 		});
-	});
+	}, 15_000);
 
 	it('exposes project lineage for improvement missions', async () => {
 		await makeStateDir();

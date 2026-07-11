@@ -102,8 +102,9 @@ describe('PRD bridge fallback analysis', () => {
 		expect(tasks[0].summary).toContain('index.html');
 		expect(tasks[1].dependencies).toContain(tasks[0].id);
 		expect(tasks[3].dependencies).toEqual(expect.arrayContaining([tasks[1].id, tasks[2].id]));
-		expect(tasks.every((task) => task.workspaceTargets.includes('C:\\Users\\USER\\Desktop\\spark-telegram-unit-smoke'))).toBe(true);
-		expect(tasks.flatMap((task) => task.verificationCommands).join('\n')).toContain('node --check');
+		expect(tasks.every((task) => task.workspaceTargets.length === 0)).toBe(true);
+		expect(JSON.stringify(tasks)).not.toContain('C:\\Users\\USER\\Desktop\\spark-telegram-unit-smoke');
+		expect(tasks.flatMap((task) => task.verificationCommands).join('\n')).toContain('project interaction smoke test');
 	});
 
 	it('does not use deterministic fallback for fast direct app builds', () => {

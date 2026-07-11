@@ -119,7 +119,7 @@ export function resolveContainedPathInRoots(
 	const targetResolved = resolveThroughExistingParent(targetPath);
 	if (!baseResolved.some((baseDir) => isWithinDirectory(baseDir, targetResolved))) {
 		throw new SparkRunWorkspaceError(
-			`${label} must stay inside a Spark-controlled root (${baseResolved.join(', ')}). ` +
+			`${label} must stay inside Spark workspace root or another Spark-controlled root (${baseResolved.join(', ')}). ` +
 				`Use a relative workspace name like "${basename(targetResolved) || 'project'}", ` +
 				'or set SPARK_ALLOW_EXTERNAL_PROJECT_PATHS=1 for trusted local development.'
 		);

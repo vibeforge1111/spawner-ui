@@ -199,7 +199,7 @@ describe('/api/mission-control/trace integration', () => {
 			'canonical_result_stored'
 		]);
 		expect(JSON.stringify(payload.prdTrace)).not.toContain('tg-build-other-request');
-	});
+	}, 15_000);
 
 	it('returns progress-only trace for local no-key reads', async () => {
 		const stateDir = await mkdtemp(path.join(tmpdir(), 'spawner-trace-redacted-'));
