@@ -5,8 +5,11 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
 	createCreatorMission,
 	creatorMissionPath,
+	defaultBuilderRepo,
 	executeCreatorMission,
 	readCreatorMissionTrace,
+	runCreatorArtifactBundle,
+	runCreatorPlan,
 	setCreatorManifestRunnerForTests,
 	setCreatorValidationCommandRunnerForTests,
 	validateCreatorMission,
@@ -918,5 +921,95 @@ describe('creator mission trace', () => {
 		});
 		expect(result.trace.blockers.join('\n')).toContain('promotion_gate: blocked_until_scored_evidence');
 		expect(result.trace.blockers.join('\n')).toContain('Fresh benchmark runner evidence is required');
+	});
+});
+
+describe('defaultBuilderRepo', () => {
+	it('honors explicit SPARK_BUILDER_REPO even when other candidates exist', async () => {
+		const root = await mkdtemp(path.join(os.tmpdir(), 'spark-spawner-builderrepo-'));
+		tempDirs.push(root);
+		const explicit = path.join(root, 'explicit-builder');
+		await mkdir(explicit, { recursive: true });
+		const resolved = defaultBuilderRepo({ SPARK_BUILDER_REPO: explicit });
+		expect(resolved).toBe(path.resolve(explicit));
+	});
+
+	it('prefers the installed layout path when its marker file exists', async () => {
+		const root = await mkdtemp(path.join(os.tmpdir(), 'spark-spawner-builderrepo-'));
+		tempDirs.push(root);
+		const installed = path.join(root, 'home', '.spark', 'modules', 'spark-intelligence-builder', 'source');
+		await mkdir(path.join(installed, 'src', 'spark_intelligence'), { recursive: true });
+		await writeFile(path.join(installed, 'src', 'spark_intelligence', 'cli.py'), '# marker\n');
+		const resolved = defaultBuilderRepo(
+			{},
+			{ homedir: () => path.join(root, 'home'), cwd: path.join(root, 'dev', 'spawner-ui') }
+		);
+		expect(resolved).toBe(path.resolve(installed));
+	});
+
+	it('falls back to the dev-checkout path when the installed layout is missing', async () => {
+		const root = await mkdtemp(path.join(os.tmpdir(), 'spark-spawner-builderrepo-'));
+		tempDirs.push(root);
+		const devCheckout = path.join(root, 'dev', 'spark-intelligence-builder');
+		await mkdir(path.join(devCheckout, 'src', 'spark_intelligence'), { recursive: true });
+		await writeFile(path.join(devCheckout, 'src', 'spark_intelligence', 'cli.py'), '# marker\n');
+		const resolved = defaultBuilderRepo(
+			{},
+			{ homedir: () => path.join(root, 'home', 'no-spark-here'), cwd: path.join(root, 'dev', 'spawner-ui') }
+		);
+		expect(resolved).toBe(path.resolve(devCheckout));
+	});
+
+	it('returns the installed-layout path as a hint when nothing valid is found', async () => {
+		const root = await mkdtemp(path.join(os.tmpdir(), 'spark-spawner-builderrepo-'));
+		tempDirs.push(root);
+		const resolved = defaultBuilderRepo(
+			{},
+			{ homedir: () => path.join(root, 'home'), cwd: path.join(root, 'dev', 'spawner-ui') }
+		);
+		const expected = path.join(root, 'home', '.spark', 'modules', 'spark-intelligence-builder', 'source');
+		expect(resolved).toBe(path.resolve(expected));
+	});
+});
+
+describe('runCreatorPlan builder repo resolution', () => {
+	it('surfaces an actionable error when no valid builder repo exists', async () => {
+		const root = await mkdtemp(path.join(os.tmpdir(), 'spark-spawner-builderrepo-'));
+		tempDirs.push(root);
+		await expect(
+			runCreatorPlan(
+				{
+					brief: 'Create a Startup YC specialization path',
+					missionId: 'mission-creator-no-builder',
+					requestId: 'req-no-builder'
+				},
+				{
+					envRecord: {},
+					cwd: path.join(root, 'dev', 'spawner-ui'),
+					homedir: () => path.join(root, 'home', 'no-spark-here')
+				}
+			)
+		).rejects.toThrow(/Builder repo not found: .*spark-intelligence-builder.*spark setup/);
+	});
+
+	it('surfaces an actionable error when the builder dir exists but the marker file is missing', async () => {
+		const root = await mkdtemp(path.join(os.tmpdir(), 'spark-spawner-builderrepo-'));
+		tempDirs.push(root);
+		const devCheckout = path.join(root, 'dev', 'spark-intelligence-builder');
+		await mkdir(devCheckout, { recursive: true });
+		await expect(
+			runCreatorArtifactBundle(
+				{
+					brief: 'Create a Startup YC specialization path',
+					missionId: 'mission-creator-empty-builder',
+					requestId: 'req-empty-builder'
+				},
+				{
+					envRecord: {},
+					cwd: path.join(root, 'dev', 'spawner-ui'),
+					homedir: () => path.join(root, 'home', 'no-spark-here')
+				}
+			)
+		).rejects.toThrow(/spark setup/);
 	});
 });
