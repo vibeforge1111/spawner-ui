@@ -10,6 +10,7 @@ export interface PrdTraceRedactionRepairResult {
 	ok: boolean;
 	path: string;
 	backupPath: string | null;
+	dryRun: boolean;
 	rowsRead: number;
 	rowsWritten: number;
 	parseErrors: number;
@@ -46,13 +47,15 @@ export function sanitizePrdTraceDetails(details: Record<string, unknown>): Recor
 
 export async function redactPrdAutoTraceLog(
 	traceFilePath: string,
-	options: { backup?: boolean } = {}
+	options: { backup?: boolean; dryRun?: boolean } = {}
 ): Promise<PrdTraceRedactionRepairResult> {
 	const backup = options.backup ?? false;
+	const dryRun = options.dryRun ?? false;
 	const result: PrdTraceRedactionRepairResult = {
 		ok: true,
 		path: traceFilePath,
 		backupPath: null,
+		dryRun,
 		rowsRead: 0,
 		rowsWritten: 0,
 		parseErrors: 0
@@ -82,19 +85,21 @@ export async function redactPrdAutoTraceLog(
 		return { ...result, ok: false };
 	}
 
-	if (backup) {
+	if (!dryRun && backup) {
 		const backupPath = `${traceFilePath}.raw-backup`;
 		await writeFile(backupPath, original, 'utf-8');
 		await chmod(backupPath, 0o600);
 		result.backupPath = backupPath;
 	}
-	const tempPath = `${traceFilePath}.redacting-${Date.now()}`;
-	await writeFile(tempPath, redactedLines.length ? `${redactedLines.join('\n')}\n` : '', { encoding: 'utf-8', mode: 0o600 });
-	try {
-		await rename(tempPath, traceFilePath);
-	} catch (error) {
-		await unlink(tempPath).catch(() => undefined);
-		throw error;
+	if (!dryRun) {
+		const tempPath = `${traceFilePath}.redacting-${Date.now()}`;
+		await writeFile(tempPath, redactedLines.length ? `${redactedLines.join('\n')}\n` : '', { encoding: 'utf-8', mode: 0o600 });
+		try {
+			await rename(tempPath, traceFilePath);
+		} catch (error) {
+			await unlink(tempPath).catch(() => undefined);
+			throw error;
+		}
 	}
 	result.rowsWritten = redactedLines.length;
 	result.ok = result.parseErrors === 0;

@@ -33,6 +33,8 @@
 		"smoke:routes": "node scripts/smoke-routes.mjs",
 		"smoke:mission-surfaces": "node scripts/smoke-mission-surfaces.mjs",
 		"smoke:fastdirect-completion": "node scripts/smoke-fastdirect-completion.mjs",
+		"trace:redact:prd": "tsx scripts/redact-prd-trace.ts",
+		"trace:repair:prd-proof": "tsx scripts/repair-prd-trace-proof.ts",
 		"sync:runtime": "node scripts/sync-runtime.cjs --check",
 		"sync:watch": "node scripts/sync-runtime.cjs --check",
 		"sync:check": "node scripts/sync-runtime.cjs --check",

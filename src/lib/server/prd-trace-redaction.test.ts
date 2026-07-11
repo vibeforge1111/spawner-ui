@@ -98,4 +98,16 @@ describe('PRD trace redaction', () => {
 		expect(await readFile(tracePath, 'utf-8')).toBe(original);
 		expect(existsSync(`${tracePath}.raw-backup`)).toBe(false);
 	});
+
+	it('dry-run reports redaction without rewriting the trace file or creating a backup', async () => {
+		const tracePath = path.join(testDir, 'prd-auto-trace.jsonl');
+		const original = `${JSON.stringify({ event: 'request_written', resultFile: '/Users/example/private/result.json' })}\n`;
+		await writeFile(tracePath, original, 'utf-8');
+
+		const result = await redactPrdAutoTraceLog(tracePath, { dryRun: true, backup: true });
+
+		expect(result).toMatchObject({ ok: true, dryRun: true, backupPath: null, rowsRead: 1, rowsWritten: 1 });
+		expect(await readFile(tracePath, 'utf-8')).toBe(original);
+		expect(existsSync(`${tracePath}.raw-backup`)).toBe(false);
+	});
 });
