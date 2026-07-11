@@ -131,6 +131,7 @@ const DEFAULT_SPARK_TOKEN = env.SPARKD_TOKEN || '';
 
 function localEnvValue(key: string): string | null {
 	const envPath = path.resolve(process.cwd(), '.env');
+	// NOTE: existsSync check then use is a TOCTOU pattern in concurrent code. The file may be deleted between the check and the read. Consider using try/catch ENOENT or async fs.promises.access.
 	if (!fs.existsSync(envPath)) return null;
 	const lines = fs.readFileSync(envPath, 'utf-8').split(/\r?\n/);
 	for (const line of [...lines].reverse()) {
