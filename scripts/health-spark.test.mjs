@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { spawn, spawnSync } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -145,11 +145,24 @@ describe("healthEnvValue", () => {
     expect(healthEnvValue("MISSION_CONTROL_WEBHOOK_URLS", {}, cwd)).toBe("http://127.0.0.1:8788/spawner-events");
   });
 
+  it("falls back to Spark module config when the key is absent from process env", () => {
+    const sparkHome = mkdtempSync(join(tmpdir(), "spawner-health-home-"));
+    const moduleDir = join(sparkHome, "config", "modules");
+    mkdirSync(moduleDir, { recursive: true });
+    writeFileSync(join(moduleDir, "spawner-ui.env"), "TELEGRAM_RELAY_SECRET=module-secret\n");
+
+    expect(healthEnvValue("TELEGRAM_RELAY_SECRET", { SPARK_HOME: sparkHome })).toBe("module-secret");
+  });
+
   it("honors an explicit empty process env value", () => {
     const cwd = mkdtempSync(join(tmpdir(), "spawner-health-env-"));
+    const sparkHome = mkdtempSync(join(tmpdir(), "spawner-health-home-"));
+    const moduleDir = join(sparkHome, "config", "modules");
+    mkdirSync(moduleDir, { recursive: true });
+    writeFileSync(join(moduleDir, "spawner-ui.env"), "TELEGRAM_RELAY_SECRET=module-secret-that-should-not-win\n");
     writeFileSync(join(cwd, ".env"), "TELEGRAM_RELAY_SECRET=local-secret-that-should-not-win\n");
 
-    expect(healthEnvValue("TELEGRAM_RELAY_SECRET", { TELEGRAM_RELAY_SECRET: "" }, cwd)).toBe("");
+    expect(healthEnvValue("TELEGRAM_RELAY_SECRET", { SPARK_HOME: sparkHome, TELEGRAM_RELAY_SECRET: "" }, cwd)).toBe("");
   });
 });
 
@@ -249,10 +262,17 @@ describe("health-spark command", () => {
   });
 
   it("fails when mission webhook lacks relay secret", () => {
+    const sparkHome = mkdtempSync(join(tmpdir(), "spawner-health-home-"));
+    const moduleDir = join(sparkHome, "config", "modules");
+    mkdirSync(moduleDir, { recursive: true });
+    writeFileSync(join(moduleDir, "spawner-ui.env"), "MISSION_CONTROL_WEBHOOK_URLS=http://127.0.0.1:8788/spawner-events\nTELEGRAM_RELAY_SECRET=\n");
+
     const result = spawnSync(process.execPath, ["scripts/health-spark.mjs"], {
       cwd: join(import.meta.dirname, ".."),
       env: {
         ...process.env,
+        HOME: sparkHome,
+        SPARK_HOME: sparkHome,
         MISSION_CONTROL_WEBHOOK_URLS: "http://127.0.0.1:8788/spawner-events",
         TELEGRAM_RELAY_SECRET: "",
       },

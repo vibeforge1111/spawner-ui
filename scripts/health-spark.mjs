@@ -48,7 +48,20 @@ function localEnvValue(key, cwd = process.cwd()) {
 }
 
 export function healthEnvValue(key, env = process.env, cwd = process.cwd()) {
-	if (Object.prototype.hasOwnProperty.call(env, key)) return env[key]?.trim() || "";
+	if (Object.prototype.hasOwnProperty.call(env, key)) {
+		return env[key]?.trim() || "";
+	}
+	const moduleConfig = env.SPARK_HOME?.trim()
+		? join(env.SPARK_HOME.trim(), 'config', 'modules', 'spawner-ui.env')
+		: join(homedir(), '.spark', 'config', 'modules', 'spawner-ui.env');
+	if (existsSync(moduleConfig)) {
+		const lines = readFileSync(moduleConfig, 'utf-8').split(/\r?\n/);
+		for (const line of [...lines].reverse()) {
+			const match = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)=(.*)\s*$/);
+			if (!match || match[1] !== key) continue;
+			return match[2].trim().replace(/^(['"])(.*)\1$/, '$2');
+		}
+	}
 	return localEnvValue(key, cwd);
 }
 
