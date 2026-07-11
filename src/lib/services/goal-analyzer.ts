@@ -91,8 +91,29 @@ const DOMAIN_PATTERNS: Record<string, string[]> = {
 	'content': ['blog', 'cms', 'content', 'article', 'articles', 'publishing', 'writer'],
 	'analytics': ['analytics', 'tracking', 'metrics', 'data', 'insights', 'reporting'],
 	'game': ['game', 'gaming', 'gamedev', 'roguelike', 'rpg', 'platformer', 'puzzle', 'strategy', 'shooter', 'simulation', 'arcade', 'adventure', 'survival'],
-	'ai': ['ai', 'ml', 'machine learning', 'llm', 'gpt', 'claude', 'chatbot', 'agent', 'agents', 'neural', 'model']
+	'ai': ['ai', 'ml', 'machine learning', 'llm', 'gpt', 'claude', 'chatbot', 'agent', 'agents', 'neural', 'model'],
+	'file-task': ['file', 'hello.txt', 'script', 'log']  // Simple file operations
 };
+
+// Simple task patterns - tasks that don't require full project scaffolding
+const SIMPLE_TASK_PATTERNS = [
+	/^create\s+(a\s+)?file/i,
+	/^make\s+(a\s+)?file/i,
+	/^write\s+(a\s+)?file/i,
+	/^add\s+(a\s+)?file/i,
+	/^delete\s+(a\s+)?file/i,
+	/^remove\s+(a\s+)?file/i,
+	/^edit\s+(a\s+)?file/i,
+	/^modify\s+(a\s+)?file/i,
+	/^rename\s+(a\s+)?file/i,
+	/\.txt$/,
+	/\.json$/,
+	/\.md$/,
+	/\.yaml$/,
+	/\.yml$/,
+	/\.csv$/,
+	/\.log$/
+];
 
 // Vague input patterns that need clarification
 const VAGUE_PATTERNS = [

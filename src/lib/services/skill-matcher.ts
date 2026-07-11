@@ -256,15 +256,40 @@ function getDefaultSkills(domains: string[], maxResults: number): MatchedSkill[]
 			tier: 1,
 			tags: ['ai', 'llm']
 		});
+	} else if (domains.includes('file-task')) {
+		// Simple file operations - don't assume web app
+		defaults.push({
+			skillId: 'general-development',
+			name: 'General Development',
+			description: 'Basic file operations and scripting',
+			category: 'development',
+			score: 0.6,
+			matchReason: 'simple file task detected',
+			tier: 1,
+			tags: ['general', 'files', 'scripting']
+		});
+	} else if (domains.length === 0) {
+		// No domain detected - use general-purpose skills instead of assuming web app
+		// This prevents misclassifying simple tasks like file creation as web app builds
+		defaults.push({
+			skillId: 'general-development',
+			name: 'General Development',
+			description: 'Basic file operations and scripting',
+			category: 'development',
+			score: 0.5,
+			matchReason: 'no specific domain detected',
+			tier: 1,
+			tags: ['general', 'files', 'scripting']
+		});
 	} else {
-		// Default web app skills
+		// Generic web app skills only when some domain is detected
 		defaults.push({
 			skillId: 'nextjs-app-router',
 			name: 'Next.js App Router',
 			description: 'Modern React framework',
 			category: 'frameworks',
 			score: 0.5,
-			matchReason: 'recommended starting point',
+			matchReason: 'web application detected',
 			tier: 1,
 			tags: ['nextjs', 'react']
 		});
