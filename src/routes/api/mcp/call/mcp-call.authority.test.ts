@@ -35,6 +35,21 @@ function event(body: unknown) {
 	};
 }
 
+function rawEvent(body: string, authenticated = true) {
+	return {
+		request: new Request('http://127.0.0.1/api/mcp/call', {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				...(authenticated ? { 'x-api-key': 'mcp-test-secret' } : {})
+			},
+			body
+		}),
+		url: new URL('http://127.0.0.1/api/mcp/call'),
+		getClientAddress: () => '127.0.0.1'
+	};
+}
+
 function callAuthority() {
 	return buildServerGovernorDecisionAuthority({
 		source: 'mcp-call.authority.test',
@@ -130,5 +145,36 @@ describe('/api/mcp/call authority contract', () => {
 			governorOutcome: 'execute'
 		});
 		expect(callTool).toHaveBeenCalledWith('filesystem', 'ping', { value: 1 });
+	});
+
+	it.each([
+		['empty', ''],
+		['malformed', '{not valid json'],
+		['null', 'null'],
+		['array', '[]']
+	])('returns 400 for a rejected %s body without leaking parser details', async (_kind, body) => {
+		const response = await POST(rawEvent(body) as never);
+
+		expect(response.status).toBe(400);
+		expect(await response.json()).toEqual({ error: 'Malformed JSON body' });
+		expect(isConnected).not.toHaveBeenCalled();
+		expect(callTool).not.toHaveBeenCalled();
+	});
+
+	it('keeps authentication ahead of malformed-body handling', async () => {
+		const response = await POST(rawEvent('{not valid json', false) as never);
+
+		expect(response.status).toBe(401);
+		expect(isConnected).not.toHaveBeenCalled();
+		expect(callTool).not.toHaveBeenCalled();
+	});
+
+	it('keeps field-specific validation for an empty object', async () => {
+		const response = await POST(rawEvent('{}') as never);
+
+		expect(response.status).toBe(400);
+		expect(await response.json()).toEqual({ error: 'instanceId is required' });
+		expect(isConnected).not.toHaveBeenCalled();
+		expect(callTool).not.toHaveBeenCalled();
 	});
 });

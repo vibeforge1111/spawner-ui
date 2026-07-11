@@ -36,6 +36,14 @@ function safeMcpLogDetail(error: unknown): string {
 	return message.replace(LOCAL_PATH_PATTERN, '<local-path>').trim() || 'MCP operation failed';
 }
 
+async function readJsonObject(request: Request): Promise<Record<string, unknown> | null> {
+	const body: unknown = await request.json().catch(() => null);
+	if (!body || typeof body !== 'object' || Array.isArray(body)) {
+		return null;
+	}
+	return body as Record<string, unknown>;
+}
+
 /**
  * POST - Connect to an MCP server
  */
@@ -47,7 +55,11 @@ export const POST: RequestHandler = async (event) => {
 
 	try {
 		const { request } = event;
-		const body = await request.json();
+		const parsedBody = await readJsonObject(request);
+		if (!parsedBody) {
+			return json({ error: 'Malformed JSON body' }, { status: 400 });
+		}
+		const body = parsedBody;
 		const { instanceId, mcpId, config, npmPackage, defaultArgs, envVars, command, args } = body as {
 			instanceId: string;
 			mcpId?: string;
@@ -158,7 +170,11 @@ export const DELETE: RequestHandler = async (event) => {
 
 	try {
 		const { request } = event;
-		const body = await request.json();
+		const parsedBody = await readJsonObject(request);
+		if (!parsedBody) {
+			return json({ error: 'Malformed JSON body' }, { status: 400 });
+		}
+		const body = parsedBody;
 		const { instanceId } = body as { instanceId: string };
 
 		if (!instanceId) {

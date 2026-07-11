@@ -14,12 +14,13 @@ vi.mock('$lib/services/mcp/client', async (importOriginal) => {
 	const actual = await importOriginal<typeof import('$lib/services/mcp/client')>();
 	return {
 		...actual,
-		connectMCP: vi.fn()
+		connectMCP: vi.fn(),
+		disconnectMCP: vi.fn()
 	};
 });
 
-import { POST } from './+server';
-import { connectMCP } from '$lib/services/mcp/client';
+import { DELETE, POST } from './+server';
+import { connectMCP, disconnectMCP } from '$lib/services/mcp/client';
 import {
 	buildServerGovernorDecisionAuthority,
 	buildServerTurnIntentVNextAuthority
@@ -31,6 +32,25 @@ function event(body: unknown) {
 			method: 'POST',
 			headers: { 'content-type': 'application/json', 'x-api-key': 'mcp-test-secret' },
 			body: JSON.stringify(body)
+		}),
+		url: new URL('http://127.0.0.1/api/mcp'),
+		getClientAddress: () => '127.0.0.1'
+	};
+}
+
+function rawEvent(
+	body: string,
+	method: 'POST' | 'DELETE' = 'POST',
+	authenticated = true
+) {
+	return {
+		request: new Request('http://127.0.0.1/api/mcp', {
+			method,
+			headers: {
+				'content-type': 'application/json',
+				...(authenticated ? { 'x-api-key': 'mcp-test-secret' } : {})
+			},
+			body
 		}),
 		url: new URL('http://127.0.0.1/api/mcp'),
 		getClientAddress: () => '127.0.0.1'
@@ -53,6 +73,7 @@ describe('/api/mcp', () => {
 		PRIVATE_ENV.MCP_API_KEY = 'mcp-test-secret';
 		PRIVATE_ENV.MCP_ALLOW_CUSTOM_CONFIG = '';
 		vi.mocked(connectMCP).mockReset();
+		vi.mocked(disconnectMCP).mockReset();
 		vi.mocked(connectMCP).mockResolvedValue({
 			client: {} as never,
 			transport: {} as never,
@@ -175,5 +196,61 @@ describe('/api/mcp', () => {
 
 		expect(errorMessages.join('\n')).toContain('<local-path>');
 		expect(errorMessages.join('\n')).not.toContain(localPath);
+	});
+
+	it.each([
+		['empty', ''],
+		['malformed', '{not valid json'],
+		['null', 'null'],
+		['array', '[]']
+	])('returns 400 for a rejected %s POST body without leaking parser details', async (_kind, body) => {
+		const response = await POST(rawEvent(body) as never);
+
+		expect(response.status).toBe(400);
+		expect(await response.json()).toEqual({ error: 'Malformed JSON body' });
+		expect(connectMCP).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		['empty', ''],
+		['malformed', '{not valid json'],
+		['null', 'null'],
+		['array', '[]']
+	])('returns 400 for a rejected %s DELETE body without leaking parser details', async (_kind, body) => {
+		const response = await DELETE(rawEvent(body, 'DELETE') as never);
+
+		expect(response.status).toBe(400);
+		expect(await response.json()).toEqual({ error: 'Malformed JSON body' });
+		expect(disconnectMCP).not.toHaveBeenCalled();
+	});
+
+	it('keeps authentication ahead of malformed-body handling for POST', async () => {
+		const response = await POST(rawEvent('{not valid json', 'POST', false) as never);
+
+		expect(response.status).toBe(401);
+		expect(connectMCP).not.toHaveBeenCalled();
+	});
+
+	it('keeps authentication ahead of malformed-body handling for DELETE', async () => {
+		const response = await DELETE(rawEvent('{not valid json', 'DELETE', false) as never);
+
+		expect(response.status).toBe(401);
+		expect(disconnectMCP).not.toHaveBeenCalled();
+	});
+
+	it('keeps field-specific validation for an empty POST object', async () => {
+		const response = await POST(rawEvent('{}') as never);
+
+		expect(response.status).toBe(400);
+		expect(await response.json()).toEqual({ error: 'instanceId is required' });
+		expect(connectMCP).not.toHaveBeenCalled();
+	});
+
+	it('keeps field-specific validation for an empty DELETE object', async () => {
+		const response = await DELETE(rawEvent('{}', 'DELETE') as never);
+
+		expect(response.status).toBe(400);
+		expect(await response.json()).toEqual({ error: 'instanceId is required' });
+		expect(disconnectMCP).not.toHaveBeenCalled();
 	});
 });
