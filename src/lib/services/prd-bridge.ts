@@ -157,7 +157,7 @@ export async function requestPRDAnalysis(
 	projectName?: string,
 	timeoutMs: number = PRD_BRIDGE_TIMEOUT_MS
 ): Promise<PRDAnalysisResult> {
-	const requestId = `prd-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+	const requestId = `prd-${Date.now()}-${crypto.randomUUID().replace(/-/g, '').slice(0, 8)}`;
 
 	analysisStatus.set('pending');
 	analysisError.set(null);
