@@ -551,7 +551,7 @@ describe('PRD auto-dispatch helpers', () => {
 			});
 
 			expect(result.started).toBe(false);
-			expect(result.error).toMatch(/must stay inside a Spark-controlled root/i);
+			expect(result.error).toMatch(/must stay inside Spark workspace root|Spark-controlled root/i);
 			expect(dispatchSpy).not.toHaveBeenCalled();
 			expect(missionStartedEvents).toHaveLength(0);
 		} finally {

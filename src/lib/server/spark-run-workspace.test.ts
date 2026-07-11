@@ -131,7 +131,7 @@ describe('resolveSparkRunProjectPath', () => {
 			SparkRunWorkspaceError
 		);
 		expect(() => recheckContainedDirectoryInRoots([root], target, 'Mission project')).toThrow(
-			/must stay inside a Spark-controlled root/i
+			/must stay inside Spark workspace root|Spark-controlled root/i
 		);
 	});
 
