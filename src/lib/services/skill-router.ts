@@ -124,6 +124,19 @@ export async function detectDomains(prdContent: string): Promise<string[]> {
 	}
 
 	return detectedDomains;
+	// Force backend domain for scripting/Python tasks
+	const scriptingKeywords = ['python', '.py', 'script', 'scripting', 'bash', 'shell', 'node.js', 'nodejs', 'ruby', 'golang', 'rust', 'java ', 'c++', 'hello world'];
+	const hasScriptingKeyword = scriptingKeywords.some(kw => lowerContent.includes(kw));
+	if (hasScriptingKeyword && !detectedDomains.includes('backend')) {
+		detectedDomains.push('backend');
+	}
+	// Remove frontend domain if this is a pure scripting task with no UI keywords
+	const uiKeywords = ['ui', 'interface', 'button', 'form', 'page', 'screen', 'component', 'react', 'vue', 'svelte', 'html', 'css'];
+	const hasUiKeyword = uiKeywords.some(kw => lowerContent.includes(kw));
+	if (hasScriptingKeyword && !hasUiKeyword) {
+		const frontendIdx = detectedDomains.indexOf('frontend');
+		if (frontendIdx > -1) detectedDomains.splice(frontendIdx, 1);
+	}
 }
 
 /**
@@ -237,3 +250,32 @@ export async function scoreSkillMatch(
 	// Cap at 1.0, apply specificity
 	return Math.min(1, matchScore) * ownership.specificity;
 }
+// TODO(spark-compete-qa): Wrong skills selected for Python script - QA 2026-06-03
+// Bug: Mission to build a hello world Python script selected frontend, UI design,
+// accessibility, and mobile skills instead of backend/Python skills.
+//
+// Before:
+//   User: "/run build me a hello world Python script"
+//   Skills selected: frontend-eng, ui-design, accessibility, testing
+//   (zero Python or backend skills selected for a Python task)
+//
+// After:
+//   User: "/run build me a hello world Python script"
+//   Skills selected: backend, python, scripting, testing
+//   (correct skills matched to task type)
+//
+// Root cause in skill-router.ts:
+//   The skill routing logic is not correctly identifying Python/scripting
+//   tasks and is defaulting to frontend skills.
+//
+// Fix needed:
+//   1. Add Python keyword detection: python, .py, script, hello world
+//   2. Python tasks must route to: backend, python, scripting skills
+//   3. Never route Python tasks to frontend, UI design, or mobile skills
+//   4. Add specificity scoring for programming language keywords
+//   5. Test: "hello world Python script" should score backend > frontend
+//
+// Keyword patterns to add for Python routing:
+//   ["python", ".py", "script", "scripting", "backend", "server-side"]
+//   -> route to backend/python/scripting skills
+//   NOT to frontend/ui-design/mobile/accessibility skills
