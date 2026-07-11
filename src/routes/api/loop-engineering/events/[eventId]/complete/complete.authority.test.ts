@@ -182,7 +182,7 @@ describe('/api/loop-engineering/events/[eventId]/complete', () => {
 		const body = await response.json();
 		expect(body).toMatchObject({
 			ok: false,
-			error: 'separated evaluator completion requires evaluatorVerdictRef'
+			error: 'passed completion requires separated evaluator evidence'
 		});
 		const events = await listPersistedLoopEngineeringEvents('domain-chip-prd-writing-proof-loop');
 		const persisted = events.find((item) => item.id === queued.id);
@@ -197,7 +197,6 @@ describe('/api/loop-engineering/events/[eventId]/complete', () => {
 			chipKey: 'domain-chip-prd-writing-proof-loop',
 			previousScore: proof.event.previousScore,
 			candidateScore: proof.event.candidateScore,
-			evaluatorSeparated: true,
 			provenance: 'computed',
 			sourceRef: proof.loopRun.sourceRef,
 			evaluatorVerdictRef: proof.loopRun.evaluatorVerdictRef,
@@ -223,7 +222,6 @@ describe('/api/loop-engineering/events/[eventId]/complete', () => {
 			previousScore: proof.event.previousScore,
 			candidateScore: proof.event.candidateScore,
 			roundsObserved: 2,
-			evaluatorSeparated: true,
 			provenance: 'computed',
 			sourceRef: proof.loopRun.sourceRef,
 			evaluatorVerdictRef: proof.loopRun.evaluatorVerdictRef,

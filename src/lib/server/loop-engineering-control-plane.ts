@@ -651,7 +651,6 @@ export async function recordEvaluatorReview(input: {
 	previousScore?: number | null;
 	candidateScore?: number | null;
 	roundsObserved?: number | null;
-	evaluatorSeparated?: boolean;
 	evidenceRefs?: string[];
 	sourceSurface?: LoopEngineeringEvent['sourceSurface'];
 	nextAction?: string;
@@ -666,9 +665,8 @@ export async function recordEvaluatorReview(input: {
 		throw new Error('source run event not found');
 	}
 	// Option B (doc 22 independent-signal rule / item 1.4): a synthetic SOURCE run is fine — promotability comes
-	// from the REVIEW being separated (enforced by the input.evaluatorSeparated gate below), i.e. a real
-	// different-provider judge validated the candidate. Synthetic self-review is still rejected, so synthetic
-	// cannot self-promote.
+	// from the owner-bound verdict packet below, where a real different-provider judge is revalidated against
+	// the exact source run. Caller booleans are not authority. Synthetic self-review is still rejected.
 	if (sourceRun.status !== 'passed' || (sourceRun.utilityDelta ?? 0) <= 0) {
 		throw new Error('evaluator review requires a passed benchmark or loop run with positive utility delta');
 	}
@@ -692,7 +690,6 @@ export async function recordEvaluatorReview(input: {
 	if (suppliedCandidateScore === null || Math.abs(suppliedCandidateScore - candidateScore) > 0.001) {
 		throw new Error('candidateScore must match the source run score');
 	}
-	if (input.evaluatorSeparated !== true) throw new Error('separated evaluator evidence is required');
 	await readEvaluatorVerdictPacket(sourceRunEvaluatorVerdictRef, chipKey, {
 		eventId: sourceRun.id,
 		missionId: sourceRun.missionId,

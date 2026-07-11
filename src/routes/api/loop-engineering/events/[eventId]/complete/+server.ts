@@ -64,7 +64,13 @@ export const POST: RequestHandler = async ({ params, request }) => {
 			candidateScore: typeof body.candidateScore === 'number' ? body.candidateScore : typeof body.candidate_score === 'number' ? body.candidate_score : undefined,
 			utilityDelta: typeof body.utilityDelta === 'number' ? body.utilityDelta : typeof body.utility_delta === 'number' ? body.utility_delta : undefined,
 			roundsObserved: typeof body.roundsObserved === 'number' ? body.roundsObserved : typeof body.rounds_observed === 'number' ? body.rounds_observed : undefined,
-			evaluatorSeparated: body.evaluatorSeparated === true || body.evaluator_separated === true,
+			evaluatorSeparated: Boolean(
+				typeof body.evaluatorVerdictRef === 'string'
+					? body.evaluatorVerdictRef.trim()
+					: typeof body.evaluator_verdict_ref === 'string'
+						? body.evaluator_verdict_ref.trim()
+						: ''
+			),
 			provenance: body.provenance === 'computed' || body.provenance === 'synthetic' || body.provenance === 'seeded' ? body.provenance : undefined,
 			evidenceRefs: stringArray(body.evidenceRefs || body.evidence_refs),
 			sourceRef: typeof body.sourceRef === 'string' ? body.sourceRef : typeof body.source_ref === 'string' ? body.source_ref : null,

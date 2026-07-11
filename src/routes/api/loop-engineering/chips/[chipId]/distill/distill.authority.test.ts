@@ -96,7 +96,6 @@ async function seedEvaluatorEvent() {
 		previousScore: completed.event.previousScore,
 		candidateScore: completed.event.candidateScore,
 		roundsObserved: completed.event.roundsObserved,
-		evaluatorSeparated: true,
 		evidenceRefs: ['reports/prd-eval.json']
 	});
 	return result.event;

@@ -255,7 +255,6 @@ describe('loop-engineering-control-plane', () => {
 			sourceRunEventId: computedRun.event.id,
 			previousScore: computedRun.event.previousScore,
 			candidateScore: computedRun.event.candidateScore,
-			evaluatorSeparated: true,
 			evidenceRefs: ['and acceptance criteria before accepting the PRD evidence reports/prd-writing-live-regression-case.md']
 		})).rejects.toThrow('evidenceRefs contains invalid evidence ref');
 
@@ -264,7 +263,6 @@ describe('loop-engineering-control-plane', () => {
 			sourceRunEventId: computedRun.event.id,
 			previousScore: computedRun.event.previousScore,
 			candidateScore: computedRun.event.candidateScore,
-			evaluatorSeparated: true,
 			evidenceRefs: ['reports/prd-writing/evaluator-note.json']
 		});
 		await expect(distillEvaluatorLessons({
@@ -1055,15 +1053,6 @@ describe('loop-engineering-control-plane', () => {
 		});
 		const computedRun = await bindRunAsComputedSeparated(run);
 
-		await expect(recordEvaluatorReview({
-			chipKey: 'domain-chip-prd-writing-proof-loop',
-			sourceRunEventId: computedRun.event.id,
-			previousScore: computedRun.event.previousScore,
-			candidateScore: computedRun.event.candidateScore,
-			evaluatorSeparated: false,
-			evidenceRefs: ['reports/evaluator-prd-writing.json']
-		})).rejects.toThrow('separated evaluator evidence is required');
-
 		const review = await recordEvaluatorReview({
 			chipKey: 'domain-chip-prd-writing-proof-loop',
 			sourceRunEventId: computedRun.event.id,
@@ -1071,7 +1060,6 @@ describe('loop-engineering-control-plane', () => {
 			previousScore: computedRun.event.previousScore,
 			candidateScore: computedRun.event.candidateScore,
 			roundsObserved: 4,
-			evaluatorSeparated: true,
 			evidenceRefs: ['reports/evaluator-prd-writing.json', 'mission-control:spark-loop-prd']
 		});
 
@@ -1215,7 +1203,6 @@ describe('loop-engineering-control-plane', () => {
 			sourceRunEventId: run.event.id,
 			previousScore: run.event.previousScore,
 			candidateScore: run.event.candidateScore,
-			evaluatorSeparated: true,
 			evidenceRefs: ['mission-control:computed-provider-loop']
 		});
 		expect(review.event).toMatchObject({
@@ -1255,7 +1242,6 @@ describe('loop-engineering-control-plane', () => {
 			previousScore: computedLoop.event.previousScore,
 			candidateScore: computedLoop.event.candidateScore,
 			roundsObserved: 3,
-			evaluatorSeparated: true,
 			evidenceRefs: [`mission-control:${benchmark.mission.id}`, `mission-control:${loop.mission.id}`],
 			sourceSurface: 'telegram'
 		});
@@ -1342,15 +1328,13 @@ describe('loop-engineering-control-plane', () => {
 		});
 		expect(completion.commandResult.userMessage).toContain('local smoke completion');
 		expect(completion.commandResult.userMessage).not.toContain('evaluator-backed completion');
-		// A same-process (non-separated) review of the synthetic candidate is rejected -> synthetic cannot
-		// promote itself. Only a genuinely separated judge (evaluatorSeparated:true) may review it (option B).
+		// A same-process synthetic verdict packet is rejected, regardless of anything a caller might claim.
 		await expect(recordEvaluatorReview({
 			chipKey: 'domain-chip-prd-writing-proof-loop',
 			sourceRunEventId: run.event.id,
 			previousScore: run.event.previousScore,
 			candidateScore: run.event.candidateScore,
-			evaluatorSeparated: false,
 			evidenceRefs: ['reports/self-review.json']
-		})).rejects.toThrow('separated evaluator evidence is required');
+		})).rejects.toThrow('evaluatorVerdictRef must contain separated evaluator evidence');
 	});
 });

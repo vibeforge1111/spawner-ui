@@ -57,7 +57,6 @@ export const POST: RequestHandler = async ({ request }) => {
 			candidateScore: typeof body.candidateScore === 'number' ? body.candidateScore : null,
 			utilityDelta: typeof body.utilityDelta === 'number' ? body.utilityDelta : null,
 			roundsObserved: typeof body.roundsObserved === 'number' ? body.roundsObserved : null,
-			evaluatorSeparated: body.evaluatorSeparated === true,
 			evidenceRefs: Array.isArray(body.evidenceRefs) ? body.evidenceRefs.filter((item): item is string => typeof item === 'string') : [],
 			nextAction: String(body.nextAction || '')
 		});

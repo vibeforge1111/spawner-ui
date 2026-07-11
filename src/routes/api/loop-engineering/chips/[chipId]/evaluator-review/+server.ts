@@ -52,7 +52,6 @@ export const POST: RequestHandler = async ({ params, request }) => {
 			previousScore: typeof body.previousScore === 'number' ? body.previousScore : typeof body.previous_score === 'number' ? body.previous_score : null,
 			candidateScore: typeof body.candidateScore === 'number' ? body.candidateScore : typeof body.candidate_score === 'number' ? body.candidate_score : null,
 			roundsObserved: typeof body.roundsObserved === 'number' ? body.roundsObserved : typeof body.rounds_observed === 'number' ? body.rounds_observed : null,
-			evaluatorSeparated: body.evaluatorSeparated === true || body.evaluator_separated === true,
 			evidenceRefs: stringArray(body.evidenceRefs || body.evidence_refs),
 			sourceSurface: body.sourceSurface === 'telegram' ? 'telegram' : 'spawner',
 			nextAction: typeof body.nextAction === 'string' ? body.nextAction : typeof body.next_action === 'string' ? body.next_action : undefined

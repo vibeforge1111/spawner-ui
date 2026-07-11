@@ -128,14 +128,13 @@ describe('/api/loop-engineering/chips/[chipId]/evaluator-review', () => {
 		expect(body.authority.reasonCodes).toContain('native_governor_required');
 	});
 
-	it('records only separated evaluator evidence with Governor authority', async () => {
+	it('derives separated evaluator evidence from the owner-bound source packet', async () => {
 		const source = await seedSourceRun();
 		const response = await POST(event({
 			sourceRunEventId: source.event.id,
 			previousScore: source.event.previousScore,
 			candidateScore: source.event.candidateScore,
 			roundsObserved: source.event.roundsObserved,
-			evaluatorSeparated: true,
 			evidenceRefs: ['reports/prd-eval.json'],
 			sourceSurface: 'telegram',
 			executionAuthority: governorAuthority()
