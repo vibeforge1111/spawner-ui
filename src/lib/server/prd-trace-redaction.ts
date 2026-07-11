@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { chmod, readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-const TRACE_PATH_PATTERN = /(?:file:\/\/[^\s"',)]+|\/(?:Users|home|private\/var|var\/folders)\/[^\s"',)]+|[A-Za-z]:[\\/][^\s"',)]+|\\\\[^\s"',)]+)/g;
+const TRACE_PATH_PATTERN = /(?:file:\/\/[^\s"',)]+|\/(?:Users|home|private\/(?:var|tmp)|var\/folders|tmp)\/[^\s"',)]+|[A-Za-z]:[\\/][^\s"',)]+|\\\\[^\s"',)]+)/g;
 const INLINE_SECRET_PATTERN = /\b(?:Bearer\s+[^\s"',)]+|(?:sk|gh[pousr]|xox[baprs])[-_][A-Za-z0-9_-]{8,})\b/gi;
 const SENSITIVE_FIELD_PATTERN = /^(?:authorization|api[_-]?key|access[_-]?token|refresh[_-]?token|bot[_-]?token|password|secret|cookie)$/i;
 

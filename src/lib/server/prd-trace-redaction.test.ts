@@ -25,6 +25,8 @@ describe('PRD trace redaction', () => {
 			stateDirectory: 'C:\\Users\\USER\\Desktop\\spark\\state',
 			resultFile: '/Users/example/.spark/state/spawner-ui/results/request.json',
 			linuxPath: '/home/alchemist/private/request.json',
+			macosPrivateTempPath: '/private/tmp/spark-r30/request.json',
+			portableTempPath: '/tmp/spark-r30/request.json',
 			authorization: 'Bearer private-token-value',
 			note: `provider returned Bearer private-inline-token and ${['sk', 'privateSecret123'].join('-')}`,
 			nested: {
@@ -37,10 +39,12 @@ describe('PRD trace redaction', () => {
 		expect(details.stateDirectory).toMatch(/^path:sha256:[a-f0-9]{16}$/);
 		expect(details.resultFile).toMatch(/^path:sha256:[a-f0-9]{16}$/);
 		expect(details.linuxPath).toMatch(/^path:sha256:[a-f0-9]{16}$/);
+		expect(details.macosPrivateTempPath).toMatch(/^path:sha256:[a-f0-9]{16}$/);
+		expect(details.portableTempPath).toMatch(/^path:sha256:[a-f0-9]{16}$/);
 		expect(details.authorization).toBe('[redacted]');
 		expect(details.note).toBe('provider returned [redacted] and [redacted]');
 		expect((details.nested as Record<string, unknown>).artifact).toMatch(/^path:sha256:[a-f0-9]{16}$/);
-		expect(JSON.stringify(details)).not.toMatch(/C:\\\\Users|\/Users\/example|file:\/\//);
+		expect(JSON.stringify(details)).not.toMatch(/C:\\\\Users|\/Users\/example|\/private\/tmp|\/tmp\/spark-r30|file:\/\//);
 	});
 
 	it('repairs historical PRD trace rows with an explicit private raw backup', async () => {
