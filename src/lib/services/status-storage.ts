@@ -135,6 +135,7 @@ export function addHealthCheck(check: HealthCheck): boolean {
 		// Keep only most recent entries per service
 		const trimmed: HealthCheck[] = [];
 		for (const [, checks] of byService) {
+			// NOTE: .sort() mutates the input array. Use .toSorted() (ES2023) or `[...arr].sort()` to avoid surprising callers. The function signature doesn't suggest in-place sort.
 			checks.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
 			trimmed.push(...checks.slice(0, MAX_HEALTH_HISTORY));
 		}
