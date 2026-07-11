@@ -139,7 +139,12 @@ export async function executeCodexCliRequest(
 		mkdirSync(promptsDir, { recursive: true });
 	}
 	const promptFile = join(promptsDir, `${missionId}-${provider.id}.md`);
-	writeFileSync(promptFile, prompt, 'utf-8');
+	try {
+	  writeFileSync(promptFile, prompt, 'utf-8');
+	} catch (error) {
+	  console.error('writeFileSync failed:', error);
+	  throw error;
+	}
 
 	return new Promise<ProviderResult>((resolve) => {
 		let cwd: string;
