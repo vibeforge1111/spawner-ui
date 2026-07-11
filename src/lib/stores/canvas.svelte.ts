@@ -1,3 +1,4 @@
+import { safeJsonParse } from '$lib/server/safe-json';
 import { writable, derived, get } from 'svelte/store';
 import { browser } from '$app/environment';
 import type { Skill } from './skills.svelte';
@@ -462,10 +463,15 @@ export function copySelected() {
 		(c) => state.selectedNodeIds.includes(c.sourceNodeId) && state.selectedNodeIds.includes(c.targetNodeId)
 	);
 
-	clipboard = {
-		nodes: JSON.parse(JSON.stringify(nodesToCopy)),
-		connections: JSON.parse(JSON.stringify(connectionsToCopy))
-	};
+	try {
+		clipboard = {
+			nodes: JSON.parse(JSON.stringify(nodesToCopy)),
+			connections: JSON.parse(JSON.stringify(connectionsToCopy))
+		};
+	} catch {
+		clipboard = null;
+		return;
+	}
 }
 
 export function pasteFromClipboard(): string[] {
