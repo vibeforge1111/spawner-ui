@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { AgentRuntimeStatus } from './mission-executor';
 import {
 	formatExecutionDuration,
 	getAgentStatusColor,

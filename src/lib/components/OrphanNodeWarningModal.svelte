@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { CanvasNode } from '$lib/stores/canvas.svelte';
+	import { dismissOnEscape } from '$lib/services/modal-keyboard';
 
 	interface Props {
 		orphanedNodes: CanvasNode[];
@@ -12,10 +13,7 @@
 	let { orphanedNodes, onDismiss, onAutoConnect, onViewOnCanvas, onProceed }: Props = $props();
 
 	function handleKeydown(e: KeyboardEvent) {
-		if (e.key === 'Escape') {
-			e.preventDefault();
-			onDismiss();
-		}
+		dismissOnEscape(e, onDismiss);
 	}
 </script>
 
