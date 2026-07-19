@@ -4,6 +4,14 @@
 	"version": "0.0.1",
 	"type": "module",
 	"license": "MIT",
+	"files": [
+		"build",
+		"vendor/harness-core",
+		"scripts/health-spark.mjs",
+		".env.example",
+		"README.md",
+		"LICENSE"
+	],
 	"scripts": {
 		"dev": "vite dev --host 127.0.0.1 --port 3333",
 		"build": "vite build",
@@ -12,6 +20,7 @@
 		"preview": "vite preview",
 		"preview:app": "vite dev --host 127.0.0.1 --port 5555",
 		"preview:projects": "tsx scripts/project-preview-server.ts",
+		"prepack": "npm run build",
 		"prepare": "svelte-kit sync || echo ''",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
