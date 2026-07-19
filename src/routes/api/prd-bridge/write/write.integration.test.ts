@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { existsSync } from 'fs';
+import { existsSync, realpathSync } from 'fs';
 import { mkdtemp, readFile, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import path from 'path';
@@ -325,6 +325,12 @@ describe('/api/prd-bridge/write integration', () => {
 		executeProviderTaskMock.mockReturnValue(new Promise(() => undefined));
 		const requestId = 'tg-build-codex-timeout-1780929999999';
 		const traceRef = 'trace:spawner-prd:mission-1780929999999';
+		const expectedWorkingDirectory = path.join(
+			realpathSync(testSpawnerDir),
+			'workspaces',
+			'prd-auto-analysis',
+			requestId
+		);
 
 		const response = await POST({
 			request: new Request('http://localhost/api/prd-bridge/write', {
@@ -356,9 +362,7 @@ describe('/api/prd-bridge/write integration', () => {
 		expect(providerCall.prompt).toContain('$SparkEventsHeaders["x-api-key"] = $SparkEventsApiKey');
 		expect(providerCall.prompt).toContain('Use -Headers $SparkEventsHeaders');
 		expect(providerCall.prompt).toContain('Do not print, log, write, or include $SparkEventsApiKey');
-		expect(providerCall.workingDirectory).toBe(
-			path.join(testSpawnerDir, 'workspaces', 'prd-auto-analysis', requestId)
-		);
+		expect(providerCall.workingDirectory).toBe(expectedWorkingDirectory);
 		expect(providerCall.workingDirectory).not.toContain(`${path.sep}modules${path.sep}spawner-ui${path.sep}source`);
 
 		const pendingStarted = JSON.parse(await readFile(path.join(testSpawnerDir, 'pending-request.json'), 'utf-8'));
@@ -397,7 +401,7 @@ describe('/api/prd-bridge/write integration', () => {
 		expect(traceRows.find((row) => row.event === 'auto_worker_dispatch')).toMatchObject({
 			requestId,
 			traceRef,
-			workingDirectory: path.join(testSpawnerDir, 'workspaces', 'prd-auto-analysis', requestId)
+			workingDirectory: expectedWorkingDirectory
 		});
 		expect(traceRows.find((row) => row.event === 'watchdog_timeout')).toMatchObject({
 			requestId,
