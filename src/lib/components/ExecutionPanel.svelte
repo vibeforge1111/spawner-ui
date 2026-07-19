@@ -52,7 +52,9 @@
 		formatExecutionDuration,
 		getAgentStatusColor,
 		getStatusColor,
-		getTransitionBadge
+		getTransitionBadge,
+		sortAgentRuntimeByFreshness,
+		splitExecutionGoals
 	} from '$lib/services/execution-panel-formatting';
 	import { canShowMissionBoardProjectActions } from '$lib/services/mission-board-cards';
 	import { polishMissionTitleForDisplay } from '$lib/services/mission-title';
@@ -219,13 +221,7 @@
 	let activeMissionId = $derived(executionProgress?.missionId || relay?.missionId || '');
 	let runtimeAgents = $derived.by(() => {
 		if (!executionProgress?.agentRuntime) return [] as AgentRuntimeStatus[];
-		const updatedMs = (value: string | null | undefined): number => {
-			const parsed = Date.parse(value || '');
-			return Number.isFinite(parsed) ? parsed : 0;
-		};
-		return Array.from(executionProgress.agentRuntime.values()).sort(
-			(a, b) => updatedMs(b.updatedAt) - updatedMs(a.updatedAt)
-		);
+		return sortAgentRuntimeByFreshness(Array.from(executionProgress.agentRuntime.values()));
 	});
 	let recentTaskTransitions = $derived.by(() => {
 		if (!executionProgress?.taskTransitions) return [] as TaskTransitionEvent[];
@@ -803,10 +799,7 @@
 	}
 
 	function parseGoals(text: string): string[] {
-		return text
-			.split(/\r?\n/)
-			.map((l) => l.trim())
-			.filter(Boolean);
+		return splitExecutionGoals(text);
 	}
 
 	function extractTargetWorkspaceFromText(text?: string): string | null {

@@ -7,10 +7,31 @@ import {
 	getStatusColor,
 	getTaskBadgeClass,
 	getTaskRowClass,
-	getTransitionBadge
+	getTransitionBadge,
+	sortAgentRuntimeByFreshness,
+	splitExecutionGoals
 } from './execution-panel-formatting';
 
 describe('execution panel formatting helpers', () => {
+	it('parses real newlines and keeps literal backslash-n text intact', () => {
+		expect(splitExecutionGoals('first\nsecond\r\n\n third ')).toEqual(['first', 'second', 'third']);
+		expect(splitExecutionGoals('first\\nsecond')).toEqual(['first\\nsecond']);
+	});
+
+	it('sorts valid agent updates newest-first without jumbling invalid timestamps', () => {
+		const agents = [
+			{ agentId: 'invalid-a', status: 'running', updatedAt: 'not-a-date' },
+			{ agentId: 'newest', status: 'completed', updatedAt: '2026-06-05T12:00:00Z' },
+			{ agentId: 'invalid-b', status: 'idle', updatedAt: '' },
+			{ agentId: 'older', status: 'running', updatedAt: '2026-06-05T11:00:00Z' }
+		] as AgentRuntimeStatus[];
+
+		expect(sortAgentRuntimeByFreshness(agents).map((agent) => agent.agentId)).toEqual([
+			'newest', 'older', 'invalid-a', 'invalid-b'
+		]);
+		expect(agents.map((agent) => agent.agentId)).toEqual(['invalid-a', 'newest', 'invalid-b', 'older']);
+	});
+
 	it('maps log types to colors and glyphs', () => {
 		expect(getLogColor('complete')).toBe('text-accent-primary');
 		expect(getLogColor('error')).toBe('text-status-error');
