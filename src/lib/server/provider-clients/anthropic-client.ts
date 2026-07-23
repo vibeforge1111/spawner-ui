@@ -5,6 +5,7 @@
  * Follows the same pattern as src/routes/api/analyze/+server.ts.
  */
 
+import { randomUUID } from 'node:crypto';
 import type { ProviderResult, ProviderClientOptions } from './types';
 import { createBridgeEvent } from './types';
 import { parseRetryAfterMs } from './retry-after';
@@ -51,6 +52,7 @@ export async function executeAnthropicRequest(
 	);
 
 	let lastError: string | undefined;
+	const idempotencyKey = randomUUID();
 
 	for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
 		if (signal?.aborted) {
@@ -86,7 +88,8 @@ export async function executeAnthropicRequest(
 				headers: {
 					'Content-Type': 'application/json',
 					'x-api-key': apiKey,
-					'anthropic-version': ANTHROPIC_VERSION
+					'anthropic-version': ANTHROPIC_VERSION,
+					'Idempotency-Key': idempotencyKey
 				},
 				body: JSON.stringify(body),
 				signal
