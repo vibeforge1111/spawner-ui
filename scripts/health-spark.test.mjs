@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { spawn, spawnSync } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -169,6 +169,32 @@ describe("healthEnvValue", () => {
     writeFileSync(join(cwd, ".env"), "TELEGRAM_RELAY_SECRET=local-secret-that-should-not-win\n");
 
     expect(healthEnvValue("TELEGRAM_RELAY_SECRET", { TELEGRAM_RELAY_SECRET: "" }, cwd)).toBe("");
+  });
+
+  it("uses installed Spawner module configuration before a checkout .env fallback", () => {
+    const cwd = mkdtempSync(join(tmpdir(), "spawner-health-env-"));
+    const sparkHome = join(cwd, ".spark");
+    const moduleDir = join(sparkHome, "config", "modules");
+    mkdirSync(moduleDir, { recursive: true });
+    writeFileSync(join(moduleDir, "spawner-ui.env"), "TELEGRAM_RELAY_SECRET=module-value\n");
+    writeFileSync(join(cwd, ".env"), "TELEGRAM_RELAY_SECRET=checkout-value\n");
+
+    expect(healthEnvValue("TELEGRAM_RELAY_SECRET", { SPARK_HOME: sparkHome }, cwd)).toBe(
+      "module-value",
+    );
+  });
+
+  it("falls back to checkout configuration when the installed module omits the key", () => {
+    const cwd = mkdtempSync(join(tmpdir(), "spawner-health-env-"));
+    const sparkHome = join(cwd, ".spark");
+    const moduleDir = join(sparkHome, "config", "modules");
+    mkdirSync(moduleDir, { recursive: true });
+    writeFileSync(join(moduleDir, "spawner-ui.env"), "OTHER_KEY=value\n");
+    writeFileSync(join(cwd, ".env"), "TELEGRAM_RELAY_SECRET=checkout-value\n");
+
+    expect(healthEnvValue("TELEGRAM_RELAY_SECRET", { SPARK_HOME: sparkHome }, cwd)).toBe(
+      "checkout-value",
+    );
   });
 });
 

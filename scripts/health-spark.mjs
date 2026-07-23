@@ -35,20 +35,32 @@ function parseCsv(value) {
 		.filter(Boolean);
 }
 
-function localEnvValue(key, cwd = process.cwd()) {
-	const envPath = join(cwd, ".env");
-	if (!existsSync(envPath)) return "";
+function envFileValue(key, envPath) {
+	if (!existsSync(envPath)) return null;
 	const lines = readFileSync(envPath, "utf-8").split(/\r?\n/);
 	for (const line of [...lines].reverse()) {
 		const match = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)=(.*)\s*$/);
 		if (!match || match[1] !== key) continue;
 		return match[2].trim().replace(/^(['"])(.*)\1$/, "$2");
 	}
-	return "";
+	return null;
+}
+
+function localEnvValue(key, cwd = process.cwd()) {
+	return envFileValue(key, join(cwd, ".env")) ?? "";
+}
+
+function moduleEnvValue(key, env = process.env, fallbackHome = homedir()) {
+	const explicitSparkHome = env.SPARK_HOME?.trim();
+	if (!explicitSparkHome && env !== process.env) return null;
+	const sparkHome = explicitSparkHome || join(fallbackHome, ".spark");
+	return envFileValue(key, join(sparkHome, "config", "modules", "spawner-ui.env"));
 }
 
 export function healthEnvValue(key, env = process.env, cwd = process.cwd()) {
 	if (Object.prototype.hasOwnProperty.call(env, key)) return env[key]?.trim() || "";
+	const moduleValue = moduleEnvValue(key, env);
+	if (moduleValue !== null) return moduleValue;
 	return localEnvValue(key, cwd);
 }
 
