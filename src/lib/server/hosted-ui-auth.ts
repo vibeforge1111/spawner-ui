@@ -222,7 +222,9 @@ export function hostedUiShouldBypassLocalOperatorAuth(
 	return hostedUiIsLocalOperatorLoopbackRequest(request, url, clientAddress);
 }
 
-export function hostedUiAuthClientKey(request: Request): string {
+export function hostedUiAuthClientKey(request: Request, clientAddress?: string): string {
+	const adapterAddress = clientAddress?.trim();
+	if (adapterAddress) return adapterAddress;
 	// Prefer x-real-ip (set by trusted reverse proxy) over x-forwarded-for.
 	// x-forwarded-for first entry is client-controllable; use last entry (set by trusted proxy).
 	const realIp = request.headers.get('x-real-ip')?.trim();

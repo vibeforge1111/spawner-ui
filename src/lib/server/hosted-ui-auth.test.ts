@@ -363,6 +363,16 @@ describe('hosted UI auth', () => {
 		expect(hostedUiAuthClientKey(request)).toBe('10.0.0.1');
 	});
 
+	it('prefers the adapter-provided client address over spoofable request headers', () => {
+		const request = new Request('https://x.test/', {
+			headers: {
+				'x-real-ip': '198.51.100.50',
+				'x-forwarded-for': '203.0.113.10, 10.0.0.1'
+			}
+		});
+		expect(hostedUiAuthClientKey(request, '192.0.2.25')).toBe('192.0.2.25');
+	});
+
 	it('rate-limits repeated hosted auth failures within the window', () => {
 		resetHostedUiAuthRateLimits();
 		for (let i = 0; i < 12; i += 1) {
