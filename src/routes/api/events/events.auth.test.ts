@@ -46,6 +46,7 @@ afterEach(async () => {
 		await rm(testSpawnerDir, { recursive: true, force: true });
 	}
 	testSpawnerDir = null;
+	vi.restoreAllMocks();
 });
 
 function createEvent(url: string, init?: RequestInit, clientAddress = '203.0.113.1') {
@@ -274,6 +275,27 @@ describe('/api/events auth', () => {
 
 		expect(response.status).toBe(200);
 		expect(response.headers.get('set-cookie')).toContain('spawner_events_api_key=');
+	});
+
+	it('generates unpredictable event IDs on the real POST path', async () => {
+		const random = vi.spyOn(Math, 'random');
+		const uuid = vi.spyOn(crypto, 'randomUUID').mockReturnValue('deadbeef-1234-4123-8123-123456789abc');
+		const response = await POST(
+			createEvent('https://example.com/api/events', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					'x-api-key': 'events-secret'
+				},
+				body: JSON.stringify({ type: 'task_progress', source: 'crypto-test' })
+			})
+		);
+		const body = await response.json();
+
+		expect(response.status).toBe(200);
+		expect(body.eventId).toMatch(/^evt-\d+-deadbeef$/);
+		expect(uuid).toHaveBeenCalledOnce();
+		expect(random).not.toHaveBeenCalled();
 	});
 
 	it('rejects unauthenticated local event posts before relaying mission state', async () => {

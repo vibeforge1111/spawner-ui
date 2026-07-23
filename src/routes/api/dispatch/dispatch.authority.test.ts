@@ -96,6 +96,7 @@ describe('/api/dispatch authority contract', () => {
 
 	afterEach(() => {
 		vi.unstubAllGlobals();
+		vi.restoreAllMocks();
 		if (originalMcpApiKey === undefined) {
 			delete process.env.MCP_API_KEY;
 		} else {
@@ -187,6 +188,36 @@ describe('/api/dispatch authority contract', () => {
 		expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({
 			authorityRequestId: requestId
 		}));
+	});
+
+	it('does not disclose provider failures through a 500 response', async () => {
+		const dispatch = vi.mocked(providerRuntime.dispatch);
+		dispatch.mockRejectedValueOnce(new Error('redis://10.0.0.8:6379 /private/runtime.ts'));
+		const internalError = vi.spyOn(console, 'error').mockImplementation(() => {});
+		const requestId = 'request-dispatch-error-proof';
+
+		const response = await POST(event({
+			executionPack,
+			relay: { requestId },
+			executionAuthority: buildClientGovernorDecisionAuthority({
+				source: 'dispatch-authority-test',
+				reason: 'Exercise the dispatch error boundary.',
+				toolName: 'spawner.dispatch',
+				mutationClass: 'launches_mission',
+				requestId,
+				target: executionPack.missionId
+			})
+		}) as never);
+		const body = await response.json();
+
+		expect(response.status).toBe(500);
+		expect(body).toEqual({ success: false, error: 'Internal dispatch error' });
+		expect(JSON.stringify(body)).not.toContain('redis');
+		expect(JSON.stringify(body)).not.toContain('runtime.ts');
+		expect(internalError).toHaveBeenCalledWith(
+			'[Dispatch API] POST error:',
+			'redis://10.0.0.8:6379 /private/runtime.ts'
+		);
 	});
 
 	it('blocks browser relay dispatch when requestId is missing from the binding', async () => {

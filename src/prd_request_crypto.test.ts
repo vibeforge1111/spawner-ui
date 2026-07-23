@@ -1,29 +1,18 @@
-import { describe, it, expect, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createPrdRequestId } from './lib/services/prd-bridge';
 
-function generatePrdRequestId(): string {
-	return `prd-${Date.now()}-${crypto.randomUUID().replace(/-/g, '').slice(0, 8)}`;
-}
+afterEach(() => vi.restoreAllMocks());
 
 describe('PRD request ID generation', () => {
 	it('matches prd-<ts>-<hex8> format', () => {
-		expect(generatePrdRequestId()).toMatch(/^prd-\d+-[0-9a-f]{8}$/);
+		expect(createPrdRequestId()).toMatch(/^prd-\d+-[0-9a-f]{8}$/);
 	});
-	it('produces unique IDs across 500 calls', () => {
-		const ids = new Set(Array.from({ length: 500 }, generatePrdRequestId));
-		expect(ids.size).toBe(500);
-	});
-	it('does not call Math.random', () => {
+	it('uses crypto.randomUUID rather than Math.random', () => {
 		const spy = vi.spyOn(Math, 'random');
-		generatePrdRequestId();
+		const uuid = vi.spyOn(crypto, 'randomUUID').mockReturnValue('87654321-1234-4123-8123-123456789abc');
+		const requestId = createPrdRequestId();
 		expect(spy).not.toHaveBeenCalled();
-		spy.mockRestore();
-	});
-	it('prefix is prd', () => {
-		expect(generatePrdRequestId().startsWith('prd-')).toBe(true);
-	});
-	it('suffix is 8 hex chars', () => {
-		const id = generatePrdRequestId();
-		const parts = id.split('-');
-		expect(parts[parts.length - 1]).toMatch(/^[0-9a-f]{8}$/);
+		expect(uuid).toHaveBeenCalledOnce();
+		expect(requestId).toMatch(/^prd-\d+-87654321$/);
 	});
 });

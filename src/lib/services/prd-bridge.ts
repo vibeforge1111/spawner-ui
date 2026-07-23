@@ -23,6 +23,10 @@ import type { Skill } from '$lib/stores/skills.svelte';
 
 const PRD_BRIDGE_TIMEOUT_MS = 30 * 60 * 1000;
 
+export function createPrdRequestId(): string {
+	return `prd-${Date.now()}-${crypto.randomUUID().replace(/-/g, '').slice(0, 8)}`;
+}
+
 // =============================================================================
 // TYPES
 // =============================================================================
@@ -157,7 +161,7 @@ export async function requestPRDAnalysis(
 	projectName?: string,
 	timeoutMs: number = PRD_BRIDGE_TIMEOUT_MS
 ): Promise<PRDAnalysisResult> {
-	const requestId = `prd-${Date.now()}-${crypto.randomUUID().replace(/-/g, '').slice(0, 8)}`;
+	const requestId = createPrdRequestId();
 
 	analysisStatus.set('pending');
 	analysisError.set(null);

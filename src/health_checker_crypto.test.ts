@@ -1,28 +1,19 @@
-import { describe, it, expect, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createHealthCheck } from './lib/services/health-checker';
 
-function generateCheckId(): string {
-	return `check-${Date.now()}-${crypto.randomUUID().replace(/-/g, '').slice(0, 8)}`;
-}
+afterEach(() => vi.restoreAllMocks());
 
 describe('health check ID generation', () => {
-	it('matches check-<ts>-<hex8> format', () => {
-		expect(generateCheckId()).toMatch(/^check-\d+-[0-9a-f]{8}$/);
+	it('matches check-<ts>-<hex8> format in a real health-check record', () => {
+		const check = createHealthCheck('service-1', { status: 'healthy', responseTime: 12 });
+		expect(check.id).toMatch(/^check-\d+-[0-9a-f]{8}$/);
 	});
-	it('produces unique IDs across 500 calls', () => {
-		const ids = new Set(Array.from({ length: 500 }, generateCheckId));
-		expect(ids.size).toBe(500);
-	});
-	it('does not call Math.random', () => {
+	it('uses crypto.randomUUID rather than Math.random in the real creation path', () => {
 		const spy = vi.spyOn(Math, 'random');
-		generateCheckId();
+		const uuid = vi.spyOn(crypto, 'randomUUID').mockReturnValue('abcdef12-1234-4123-8123-123456789abc');
+		const check = createHealthCheck('service-1', { status: 'healthy', responseTime: 12 });
 		expect(spy).not.toHaveBeenCalled();
-		spy.mockRestore();
-	});
-	it('prefix is check', () => {
-		expect(generateCheckId().startsWith('check-')).toBe(true);
-	});
-	it('suffix is 8 hex chars', () => {
-		const id = generateCheckId();
-		expect(id.split('-').slice(-1)[0]).toMatch(/^[0-9a-f]{8}$/);
+		expect(uuid).toHaveBeenCalledOnce();
+		expect(check.id).toMatch(/^check-\d+-abcdef12$/);
 	});
 });
