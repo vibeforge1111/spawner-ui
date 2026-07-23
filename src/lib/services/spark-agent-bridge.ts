@@ -565,8 +565,11 @@ class SparkAgentBridgeService {
 		if (workerState?.status === 'running') {
 			try {
 				workerState.process?.kill('SIGTERM');
-			} catch {
-				// noop
+			} catch (error) {
+				console.error(
+					'[spark-agent-bridge] Worker termination failed:',
+					error instanceof Error ? error.name : 'UnknownError'
+				);
 			}
 		}
 
