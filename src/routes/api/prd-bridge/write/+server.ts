@@ -1198,53 +1198,60 @@ function scheduleProvisionalPrdDraft(input: {
 	});
 	if (delayMs === null) return;
 
-	const timer = setTimeout(async () => {
-		const paths = getPrdBridgePaths();
-		const resultFile = prdResultFile(paths, input.requestId);
-		if (existsSync(resultFile)) {
-			await appendPrdTrace(input.requestId, 'provisional_canvas_skipped', {
-				...traceRefDetails(input.traceRef),
-				reason: 'analysis result already exists',
-				delayMs
-			});
-			return;
-		}
-
-		await updatePendingRequestStatus(input.requestId, 'provisional', {
-			reason: 'Canonical PRD analysis is still running; provisional canvas draft is advisory and non-executable.',
-			provisionalCanvasAt: new Date().toISOString(),
-			provisionalDelayMs: delayMs
-		});
-		await appendPrdTrace(input.requestId, 'provisional_canvas_due', {
-			...traceRefDetails(input.traceRef),
-			delayMs,
-			buildMode: input.buildMode,
-			buildLane: input.buildLane
-		});
-		await writeFallbackAnalysisResult(
-			input.requestId,
-			input.projectName,
-			input.buildMode,
-			input.tier,
-			`advisory provisional canvas draft after ${delayMs}ms while canonical PRD analysis continues`,
-			input.traceRef,
-			input.buildLane,
-			{ provisional: true }
-		);
-		await relayMissionControlEvent({
-			type: 'log',
-			missionId: input.missionId,
-			missionName: input.projectName,
-			taskName: 'PRD draft',
-			message: 'Advisory PRD draft ready; waiting for canonical provider result before execution.',
-			source: 'prd-bridge',
-			data: {
-				requestId: input.requestId,
-				...traceRefDetails(input.traceRef),
-				buildMode: input.buildMode,
-				buildLane: input.buildLane,
-				provisional: true
+	const timer = setTimeout(() => {
+		void (async () => {
+			const paths = getPrdBridgePaths();
+			const resultFile = prdResultFile(paths, input.requestId);
+			if (existsSync(resultFile)) {
+				await appendPrdTrace(input.requestId, 'provisional_canvas_skipped', {
+					...traceRefDetails(input.traceRef),
+					reason: 'analysis result already exists',
+					delayMs
+				});
+				return;
 			}
+
+			await updatePendingRequestStatus(input.requestId, 'provisional', {
+				reason: 'Canonical PRD analysis is still running; provisional canvas draft is advisory and non-executable.',
+				provisionalCanvasAt: new Date().toISOString(),
+				provisionalDelayMs: delayMs
+			});
+			await appendPrdTrace(input.requestId, 'provisional_canvas_due', {
+				...traceRefDetails(input.traceRef),
+				delayMs,
+				buildMode: input.buildMode,
+				buildLane: input.buildLane
+			});
+			await writeFallbackAnalysisResult(
+				input.requestId,
+				input.projectName,
+				input.buildMode,
+				input.tier,
+				`advisory provisional canvas draft after ${delayMs}ms while canonical PRD analysis continues`,
+				input.traceRef,
+				input.buildLane,
+				{ provisional: true }
+			);
+			await relayMissionControlEvent({
+				type: 'log',
+				missionId: input.missionId,
+				missionName: input.projectName,
+				taskName: 'PRD draft',
+				message: 'Advisory PRD draft ready; waiting for canonical provider result before execution.',
+				source: 'prd-bridge',
+				data: {
+					requestId: input.requestId,
+					...traceRefDetails(input.traceRef),
+					buildMode: input.buildMode,
+					buildLane: input.buildLane,
+					provisional: true
+				}
+			});
+		})().catch((error) => {
+			console.warn(
+				'[PrdBridge] Failed to write provisional canvas draft:',
+				error instanceof Error ? error.message : error
+			);
 		});
 	}, delayMs);
 
@@ -1421,6 +1428,11 @@ function scheduleAutoAnalysisWatchdog(
 			cancelAutoAnalysis,
 			traceRef,
 			buildLane
+		}).catch((error) => {
+			console.warn(
+				'[PrdBridge] Auto-analysis watchdog failed to write fallback result:',
+				error instanceof Error ? error.message : error
+			);
 		});
 	}, AUTO_ANALYSIS_TIMEOUT_MS);
 
