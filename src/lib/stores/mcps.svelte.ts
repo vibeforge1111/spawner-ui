@@ -127,7 +127,7 @@ export const filteredRegistry = derived(mcpStore, ($state) => {
 	}
 
 	// Sort by popularity
-	filtered = filtered.sort((a, b) => b.popularity - a.popularity);
+	filtered = [...filtered].sort((a, b) => b.popularity - a.popularity);
 
 	return filtered;
 });
