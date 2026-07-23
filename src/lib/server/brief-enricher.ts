@@ -27,6 +27,7 @@ import { spawn } from 'child_process';
 import { existsSync } from 'fs';
 import { dirname, join } from 'path';
 import { resolveCliBinary } from './cli-resolver';
+import { BoundedProcessOutput } from './bounded-process-output';
 
 // Aggressive timeout: enrichment is a nice-to-have. If claude can't
 // respond fast, use deterministic assumptions/questions so the user's
@@ -319,17 +320,17 @@ function runClaudePrint(prompt: string): Promise<string> {
 			windowsVerbatimArguments: command.windowsVerbatimArguments,
 			env: { ...process.env }
 		});
-		let stdout = '';
-		let stderr = '';
+		const stdout = new BoundedProcessOutput('OUTPUT');
+		const stderr = new BoundedProcessOutput('STDERR');
 		const timer = setTimeout(() => {
 			child.kill('SIGKILL');
 			reject(new Error(`brief-enricher claude --print timed out after ${ENRICH_TIMEOUT_MS}ms`));
 		}, ENRICH_TIMEOUT_MS);
 		child.stdout.on('data', (chunk) => {
-			stdout += chunk.toString('utf-8');
+			stdout.append(chunk.toString('utf-8'));
 		});
 		child.stderr.on('data', (chunk) => {
-			stderr += chunk.toString('utf-8');
+			stderr.append(chunk.toString('utf-8'));
 		});
 		child.on('error', (err) => {
 			clearTimeout(timer);
@@ -338,10 +339,10 @@ function runClaudePrint(prompt: string): Promise<string> {
 		child.on('close', (code) => {
 			clearTimeout(timer);
 			if (code !== 0) {
-				reject(new Error(`brief-enricher exited ${code}. stderr: ${stderr.slice(0, 300)}`));
+				reject(new Error(`brief-enricher exited ${code}. stderr: ${stderr.toString().slice(0, 300)}`));
 				return;
 			}
-			resolve(stdout);
+			resolve(stdout.toString());
 		});
 		child.stdin.write(prompt);
 		child.stdin.end();

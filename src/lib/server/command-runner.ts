@@ -11,6 +11,7 @@ import { basename, dirname, join, isAbsolute, resolve } from 'node:path';
 import { existsSync } from 'node:fs';
 import { commandTimeoutMs } from './timeout-config';
 import { externalProjectPathsAllowed, resolveContainedPath, sparkWorkspaceRoot } from './spark-run-workspace';
+import { BoundedProcessOutput } from './bounded-process-output';
 
 export const MAX_OUTPUT_LENGTH = 5000;
 export const COMMAND_TIMEOUT_MS = commandTimeoutMs();
@@ -140,8 +141,8 @@ export function runCommand(
 ): Promise<CommandResult> {
 	return new Promise((res) => {
 		const start = Date.now();
-		let stdout = '';
-		let stderr = '';
+		const stdout = new BoundedProcessOutput('OUTPUT');
+		const stderr = new BoundedProcessOutput('STDERR');
 		let resolved = false;
 		const payloadReason = opaqueCommandPayloadReason(command, args);
 		if (payloadReason) {
@@ -177,11 +178,11 @@ export function runCommand(
 		}, timeoutMs + SIGTERM_GRACE_MS);
 
 		child.stdout?.on('data', (data: Buffer) => {
-			stdout += data.toString();
+			stdout.append(data.toString());
 		});
 
 		child.stderr?.on('data', (data: Buffer) => {
-			stderr += data.toString();
+			stderr.append(data.toString());
 		});
 
 		child.on('close', (code) => {
@@ -190,8 +191,8 @@ export function runCommand(
 				resolved = true;
 				res({
 					exitCode: code ?? 1,
-					stdout: truncateOutput(stdout),
-					stderr: truncateOutput(stderr),
+					stdout: truncateOutput(stdout.toString()),
+					stderr: truncateOutput(stderr.toString()),
 					duration: Date.now() - start
 				});
 			}

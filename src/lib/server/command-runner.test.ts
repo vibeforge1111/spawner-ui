@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -114,6 +114,23 @@ describe('runCommand', () => {
 		expect(opaqueCommandPayloadReason('cmd.exe', ['/c', 'echo unsafe'])).toContain('Opaque command payload flag "/c"');
 		expect(opaqueCommandPayloadReason('powershell.exe', ['-Command', 'Write-Output unsafe'])).toContain('Opaque command payload flag "-Command"');
 		expect(opaqueCommandPayloadReason('bash', ['-lc', 'echo unsafe'])).toContain('Opaque command payload flag "-lc"');
+	});
+
+	it('bounds stdout and stderr while the child is still running', async () => {
+		const dir = tempDir('spark-runner-output-');
+		const script = join(dir, 'large-output.cjs');
+		writeFileSync(
+			script,
+			"process.stdout.write('o'.repeat(10 * 1024 * 1024 + 1)); process.stderr.write('e'.repeat(10 * 1024 * 1024 + 1));"
+		);
+
+		const result = await runCommand(process.execPath, [script], dir, 10_000);
+
+		expect(result.exitCode).toBe(0);
+		expect(result.stdout).toContain('[OUTPUT TRUNCATED: exceeded 10485760 byte buffer limit]');
+		expect(result.stderr).toContain('[STDERR TRUNCATED: exceeded 10485760 byte buffer limit]');
+		expect(result.stdout.length).toBeLessThanOrEqual(5100);
+		expect(result.stderr.length).toBeLessThanOrEqual(5100);
 	});
 });
 
