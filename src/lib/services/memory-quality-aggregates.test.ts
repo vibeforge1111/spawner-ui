@@ -57,6 +57,12 @@ describe('memory quality aggregates', () => {
 		]);
 	});
 
+	it('places malformed recall timestamps after finite timestamps', () => {
+		const malformed = { ...events[0], id: 'malformed', timestamp: 'not-a-date', query: 'bad timestamp' };
+		const recent = recentRecallEvents([malformed, events[1]], 2);
+		expect(recent.map((event) => event.query)).toEqual(['b', 'bad timestamp']);
+	});
+
 	it('rolls source health for all monitored sources', () => {
 		const dataset: MemoryQualityDataset = {
 			events,
