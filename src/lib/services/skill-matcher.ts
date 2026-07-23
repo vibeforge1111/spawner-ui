@@ -246,6 +246,17 @@ function getDefaultSkills(domains: string[], maxResults: number): MatchedSkill[]
 			tier: 2,
 			tags: ['game', 'design']
 		});
+	} else if (domains.includes('file-task')) {
+		defaults.push({
+			skillId: 'general-development',
+			name: 'General Development',
+			description: 'Basic file operations and scripting',
+			category: 'development',
+			score: 0.6,
+			matchReason: 'simple file task detected',
+			tier: 1,
+			tags: ['general', 'files', 'scripting']
+		});
 	} else if (domains.includes('ai') || domains.includes('ml')) {
 		defaults.push({
 			skillId: 'llm-architect',
