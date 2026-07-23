@@ -279,6 +279,41 @@ describe('providerProcessFailureMessage', () => {
 	});
 });
 
+describe('latest canvas snapshot selection', () => {
+	afterEach(() => {
+		sparkAgentBridge.resetForTests();
+	});
+
+	it('uses canvas activity instead of unrelated later session activity', () => {
+		const olderCanvas = sparkAgentBridge.startSession({ sessionId: 'older-canvas' });
+		const newerCanvas = sparkAgentBridge.startSession({ sessionId: 'newer-canvas' });
+		olderCanvas.events.push({
+			id: 'event-older-canvas',
+			type: 'spark_agent.canvas.updated',
+			sessionId: olderCanvas.id,
+			timestamp: '2026-07-24T10:00:00.000Z',
+			data: {}
+		});
+		olderCanvas.updatedAt = '2026-07-24T12:00:00.000Z';
+		newerCanvas.events.push({
+			id: 'event-newer-canvas',
+			type: 'spark_agent.canvas.updated',
+			sessionId: newerCanvas.id,
+			timestamp: '2026-07-24T11:00:00.000Z',
+			data: {}
+		});
+		newerCanvas.updatedAt = '2026-07-24T11:00:00.000Z';
+
+		expect(sparkAgentBridge.getLatestCanvasSnapshot()).toMatchObject({
+			sessionId: newerCanvas.id,
+			updatedAt: '2026-07-24T11:00:00.000Z'
+		});
+		expect(
+			sparkAgentBridge.getLatestCanvasSnapshot('2026-07-24T10:30:00.000Z', olderCanvas.id)
+		).toBeNull();
+	});
+});
+
 describe('provider process timeout helpers', () => {
 	it('uses the shared agent timeout configuration', () => {
 		expect(providerProcessTimeoutMs({ SPAWNER_AGENT_WORK_TIMEOUT_MS: '120000' })).toBe(120000);

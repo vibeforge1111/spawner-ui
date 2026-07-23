@@ -596,26 +596,42 @@ class SparkAgentBridgeService {
 
 	getLatestCanvasSnapshot(since?: string, sessionId?: string): SparkAgentCanvasSnapshot | null {
 		const sinceTs = since ? Date.parse(since) : Number.NaN;
-		const sessions = [...this.sessions.values()].filter((session) => {
-			if (sessionId && session.id !== sessionId) return false;
-			return session.events.some((event) => event.type === 'spark_agent.canvas.updated');
-		});
-		if (sessions.length === 0) return null;
-
 		const updatedMs = (value: string | null | undefined): number => {
 			const parsed = Date.parse(value || '');
 			return Number.isFinite(parsed) ? parsed : 0;
 		};
-		sessions.sort((a, b) => updatedMs(b.updatedAt) - updatedMs(a.updatedAt));
-		const latest = sessions[0];
-		const latestTs = updatedMs(latest.updatedAt);
+		const candidates = [...this.sessions.values()]
+			.filter((session) => !sessionId || session.id === sessionId)
+			.map((session) => {
+				const latestCanvasEvent = session.events
+					.filter((event) => event.type === 'spark_agent.canvas.updated')
+					.reduce<SparkAgentBridgeEvent | null>((latest, event) => {
+						if (!latest || updatedMs(event.timestamp) > updatedMs(latest.timestamp)) return event;
+						return latest;
+					}, null);
+				return latestCanvasEvent
+					? { session, canvasUpdatedAt: latestCanvasEvent.timestamp, canvasUpdatedMs: updatedMs(latestCanvasEvent.timestamp) }
+					: null;
+			})
+			.filter(
+				(candidate): candidate is {
+					session: SparkAgentSession;
+					canvasUpdatedAt: string;
+					canvasUpdatedMs: number;
+				} => candidate !== null
+			);
+		if (candidates.length === 0) return null;
+
+		candidates.sort((a, b) => b.canvasUpdatedMs - a.canvasUpdatedMs);
+		const latest = candidates[0].session;
+		const latestTs = candidates[0].canvasUpdatedMs;
 		if (!Number.isNaN(sinceTs) && !Number.isNaN(latestTs) && latestTs <= sinceTs) {
 			return null;
 		}
 
 		return {
 			sessionId: latest.id,
-			updatedAt: latest.updatedAt,
+			updatedAt: candidates[0].canvasUpdatedAt,
 			pipelineId: latest.canvas.pipelineId,
 			pipelineName: latest.canvas.pipelineName,
 			nodes: latest.canvas.nodes.map((node) => ({ ...node, position: { ...node.position } })),
