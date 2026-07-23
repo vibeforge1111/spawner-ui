@@ -5,21 +5,7 @@ import {
 	mimeTypeForProjectPreview,
 	resolveProjectPreviewAsset
 } from '../src/lib/server/project-preview.ts';
-
-function configuredPreviewPort(): number {
-	const explicitPort = Number(process.env.SPARK_PROJECT_PREVIEW_PORT || '');
-	if (Number.isFinite(explicitPort) && explicitPort > 0) return Math.trunc(explicitPort);
-
-	const rawUrl = process.env.SPARK_PROJECT_PREVIEW_URL || 'http://127.0.0.1:5555';
-	try {
-		const parsed = new URL(rawUrl);
-		const parsedPort = Number(parsed.port);
-		if (Number.isFinite(parsedPort) && parsedPort > 0) return parsedPort;
-	} catch {
-		// Fall through to the default local preview port.
-	}
-	return 5555;
-}
+import { configuredPreviewPort } from './project-preview-config.ts';
 
 function textResponse(status: number, body: string): Response {
 	return new Response(body, {
