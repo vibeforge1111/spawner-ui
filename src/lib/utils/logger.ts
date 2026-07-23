@@ -28,6 +28,32 @@ function formatPrefix(level: LogLevel, context?: string): string {
 	return context ? `[${levelStr}][${context}]` : `[${levelStr}]`;
 }
 
+function jsonLoggingEnabled(): boolean {
+	return typeof process !== 'undefined' && process.env?.JSON_LOGGING === '1';
+}
+
+function writeLog(level: LogLevel, msg: string, context?: string, ...args: unknown[]): void {
+	const writer =
+		level === 'debug'
+			? console.debug
+			: level === 'info'
+				? console.info
+				: level === 'warn'
+					? console.warn
+					: console.error;
+	if (!jsonLoggingEnabled()) {
+		writer(formatPrefix(level, context), msg, ...args);
+		return;
+	}
+
+	const entry = { level, context, message: msg, args, timestamp: new Date().toISOString() };
+	try {
+		writer(JSON.stringify(entry));
+	} catch {
+		writer(JSON.stringify({ ...entry, args: args.map((arg) => String(arg)) }));
+	}
+}
+
 export const logger = {
 	/**
 	 * Debug logs - only shown in development
@@ -35,7 +61,7 @@ export const logger = {
 	 */
 	debug: (msg: string, ...args: unknown[]): void => {
 		if (shouldLog('debug')) {
-			console.debug(formatPrefix('debug'), msg, ...args);
+			writeLog('debug', msg, undefined, ...args);
 		}
 	},
 
@@ -45,7 +71,7 @@ export const logger = {
 	 */
 	info: (msg: string, ...args: unknown[]): void => {
 		if (shouldLog('info')) {
-			console.info(formatPrefix('info'), msg, ...args);
+			writeLog('info', msg, undefined, ...args);
 		}
 	},
 
@@ -55,7 +81,7 @@ export const logger = {
 	 */
 	warn: (msg: string, ...args: unknown[]): void => {
 		if (shouldLog('warn')) {
-			console.warn(formatPrefix('warn'), msg, ...args);
+			writeLog('warn', msg, undefined, ...args);
 		}
 	},
 
@@ -64,7 +90,7 @@ export const logger = {
 	 * Use for errors and exceptions
 	 */
 	error: (msg: string, ...args: unknown[]): void => {
-		console.error(formatPrefix('error'), msg, ...args);
+		writeLog('error', msg, undefined, ...args);
 	},
 
 	/**
@@ -74,21 +100,21 @@ export const logger = {
 	scope: (context: string) => ({
 		debug: (msg: string, ...args: unknown[]): void => {
 			if (shouldLog('debug')) {
-				console.debug(formatPrefix('debug', context), msg, ...args);
+				writeLog('debug', msg, context, ...args);
 			}
 		},
 		info: (msg: string, ...args: unknown[]): void => {
 			if (shouldLog('info')) {
-				console.info(formatPrefix('info', context), msg, ...args);
+				writeLog('info', msg, context, ...args);
 			}
 		},
 		warn: (msg: string, ...args: unknown[]): void => {
 			if (shouldLog('warn')) {
-				console.warn(formatPrefix('warn', context), msg, ...args);
+				writeLog('warn', msg, context, ...args);
 			}
 		},
 		error: (msg: string, ...args: unknown[]): void => {
-			console.error(formatPrefix('error', context), msg, ...args);
+			writeLog('error', msg, context, ...args);
 		}
 	})
 };
