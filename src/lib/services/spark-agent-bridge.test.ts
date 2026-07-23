@@ -295,14 +295,14 @@ describe('endSession double-end guard', () => {
 	});
 
 	it('throws when ending an already-ended session (route returns 409)', () => {
-		const session = sparkAgentBridge.startSession({ providerId: 'test' });
+		const session = sparkAgentBridge.startSession();
 		sparkAgentBridge.endSession(session.id);
 
 		expect(() => sparkAgentBridge.endSession(session.id)).toThrow('already ended');
 	});
 
 	it('returns the session successfully on first end', () => {
-		const session = sparkAgentBridge.startSession({ providerId: 'test' });
+		const session = sparkAgentBridge.startSession();
 		const ended = sparkAgentBridge.endSession(session.id);
 
 		expect(ended.status).toBe('ended');
@@ -310,8 +310,8 @@ describe('endSession double-end guard', () => {
 	});
 
 	it('allows ending different sessions independently', () => {
-		const a = sparkAgentBridge.startSession({ providerId: 'test' });
-		const b = sparkAgentBridge.startSession({ providerId: 'test' });
+		const a = sparkAgentBridge.startSession();
+		const b = sparkAgentBridge.startSession();
 
 		sparkAgentBridge.endSession(a.id);
 		const endedB = sparkAgentBridge.endSession(b.id);
@@ -321,7 +321,7 @@ describe('endSession double-end guard', () => {
 	});
 
 	it('reports a bounded error when worker termination throws', () => {
-		const session = sparkAgentBridge.startSession({ providerId: 'test' });
+		const session = sparkAgentBridge.startSession();
 		const workerSessions = (
 			sparkAgentBridge as unknown as {
 				workerSessions: Map<string, { status: 'running'; process: { kill: () => boolean } }>;

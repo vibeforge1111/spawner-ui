@@ -213,7 +213,7 @@ describe('scheduler reliability guards', () => {
 
     const [saved] = await listSchedules();
     expect(saved.fireCount).toBe(0);
-    expect(Number.isFinite(Date.parse(saved.nextFireAt))).toBe(true);
+    expect(Number.isFinite(Date.parse(saved.nextFireAt || ''))).toBe(true);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 });
