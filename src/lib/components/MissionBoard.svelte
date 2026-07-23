@@ -98,7 +98,7 @@
 	let newGoal = $state('');
 	let newChip = $state('domain-chip-spark-ops-critic');
 	let newRounds = $state(1);
-	let newChatId = $state('8319079055');
+	let newChatId = $state('');
 	let creating = $state(false);
 
 	async function fetchSchedules() {
@@ -1089,7 +1089,7 @@
 		{#if !mcpConnected && !loading && cards().length === 0}
 			<div class="border border-surface-border rounded-lg bg-bg-secondary px-5 py-10 text-center">
 				<p class="font-mono text-xs text-text-tertiary">
-					No missions yet. Create one from the canvas or fire <code class="font-mono text-accent-primary">POST /api/spark/run</code>.
+					No missions yet. Start a mission from the Canvas, or type your goal in the New Mission box above.
 				</p>
 			</div>
 		{:else if error && cards().length === 0}

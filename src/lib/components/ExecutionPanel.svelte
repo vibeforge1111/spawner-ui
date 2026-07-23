@@ -127,7 +127,7 @@
 	let showMissionSettings = $state(false);
 	let missionName = $state('Spark Intelligence Launch Readiness');
 	let missionDescription = $state('Prepare Spark Intelligence to go live with safety, reliability, docs, and launch comms.');
-	let projectPath = $state('C:/Users/USER/Desktop/vibeship-spark-intelligence');
+	let projectPath = $state('');
 	let projectType = $state('tool');
 	let goalsText = $state(
 		[
