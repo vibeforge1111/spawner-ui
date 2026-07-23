@@ -9,6 +9,15 @@
 	import ToastContainer from '$lib/components/ToastContainer.svelte';
 
 	let { children } = $props();
+	let isOffline = $state(false);
+
+	function handleOffline(): void {
+		isOffline = true;
+	}
+
+	function handleOnline(): void {
+		isOffline = false;
+	}
 
 	function skipToMain(event: MouseEvent) {
 		event.preventDefault();
@@ -36,6 +45,10 @@
 		if (syncWsUrl) {
 			tryConnectSync(syncWsUrl);
 		}
+
+		isOffline = !navigator.onLine;
+		window.addEventListener('online', handleOnline);
+		window.addEventListener('offline', handleOffline);
 	});
 
 	// Try to connect WebSocket for real-time sync
@@ -53,6 +66,8 @@
 	onDestroy(() => {
 		if (browser) {
 			syncClient.disconnect();
+			window.removeEventListener('online', handleOnline);
+			window.removeEventListener('offline', handleOffline);
 		}
 	});
 </script>
@@ -67,6 +82,16 @@
 </svelte:head>
 
 <a class="skip-link" href="#main-content" onclick={skipToMain}>Skip to main content</a>
+
+{#if isOffline}
+	<div
+		role="status"
+		aria-live="polite"
+		class="sticky top-0 z-[60] w-full border-b border-status-warning/40 bg-status-warning-bg px-4 py-2 text-center font-mono text-xs text-status-warning"
+	>
+		You're offline. Local views remain available; live sync and polling will retry when the network returns.
+	</div>
+{/if}
 
 {@render children()}
 <ToastContainer />
