@@ -7,7 +7,8 @@ import {
 	buildAgentBlackBoxReport,
 	buildMissionControlAgentEvent,
 	getFinalAnswerGateAuditPath,
-	readRecentAgentEvents
+	readRecentAgentEvents,
+	tryAppendAgentEventLine
 } from './agent-event-ledger';
 
 const originalAuditPath = process.env.SPARK_FINAL_ANSWER_GATE_AUDIT_PATH;
@@ -21,6 +22,23 @@ afterEach(() => {
 });
 
 describe('agent event ledger', () => {
+	it('keeps persistence failures bounded without exposing filesystem details', () => {
+		const warning = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const persisted = tryAppendAgentEventLine('/private/operator/agent-events.jsonl', '{}\n', {
+			mkdirSync: vi.fn(),
+			appendFileSync: vi.fn(() => {
+				throw new Error('ENOSPC /private/operator/agent-events.jsonl');
+			})
+		});
+
+		expect(persisted).toBe(false);
+		expect(warning).toHaveBeenCalledWith(
+			'[agent-event-ledger] append failed; the entry remains in memory but was not persisted',
+			'Error'
+		);
+		expect(warning.mock.calls.flat().join('\n')).not.toContain('/private/operator');
+	});
+
 	it('keeps invalid timestamps deterministic without dropping the newest valid event', async () => {
 		const stateDir = await mkdtemp(path.join(tmpdir(), 'spawner-agent-events-'));
 		process.env.SPAWNER_STATE_DIR = stateDir;

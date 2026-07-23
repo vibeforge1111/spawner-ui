@@ -160,6 +160,24 @@ export function buildMissionControlAgentEvent(input: MissionControlAgentEventInp
 	};
 }
 
+export function tryAppendAgentEventLine(
+	ledgerPath: string,
+	line: string,
+	io: Pick<typeof fs, 'mkdirSync' | 'appendFileSync'> = fs
+): boolean {
+	try {
+		io.mkdirSync(path.dirname(ledgerPath), { recursive: true });
+		io.appendFileSync(ledgerPath, line, 'utf-8');
+		return true;
+	} catch (error) {
+		console.warn(
+			'[agent-event-ledger] append failed; the entry remains in memory but was not persisted',
+			error instanceof Error ? error.name : typeof error
+		);
+		return false;
+	}
+}
+
 export function appendAgentEvent(
 	event: AgentEventRecord,
 	options: { requestId?: string | null; traceRef?: string | null; sessionId?: string | null; actorId?: string | null } = {}
@@ -175,8 +193,7 @@ export function appendAgentEvent(
 		actor_id: normalizeNullable(options.actorId)
 	};
 	const ledgerPath = getAgentEventLedgerPath();
-	fs.mkdirSync(path.dirname(ledgerPath), { recursive: true });
-	fs.appendFileSync(ledgerPath, `${JSON.stringify(entry)}\n`, 'utf-8');
+	tryAppendAgentEventLine(ledgerPath, `${JSON.stringify(entry)}\n`);
 	return entry;
 }
 
