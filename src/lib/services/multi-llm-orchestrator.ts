@@ -1,5 +1,8 @@
 import type { Mission } from '$lib/services/mcp-client';
 import type { MCPCapability } from '$lib/types/mcp';
+import { logger } from '$lib/utils/logger';
+
+const log = logger.scope('MultiLLMOrchestrator');
 
 export type MultiLLMProviderKind = 'terminal_cli' | 'openai_compat' | 'custom';
 export type MultiLLMCapability = MCPCapability | 'reasoning' | 'planning' | 'review';
@@ -564,6 +567,13 @@ function selectBestProviderForTask(
 			bestScore = score;
 			bestProvider = provider;
 		}
+	}
+
+	if (bestScore <= 0) {
+		log.warn(
+			`selectBestProviderForTask: no provider matched task "${task.title}" — falling back to first provider "${bestProvider.id}"`,
+			{ taskCapabilities, providerCount: providers.length }
+		);
 	}
 
 	return bestProvider;
