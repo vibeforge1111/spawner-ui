@@ -51,12 +51,19 @@ export interface SyncConfig {
 	heartbeatInterval: number;
 }
 
+export function syncReconnectInterval(raw: string | undefined, fallback = 3000): number {
+	const trimmed = (raw ?? '').trim();
+	if (!/^\d+$/.test(trimmed)) return fallback;
+	const parsed = Number.parseInt(trimmed, 10);
+	return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
 // Default config is intentionally disconnected for launch. Set public env vars
 // when a local or hosted sync bridge is available.
 const DEFAULT_CONFIG: SyncConfig = {
 	wsUrl: '',
 	httpUrl: '',
-	reconnectInterval: 3000,
+	reconnectInterval: syncReconnectInterval(import.meta.env.PUBLIC_SYNC_RECONNECT_TIMEOUT_MS),
 	maxReconnectAttempts: 10,
 	heartbeatInterval: 30000
 };
