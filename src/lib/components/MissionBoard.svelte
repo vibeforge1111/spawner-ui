@@ -71,6 +71,7 @@
 	};
 	let relay = $state<RelayEntry[]>([]);
 	let relayTimer: ReturnType<typeof setInterval> | null = null;
+	let refreshPulseTimer: ReturnType<typeof setTimeout> | null = null;
 	let lastRefresh = $state<number>(0);
 	let refreshPulse = $state(false);
 
@@ -326,7 +327,11 @@
 			relay = flat;
 			lastRefresh = Date.now();
 			refreshPulse = true;
-			setTimeout(() => { refreshPulse = false; }, 600);
+			if (refreshPulseTimer) clearTimeout(refreshPulseTimer);
+			refreshPulseTimer = setTimeout(() => {
+				refreshPulseTimer = null;
+				refreshPulse = false;
+			}, 600);
 		} catch {
 			/* relay endpoint not critical */
 		}
@@ -483,6 +488,7 @@
 
 	onDestroy(() => {
 		if (relayTimer) clearInterval(relayTimer);
+		if (refreshPulseTimer) clearTimeout(refreshPulseTimer);
 	});
 
 	function formatDate(iso: string | null): string {
