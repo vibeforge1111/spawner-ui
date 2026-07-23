@@ -304,6 +304,12 @@ export const PRECONFIGURED_MCPS: Record<string, MCPClientConfig> = {
 	},
 };
 
+export function isValidNpmPackageSpec(value: string): boolean {
+	if (!value || value.length > 256 || value.trim() !== value) return false;
+	if (value.startsWith('-') || value.includes('\\') || value.includes('://')) return false;
+	return /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*(?:@[a-z0-9~^*][a-z0-9._+~^*-]*)?$/i.test(value);
+}
+
 /**
  * Build MCPClientConfig from a registry item's npmPackage field.
  * Falls back to PRECONFIGURED_MCPS if no npmPackage is set.
@@ -325,6 +331,9 @@ export function buildConfigFromRegistry(
 
 	// Build from npmPackage
 	if (npmPackage) {
+		if (!isValidNpmPackageSpec(npmPackage)) {
+			throw new Error('MCP npm package name is invalid');
+		}
 		return {
 			command: 'npx',
 			args: ['-y', npmPackage, ...(defaultArgs || [])],
