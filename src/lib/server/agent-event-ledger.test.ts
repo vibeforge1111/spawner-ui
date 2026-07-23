@@ -21,6 +21,53 @@ afterEach(() => {
 });
 
 describe('agent event ledger', () => {
+	it('keeps invalid timestamps deterministic without dropping the newest valid event', async () => {
+		const stateDir = await mkdtemp(path.join(tmpdir(), 'spawner-agent-events-'));
+		process.env.SPAWNER_STATE_DIR = stateDir;
+		process.env.SPARK_FINAL_ANSWER_GATE_AUDIT_PATH = path.join(stateDir, 'missing-audit.jsonl');
+		const invalidEntries = Array.from({ length: 6 }, (_, index) =>
+			appendAgentEvent(
+				buildMissionControlAgentEvent({
+					eventType: 'progress',
+					missionId: 'mission-invalid-time',
+					missionName: 'Invalid time',
+					taskId: null,
+					taskName: null,
+					progress: index,
+					summary: `Invalid ${index}`,
+					timestamp: 'not-a-date',
+					source: 'test'
+				})
+			)
+		);
+		const valid = appendAgentEvent(
+			buildMissionControlAgentEvent({
+				eventType: 'mission_completed',
+				missionId: 'mission-invalid-time',
+				missionName: 'Invalid time',
+				taskId: null,
+				taskName: null,
+				progress: 100,
+				summary: 'Newest valid',
+				timestamp: '2026-07-23T12:00:00.000Z',
+				source: 'test'
+			})
+		);
+		for (const entry of invalidEntries) entry.created_at = 'not-a-date';
+		valid.created_at = '2026-07-23T12:00:00.000Z';
+		await writeFile(
+			path.join(stateDir, 'agent-events.jsonl'),
+			[...invalidEntries, valid].map((entry) => JSON.stringify(entry)).join('\n') + '\n',
+			'utf-8'
+		);
+
+		const recent = readRecentAgentEvents({ limit: 2 });
+		expect(recent[0].event_id).toBe(valid.event_id);
+		expect(recent[1].event_id).toBe(
+			invalidEntries.map((entry) => entry.event_id).sort().at(-1)
+		);
+	});
+
 	it('ingests Telegram final-answer gate audits into black-box events', async () => {
 		const stateDir = await mkdtemp(path.join(tmpdir(), 'spawner-agent-events-'));
 		const auditPath = path.join(stateDir, 'final-answer-gate-audit.jsonl');

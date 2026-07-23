@@ -68,6 +68,28 @@ describe('MissionExecutor sync state transitions', () => {
 });
 
 describe('MissionExecutor dispatch authority boundaries', () => {
+	it.each([
+		['an empty body', '', 'dispatch returned empty body'],
+		['a non-JSON body', 'not-json', 'dispatch returned HTTP 200 but body was not JSON']
+	])('returns bounded failure evidence for %s', async (_label, body, expectedError) => {
+		const executor = new MissionExecutor();
+		executors.push(executor);
+		vi.stubGlobal('fetch', vi.fn(async () => new Response(body, { status: 200 })));
+
+		const result = await (executor as unknown as {
+			dispatchToProviders: (
+				executionPack: Record<string, unknown>,
+				options: Record<string, unknown>
+			) => Promise<{ success: boolean; error?: string }>;
+		}).dispatchToProviders(
+			{ missionId: 'mission-invalid-dispatch-body', tasks: [] },
+			{ apiKeys: {}, providers: ['codex'] }
+		);
+
+		expect(result).toMatchObject({ success: false });
+		expect(result.error).toContain(expectedError);
+	});
+
 	it('does not replay relay authority into provider dispatch', async () => {
 		const executor = new MissionExecutor();
 		executors.push(executor);

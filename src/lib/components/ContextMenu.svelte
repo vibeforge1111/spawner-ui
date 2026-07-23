@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { clampContextMenuPosition } from '$lib/utils/context-menu-position';
 
 	type MenuItem = {
 		label: string;
@@ -39,18 +40,16 @@
 		// half-off-screen on narrow viewports (e.g. menu width > tap x on a phone).
 		if (menuEl) {
 			const rect = menuEl.getBoundingClientRect();
-			const INSET = 8;
-			if (rect.right > window.innerWidth) {
-				menuEl.style.left = `${Math.max(INSET, x - rect.width)}px`;
-			}
-			if (rect.bottom > window.innerHeight) {
-				menuEl.style.top = `${Math.max(INSET, y - rect.height)}px`;
-			}
-			// Re-clamp in case the flipped position still overflows the left/top edge
-			// (happens when menu width exceeds available space on either side).
-			const after = menuEl.getBoundingClientRect();
-			if (after.left < 0) menuEl.style.left = `${INSET}px`;
-			if (after.top < 0) menuEl.style.top = `${INSET}px`;
+			const position = clampContextMenuPosition({
+				x,
+				y,
+				width: rect.width,
+				height: rect.height,
+				viewportWidth: window.innerWidth,
+				viewportHeight: window.innerHeight
+			});
+			menuEl.style.left = `${position.left}px`;
+			menuEl.style.top = `${position.top}px`;
 		}
 
 		// Close on click outside

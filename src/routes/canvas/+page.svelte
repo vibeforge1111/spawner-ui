@@ -42,6 +42,7 @@ import { get } from 'svelte/store';
 	import { workflowTemplates } from '$lib/data/templates';
 	import type { SparkAgentCanvasSnapshot } from '$lib/services/spark-agent-bridge';
 	import type { MissionControlBoardEntry } from '$lib/types/mission-control';
+	import { createCanvasConnectionId, createCanvasNodeId } from '$lib/utils/runtime-id';
 
 	let showExecution = $state(false);
 	let executionMinimized = $state(false);
@@ -207,7 +208,7 @@ import { get } from 'svelte/store';
 			// Create nodes with proper IDs, keeping track of skill-to-node mapping
 			const skillToNodeId = new Map<string, string>();
 			const canvasNodes = pipeline.nodes.map(node => {
-				const nodeId = `node-${crypto.randomUUID()}`;
+				const nodeId = createCanvasNodeId();
 				skillToNodeId.set(node.skillId, nodeId);
 				return {
 					id: nodeId,
@@ -225,7 +226,7 @@ import { get } from 'svelte/store';
 					const targetNodeId = skillToNodeId.get(conn.targetId);
 					if (!sourceNodeId || !targetNodeId) return null;
 					return {
-						id: `conn-${crypto.randomUUID()}`,
+						id: createCanvasConnectionId(),
 						sourceNodeId,
 						sourcePortId: conn.sourcePort,
 						targetNodeId,
