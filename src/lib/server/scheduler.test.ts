@@ -198,4 +198,22 @@ describe('scheduler reliability guards', () => {
     expect(saved.nextFireAt).toBeTruthy();
     expect(fetchSpy).not.toHaveBeenCalled();
   });
+
+  it('repairs an invalid nextFireAt without firing the schedule', async () => {
+    const dir = await tempStateDir();
+    await writeFile(
+      path.join(dir, 'schedules.json'),
+      JSON.stringify({ schedules: [record({ nextFireAt: 'not-a-date' })] }, null, 2),
+      'utf-8'
+    );
+    const fetchSpy = vi.fn(async () => new Response('{}', { status: 200 }));
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await _schedulerInternalsForTests.tick();
+
+    const [saved] = await listSchedules();
+    expect(saved.fireCount).toBe(0);
+    expect(Number.isFinite(Date.parse(saved.nextFireAt))).toBe(true);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
 });

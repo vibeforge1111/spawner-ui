@@ -5,15 +5,25 @@ const mcpClientMocks = vi.hoisted(() => ({
 	isConnected: vi.fn(() => true)
 }));
 
+const PRIVATE_ENV = vi.hoisted(() => ({
+	MCP_API_KEY: 'mcp-call-integration-test-secret',
+	MCP_ALLOWED_ORIGINS: ''
+}));
+
+vi.mock('$env/dynamic/private', () => ({ env: PRIVATE_ENV }));
 vi.mock('$lib/services/mcp/client', () => mcpClientMocks);
 
 import { POST } from './+server';
+import { buildClientGovernorDecisionAuthority } from '$lib/services/harness-authority-client';
 
 function event(body: unknown) {
 	return {
 		request: new Request('http://127.0.0.1/api/mcp/call', {
 			method: 'POST',
-			headers: { 'content-type': 'application/json' },
+			headers: {
+				'content-type': 'application/json',
+				'x-api-key': 'mcp-call-integration-test-secret'
+			},
 			body: JSON.stringify(body)
 		}),
 		url: new URL('http://127.0.0.1/api/mcp/call'),
@@ -23,6 +33,7 @@ function event(body: unknown) {
 
 describe('/api/mcp/call', () => {
 	beforeEach(() => {
+		PRIVATE_ENV.MCP_API_KEY = 'mcp-call-integration-test-secret';
 		mcpClientMocks.callTool.mockReset();
 		mcpClientMocks.isConnected.mockReturnValue(true);
 	});
@@ -41,7 +52,15 @@ describe('/api/mcp/call', () => {
 			const response = await POST(event({
 				instanceId: 'filesystem',
 				toolName: 'read_file',
-				args: { path: 'README.md' }
+				args: { path: 'README.md' },
+				executionAuthority: buildClientGovernorDecisionAuthority({
+					source: 'mcp-call.integration.test',
+					reason: 'Exercise the bounded MCP tool-call failure.',
+					toolName: 'spawner.mcp.call_tool',
+					mutationClass: 'external_network',
+					target: 'filesystem:read_file',
+					externalNetwork: true
+				})
 			}) as never);
 
 			expect(response.status).toBe(500);

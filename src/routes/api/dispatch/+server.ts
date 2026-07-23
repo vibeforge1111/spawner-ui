@@ -322,7 +322,7 @@ export const GET: RequestHandler = async (event) => {
 		}
 		const error = err instanceof Error ? err.message : 'Unknown error';
 		console.error('[Dispatch API] GET error:', error);
-		return json({ error }, { status: 500 });
+		return json({ error: 'Internal dispatch error' }, { status: 500 });
 	}
 };
 

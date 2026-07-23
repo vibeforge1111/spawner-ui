@@ -239,7 +239,7 @@ describe('provider-runtime Spark agent bridge', () => {
 
 		await waitFor(() => providerRuntime.getMissionStatus('mission-step2-success').allComplete);
 
-		unsubscribe();
+		unsubscribe?.();
 		const status = providerRuntime.getMissionStatus('mission-step2-success');
 		expect(status.providers.claude).toBe('completed');
 		expect(status.providers.codex).toBe('completed');
@@ -394,7 +394,7 @@ describe('provider-runtime Spark agent bridge', () => {
 		});
 
 		await waitFor(() => providerRuntime.getMissionStatus('mission-step2-failure').allComplete);
-		unsubscribe();
+		unsubscribe?.();
 
 		const status = providerRuntime.getMissionStatus('mission-step2-failure');
 		expect(status.anyFailed).toBe(true);
@@ -420,7 +420,7 @@ describe('provider-runtime Spark agent bridge', () => {
 		});
 
 		await waitFor(() => providerRuntime.getMissionStatus('mission-step2-response-failure').allComplete);
-		unsubscribe();
+		unsubscribe?.();
 
 		const failures = emitted.filter((event) => event.type === 'task_failed');
 		expect(failures.some((event) => event.message?.includes('Blocked by session permissions'))).toBe(true);
@@ -452,7 +452,7 @@ describe('provider-runtime Spark agent bridge', () => {
 		});
 
 		await waitFor(() => providerRuntime.getMissionStatus('mission-step2-blocked-success').allComplete);
-		unsubscribe();
+		unsubscribe?.();
 
 		const status = providerRuntime.getMissionStatus('mission-step2-blocked-success');
 		expect(status.anyFailed).toBe(true);
@@ -494,7 +494,7 @@ describe('provider-runtime Spark agent bridge', () => {
 		await providerRuntime.cancelMission('mission-step2-cancel', 'Mission cancelled', controlAuthority());
 		await waitFor(() => providerRuntime.getMissionStatus('mission-step2-cancel').providers.claude === 'cancelled');
 
-		unsubscribe();
+		unsubscribe?.();
 		expect(emitted.some((event) => event.type === 'task_cancelled')).toBe(true);
 	});
 

@@ -26,7 +26,7 @@ vi.mock('$lib/server/provider-runtime', () => ({
 	}
 }));
 
-import { DELETE, POST } from './+server';
+import { DELETE, GET, POST } from './+server';
 import { providerRuntime } from '$lib/server/provider-runtime';
 import {
 	buildClientGovernorDecisionAuthority,
@@ -309,5 +309,51 @@ describe('/api/dispatch authority contract', () => {
 			governorOutcome: 'execute'
 		});
 		expect(cancelMission).toHaveBeenCalledWith('mission-authority-probe', 'Mission cancelled', executionAuthority);
+	});
+
+	it('bounds unexpected provider status failures', async () => {
+		vi.mocked(providerRuntime.getMissionStatus).mockImplementationOnce(() => {
+			throw new Error('redis://10.0.0.8:6379 /private/provider-status.ts');
+		});
+		const internalError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+		const response = await GET(event(
+			undefined,
+			'GET',
+			'http://127.0.0.1:3333/api/dispatch?missionId=mission-authority-probe'
+		) as never);
+
+		expect(response.status).toBe(500);
+		await expect(response.json()).resolves.toEqual({ error: 'Internal dispatch error' });
+		expect(internalError).toHaveBeenCalledWith(
+			'[Dispatch API] GET error:',
+			'redis://10.0.0.8:6379 /private/provider-status.ts'
+		);
+	});
+
+	it('bounds unexpected provider cancellation failures', async () => {
+		vi.mocked(providerRuntime.cancelMission).mockRejectedValueOnce(
+			new Error('redis://10.0.0.8:6379 /private/provider-cancel.ts')
+		);
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		const executionAuthority = buildClientGovernorDecisionAuthority({
+			source: 'dispatch-cancel-authority-test',
+			reason: 'Exercise the cancellation error boundary.',
+			toolName: 'spawner.mission_control.command',
+			mutationClass: 'controls_mission',
+			target: executionPack.missionId
+		});
+
+		const response = await DELETE(event(
+			{ executionAuthority },
+			'DELETE',
+			'http://127.0.0.1:3333/api/dispatch?missionId=mission-authority-probe'
+		) as never);
+
+		expect(response.status).toBe(500);
+		await expect(response.json()).resolves.toEqual({
+			success: false,
+			error: 'Internal dispatch error'
+		});
 	});
 });

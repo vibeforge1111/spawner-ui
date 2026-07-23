@@ -1067,7 +1067,7 @@ describe('/api/prd-bridge/load-to-canvas integration', () => {
 		const response = await POST({
 			request: new Request('http://localhost/api/prd-bridge/load-to-canvas', {
 				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
+				headers: { 'Content-Type': 'application/json', 'x-api-key': TEST_API_KEY },
 				body: JSON.stringify({ requestId, autoRun: false })
 			})
 		} as never);
@@ -1089,7 +1089,7 @@ describe('/api/prd-bridge/load-to-canvas integration', () => {
 		const response = await POST({
 			request: new Request('http://localhost/api/prd-bridge/load-to-canvas', {
 				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
+				headers: { 'Content-Type': 'application/json', 'x-api-key': TEST_API_KEY },
 				body: JSON.stringify({ requestId, autoRun: false })
 			})
 		} as never);

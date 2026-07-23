@@ -1,7 +1,7 @@
 import { existsSync, mkdtempSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { eventBridge, type BridgeEvent } from './event-bridge';
 import { buildServerGovernorDecisionAuthority } from '$lib/server/harness-authority';
 import {
@@ -106,7 +106,7 @@ describe('prepareProviderWorkingDirectory', () => {
 			traceRef: 'trace:spawner-prd:mission-worker-proof',
 			commandTemplate: 'codex exec --model gpt-5.5'
 		});
-		unsubscribe();
+		unsubscribe?.();
 
 		const completed = emitted.find((event) => event.type === 'task_completed');
 		expect(completed?.data).toMatchObject({
@@ -318,5 +318,30 @@ describe('endSession double-end guard', () => {
 		expect(endedB.status).toBe('ended');
 
 		expect(() => sparkAgentBridge.endSession(a.id)).toThrow('already ended');
+	});
+
+	it('reports a bounded error when worker termination throws', () => {
+		const session = sparkAgentBridge.startSession({ providerId: 'test' });
+		const workerSessions = (
+			sparkAgentBridge as unknown as {
+				workerSessions: Map<string, { status: 'running'; process: { kill: () => boolean } }>;
+			}
+		).workerSessions;
+		workerSessions.set(session.id, {
+			status: 'running',
+			process: {
+				kill: () => {
+					throw new Error('/Users/alice/private/worker.sock');
+				}
+			}
+		});
+		const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+		expect(() => sparkAgentBridge.endSession(session.id)).not.toThrow();
+		expect(error).toHaveBeenCalledWith(
+			'[spark-agent-bridge] Worker termination failed:',
+			'Error'
+		);
+		expect(JSON.stringify(error.mock.calls)).not.toContain('/Users/alice');
 	});
 });
