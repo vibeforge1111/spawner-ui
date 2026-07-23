@@ -209,7 +209,6 @@
 					placeholder="Search skills, tags, categories..."
 					aria-label="Search skills, tags, categories"
 					class="search-input"
-					aria-label="Search skills, tags, categories"
 					autocomplete="off"
 					spellcheck="false"
 				/>
