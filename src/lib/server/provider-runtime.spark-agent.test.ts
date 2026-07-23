@@ -3,6 +3,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {
+	_isAllowedProviderApiKeyEnvForTests,
 	_staleRunningProviderMsForTests,
 	providerRuntime,
 	reconcileStaleProviderResults
@@ -101,6 +102,14 @@ afterEach(() => {
 });
 
 describe('provider-runtime Spark agent bridge', () => {
+	it('allows canonical provider keys and rejects arbitrary environment names during recovery', () => {
+		expect(_isAllowedProviderApiKeyEnvForTests('OPENAI_API_KEY')).toBe(true);
+		expect(_isAllowedProviderApiKeyEnvForTests('ZAI_API_KEY')).toBe(true);
+		expect(_isAllowedProviderApiKeyEnvForTests('KIMI_API_KEY')).toBe(true);
+		expect(_isAllowedProviderApiKeyEnvForTests('PATH')).toBe(false);
+		expect(_isAllowedProviderApiKeyEnvForTests('DATABASE_URL')).toBe(false);
+	});
+
 	it('falls back safely when the stale-running override is non-finite', () => {
 		process.env.SPAWNER_PROVIDER_STALE_RUNNING_MS = 'Infinity';
 		const fallback = _staleRunningProviderMsForTests();

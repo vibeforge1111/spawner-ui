@@ -10,6 +10,7 @@ import type { BridgeEvent } from '$lib/services/event-bridge';
 import {
 	buildMultiLLMExecutionPack,
 	createDefaultMultiLLMOptions,
+	DEFAULT_MULTI_LLM_PROVIDERS,
 	type MultiLLMExecutionPack,
 	type MultiLLMProviderConfig
 } from '$lib/services/multi-llm-orchestrator';
@@ -88,6 +89,31 @@ const PROVIDER_TASK_ACTIVITY_INTERVAL_MS = 120_000;
 const PROVIDER_TASK_ACTIVITY_MIN_ESTIMATE_MS = 90_000;
 const PROVIDER_TASK_ACTIVITY_MAX_ESTIMATE_MS = 8 * 60_000;
 const PROVIDER_TASK_ACTIVITY_BASE_MS = 55_000;
+const ALLOWED_PROVIDER_API_KEY_ENVS = new Set([
+	'OPENAI_API_KEY',
+	'ANTHROPIC_API_KEY',
+	'GOOGLE_API_KEY',
+	'MISTRAL_API_KEY',
+	'COHERE_API_KEY',
+	'GROQ_API_KEY',
+	'TOGETHER_API_KEY',
+	'FIREWORKS_API_KEY',
+	'DEEPSEEK_API_KEY',
+	...DEFAULT_MULTI_LLM_PROVIDERS.flatMap((provider) => provider.apiKeyEnv ? [provider.apiKeyEnv] : [])
+]);
+
+function readAllowedProviderApiKey(apiKeyEnv: string): string | null {
+	if (!ALLOWED_PROVIDER_API_KEY_ENVS.has(apiKeyEnv)) {
+		console.warn(`[ProviderRuntime] Ignoring disallowed apiKeyEnv: ${apiKeyEnv}`);
+		return null;
+	}
+	const value = process.env[apiKeyEnv]?.trim();
+	return value || null;
+}
+
+export function _isAllowedProviderApiKeyEnvForTests(apiKeyEnv: string): boolean {
+	return ALLOWED_PROVIDER_API_KEY_ENVS.has(apiKeyEnv);
+}
 const PROVIDER_TASK_ACTIVITY_PER_TASK_MS = 35_000;
 const PROVIDER_STALE_RUNNING_GRACE_MS = 5 * 60_000;
 const PROVIDER_DISPATCH_AUTHORITY_POLICY: SparkAgentProviderTaskAuthorityPolicy = {
@@ -486,9 +512,9 @@ class ProviderRuntimeManager {
 					const apiKeys: Record<string, string> = {};
 					for (const provider of state.multiLLMExecution.providers || []) {
 						if (provider.requiresApiKey && provider.apiKeyEnv) {
-							const value = process.env[provider.apiKeyEnv];
-							if (value && value.trim()) {
-								apiKeys[provider.id] = value.trim();
+							const value = readAllowedProviderApiKey(provider.apiKeyEnv);
+							if (value) {
+								apiKeys[provider.id] = value;
 							}
 						}
 					}
@@ -519,9 +545,9 @@ class ProviderRuntimeManager {
 			const apiKeys: Record<string, string> = {};
 			for (const provider of executionPack.providers) {
 				if (provider.apiKeyEnv) {
-					const value = process.env[provider.apiKeyEnv];
-					if (value && value.trim()) {
-						apiKeys[provider.id] = value.trim();
+					const value = readAllowedProviderApiKey(provider.apiKeyEnv);
+					if (value) {
+						apiKeys[provider.id] = value;
 					}
 				}
 			}
