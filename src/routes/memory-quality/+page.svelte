@@ -236,6 +236,12 @@
 									<td class="px-3 py-2 text-right font-mono">{event.latencyMs}ms</td>
 									<td class="max-w-[280px] px-3 py-2 text-text-secondary">{event.notes}</td>
 								</tr>
+							{:else}
+								<tr class="border-t border-surface-border">
+									<td colspan="6" class="px-3 py-6 text-center text-text-secondary">
+										No recall events recorded yet. Use the Manual evaluation panel below to log the first one.
+									</td>
+								</tr>
 							{/each}
 						</tbody>
 					</table>
