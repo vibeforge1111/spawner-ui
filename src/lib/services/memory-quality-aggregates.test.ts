@@ -49,6 +49,15 @@ describe('memory quality aggregates', () => {
 		});
 	});
 
+	it('keeps the first event when the slowest latency is tied', () => {
+		const tied = [
+			{ ...events[0], id: 'first-slowest', latencyMs: 1200 },
+			{ ...events[1], id: 'second-slowest', latencyMs: 1200 }
+		];
+
+		expect(summarizeLatency(tied).slowest?.id).toBe('first-slowest');
+	});
+
 	it('sorts recent events newest first with table-ready fields', () => {
 		const recent = recentRecallEvents(events, 2);
 		expect(recent).toEqual([

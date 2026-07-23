@@ -93,6 +93,23 @@ describe('validateForMission', () => {
 });
 
 describe('buildMissionFromCanvas', () => {
+	it('preserves disconnected node order in generated tasks', async () => {
+		const nodes = [
+			createNode('node-c', 'Third'),
+			createNode('node-a', 'First'),
+			createNode('node-b', 'Second')
+		];
+
+		const result = await buildMissionFromCanvas(nodes, [], {
+			name: 'Disconnected Tasks',
+			projectPath: '/tmp/disconnected-tasks',
+			loadH70Skills: false
+		});
+
+		expect(result.success).toBe(true);
+		expect(result.mission?.tasks.map((task) => task.title)).toEqual(['Third', 'First', 'Second']);
+	});
+
 	it('does not inject framework build skills into no-build vanilla projects', async () => {
 		const nodes = [
 			createNode(

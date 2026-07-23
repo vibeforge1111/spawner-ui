@@ -224,4 +224,19 @@ describe('MissionExecutor local lifecycle authority boundaries', () => {
 		expect(executor.getProgress().status).toBe('running');
 		expect(statusChanges).toEqual([]);
 	});
+
+	it.each<ExecutionStatus>(['completed', 'failed', 'cancelled'])(
+		'does not send another kill request for a %s mission',
+		async (status) => {
+			const { executor, statusChanges } = createExecutor(status);
+			const fetchMock = vi.fn();
+			vi.stubGlobal('fetch', fetchMock);
+
+			await expect(executor.cancel()).resolves.toBe(false);
+
+			expect(fetchMock).not.toHaveBeenCalled();
+			expect(executor.getProgress().status).toBe(status);
+			expect(statusChanges).toEqual([]);
+		}
+	);
 });
