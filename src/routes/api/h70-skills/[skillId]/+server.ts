@@ -13,6 +13,7 @@ import * as path from 'path';
 import * as os from 'os';
 import * as yaml from 'yaml';
 import { assertSafeId, PathSafetyError, resolveWithinBaseDir } from '$lib/server/path-safety';
+import { publicSkillSourcePath } from '$lib/server/skill-source-path';
 import { getTierSkills } from '$lib/server/skill-tiers';
 import { verifyH70SkillAccessToken } from '$lib/server/h70-skill-access-token';
 import { verifySparkProSkillAccess, type SparkProEntitlementVerdict } from '$lib/server/spark-pro-entitlements';
@@ -435,7 +436,7 @@ export const GET: RequestHandler = async ({ params, request }) => {
 			rawYaml: JSON.stringify(metadata.skill, null, 2),
 			formattedContent: formatStaticSkillContent(metadata.skill),
 			source: 'spark-skill-graphs-static',
-			path: metadata.path,
+			path: publicSkillSourcePath(metadata.path),
 			category: metadata.skill.category || null
 		});
 	}
@@ -460,7 +461,7 @@ export const GET: RequestHandler = async ({ params, request }) => {
 				rawYaml: JSON.stringify(metadata.skill, null, 2),
 				formattedContent: formatStaticSkillContent(metadata.skill),
 				source: 'spark-skill-graphs-static',
-				path: metadata.path,
+				path: publicSkillSourcePath(metadata.path),
 				category: metadata.skill.category || null
 			});
 		}
@@ -491,7 +492,7 @@ export const GET: RequestHandler = async ({ params, request }) => {
 			rawYaml,
 			formattedContent,
 			source: getSkillsSourceName(skillsLabPath),
-			path: skillPath,
+			path: publicSkillSourcePath(skillPath, skillsLabPath),
 			category
 		});
 	} catch (e) {
