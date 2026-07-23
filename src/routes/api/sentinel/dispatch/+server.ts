@@ -19,7 +19,7 @@ interface SentinelActionEntry {
 }
 
 const recentSentinelActions: SentinelActionEntry[] = [];
-const MAX_SENTINEL_ACTIONS = 200;
+const MAX_SENTINEL_ACTIONS = 100;
 
 function sentinelReadAuthPayload(event: Parameters<typeof requireControlAuth>[0]) {
 	const openRead = requireControlAuth(event, {
