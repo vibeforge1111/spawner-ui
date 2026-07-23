@@ -288,7 +288,7 @@ async function _relayToTelegram(record: ScheduleRecord, result: { ok: boolean; s
       logger.warn('[scheduler] relay', record.id, 'failed HTTP', resp.status, 'body', bodyText.slice(0, 200));
     }
   } catch (err: unknown) {
-    logger.info('[scheduler] relay fetch error on', record.id, errorMessage(err, String(err)));
+    logger.warn('[scheduler] relay fetch error on', record.id, errorMessage(err, String(err)));
   }
 }
 
