@@ -520,7 +520,7 @@ describe('multi-llm-orchestrator', () => {
 		options.autoRouteByTask = true;
 		options.providers = options.providers.map((provider) => ({
 			...provider,
-			enabled: provider.id === 'codex',
+			enabled: provider.id === 'codex' || provider.id === 'claude',
 			capabilities: ['reasoning']
 		}));
 		const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
@@ -530,7 +530,7 @@ describe('multi-llm-orchestrator', () => {
 		expect(warn).toHaveBeenCalledWith(
 			'[WARN ][MultiLLMOrchestrator]',
 			expect.stringContaining('falling back to first provider'),
-			expect.objectContaining({ providerCount: 1 })
+			expect.objectContaining({ providerCount: 2 })
 		);
 		warn.mockRestore();
 	});

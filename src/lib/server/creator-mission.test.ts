@@ -155,10 +155,10 @@ describe('creator mission trace', () => {
 
 		await expect(
 			runCreatorPlan(input, { builderRepo, pythonCommand: failingPlanner })
-		).rejects.toThrow(/Creator planner subprocess failed:.*planner diagnostic/);
+		).rejects.toThrow(/Creator planner subprocess failed:[\s\S]*planner diagnostic/);
 		await expect(
 			runCreatorArtifactBundle(input, { builderRepo, pythonCommand: failingPlanner })
-		).rejects.toThrow(/Creator artifact planner subprocess failed:.*planner diagnostic/);
+		).rejects.toThrow(/Creator artifact planner subprocess failed:[\s\S]*planner diagnostic/);
 	});
 
 	it('creates a persisted full-path trace from a creator intent packet', async () => {
