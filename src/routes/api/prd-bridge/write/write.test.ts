@@ -535,12 +535,16 @@ describe('PRD bridge fallback analysis', () => {
 		// suffix. The regex-gated helper now falls back to the documented
 		// 10_000 / 45_000 defaults on any non-clean-integer form.
 		const direct = { buildMode: 'direct' as const, buildLane: 'direct' as const };
-		expect(_provisionalPrdDraftDelayMs(direct, { SPAWNER_PRD_PROVISIONAL_DIRECT_MS: '5s' } as NodeJS.ProcessEnv)).toBe(10_000);
-		expect(_provisionalPrdDraftDelayMs(direct, { SPAWNER_PRD_PROVISIONAL_DIRECT_MS: '30m' } as NodeJS.ProcessEnv)).toBe(10_000);
-		expect(_provisionalPrdDraftDelayMs(direct, { SPAWNER_PRD_PROVISIONAL_DIRECT_MS: '1.5' } as NodeJS.ProcessEnv)).toBe(10_000);
-		expect(_provisionalPrdDraftDelayMs(direct, { SPAWNER_PRD_PROVISIONAL_DIRECT_MS: '1e3' } as NodeJS.ProcessEnv)).toBe(10_000);
-		expect(_provisionalPrdDraftDelayMs(direct, { SPAWNER_PRD_PROVISIONAL_DIRECT_MS: '-100' } as NodeJS.ProcessEnv)).toBe(10_000);
-		expect(_provisionalPrdDraftDelayMs(direct, { SPAWNER_PRD_PROVISIONAL_DIRECT_MS: '  2500  ' } as NodeJS.ProcessEnv)).toBe(2500);
-		expect(_provisionalPrdDraftDelayMs(direct, { SPAWNER_PRD_PROVISIONAL_DIRECT_MS: '0' } as NodeJS.ProcessEnv)).toBe(0);
+		const enabledDirectEnv = (value: string) => ({
+			SPAWNER_PRD_DIRECT_PROVISIONAL_DRAFTS: '1',
+			SPAWNER_PRD_PROVISIONAL_DIRECT_MS: value
+		}) as NodeJS.ProcessEnv;
+		expect(_provisionalPrdDraftDelayMs(direct, enabledDirectEnv('5s'))).toBe(10_000);
+		expect(_provisionalPrdDraftDelayMs(direct, enabledDirectEnv('30m'))).toBe(10_000);
+		expect(_provisionalPrdDraftDelayMs(direct, enabledDirectEnv('1.5'))).toBe(10_000);
+		expect(_provisionalPrdDraftDelayMs(direct, enabledDirectEnv('1e3'))).toBe(10_000);
+		expect(_provisionalPrdDraftDelayMs(direct, enabledDirectEnv('-100'))).toBe(10_000);
+		expect(_provisionalPrdDraftDelayMs(direct, enabledDirectEnv('  2500  '))).toBe(2500);
+		expect(_provisionalPrdDraftDelayMs(direct, enabledDirectEnv('0'))).toBe(0);
 	});
 });
