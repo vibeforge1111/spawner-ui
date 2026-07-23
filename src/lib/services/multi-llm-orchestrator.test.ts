@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { Mission } from '$lib/services/mcp-client';
 import {
 	buildMultiLLMExecutionPack,
@@ -508,6 +508,31 @@ describe('multi-llm-orchestrator', () => {
 		});
 
 		expect(pack.assignments.codex.taskIds).toContain('task-1');
+	});
+
+	it('warns when auto-routing must fall back without a capability match', () => {
+		const mission = createMission(1);
+		mission.tasks[0].title = 'Create image banner';
+		mission.tasks[0].description = 'Generate a visual asset';
+		const options = createDefaultMultiLLMOptions();
+		options.enabled = true;
+		options.strategy = 'round_robin';
+		options.autoRouteByTask = true;
+		options.providers = options.providers.map((provider) => ({
+			...provider,
+			enabled: provider.id === 'codex',
+			capabilities: ['reasoning']
+		}));
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+		buildMultiLLMExecutionPack({ mission, options });
+
+		expect(warn).toHaveBeenCalledWith(
+			'[WARN ][MultiLLMOrchestrator]',
+			expect.stringContaining('falling back to first provider'),
+			expect.objectContaining({ providerCount: 1 })
+		);
+		warn.mockRestore();
 	});
 
 	it('builds explicit MCP tool plans for matching tasks', () => {

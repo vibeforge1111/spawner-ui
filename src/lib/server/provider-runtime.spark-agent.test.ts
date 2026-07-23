@@ -2,7 +2,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { providerRuntime, reconcileStaleProviderResults } from './provider-runtime';
+import {
+	_staleRunningProviderMsForTests,
+	providerRuntime,
+	reconcileStaleProviderResults
+} from './provider-runtime';
 import { sparkAgentBridge } from '$lib/services/spark-agent-bridge';
 import { eventBridge, type BridgeEvent } from '$lib/services/event-bridge';
 import type { MultiLLMExecutionPack, MultiLLMProviderConfig } from '$lib/services/multi-llm-orchestrator';
@@ -97,6 +101,15 @@ afterEach(() => {
 });
 
 describe('provider-runtime Spark agent bridge', () => {
+	it('falls back safely when the stale-running override is non-finite', () => {
+		process.env.SPAWNER_PROVIDER_STALE_RUNNING_MS = 'Infinity';
+		const fallback = _staleRunningProviderMsForTests();
+		process.env.SPAWNER_PROVIDER_STALE_RUNNING_MS = 'NaN';
+
+		expect(_staleRunningProviderMsForTests()).toBe(fallback);
+		expect(fallback).toBeGreaterThanOrEqual(60_000);
+	});
+
 	it('reconciles persisted running provider results once they outlive the worker timeout', () => {
 		const startedAt = Date.parse('2026-04-29T10:00:00.000Z');
 		const result = reconcileStaleProviderResults(

@@ -123,6 +123,10 @@ function staleRunningProviderMs(): number {
 	);
 }
 
+export function _staleRunningProviderMsForTests(): number {
+	return staleRunningProviderMs();
+}
+
 function estimateProviderTaskActivityMs(taskCount: number): number {
 	const normalizedTaskCount = Math.max(1, Math.min(12, Math.trunc(taskCount) || 1));
 	return Math.min(

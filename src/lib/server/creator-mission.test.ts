@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -7,6 +7,8 @@ import {
 	creatorMissionPath,
 	executeCreatorMission,
 	readCreatorMissionTrace,
+	runCreatorArtifactBundle,
+	runCreatorPlan,
 	setCreatorManifestRunnerForTests,
 	setCreatorValidationCommandRunnerForTests,
 	validateCreatorMission,
@@ -144,6 +146,21 @@ afterEach(async () => {
 });
 
 describe('creator mission trace', () => {
+	it('preserves bounded subprocess stderr for both creator planner lanes', async () => {
+		const builderRepo = await tempStateDir();
+		const failingPlanner = path.join(builderRepo, 'failing-planner');
+		await writeFile(failingPlanner, '#!/bin/sh\necho "planner diagnostic" >&2\nexit 7\n');
+		await chmod(failingPlanner, 0o755);
+		const input = { brief: 'Build a tested creator path' };
+
+		await expect(
+			runCreatorPlan(input, { builderRepo, pythonCommand: failingPlanner })
+		).rejects.toThrow(/Creator planner subprocess failed:.*planner diagnostic/);
+		await expect(
+			runCreatorArtifactBundle(input, { builderRepo, pythonCommand: failingPlanner })
+		).rejects.toThrow(/Creator artifact planner subprocess failed:.*planner diagnostic/);
+	});
+
 	it('creates a persisted full-path trace from a creator intent packet', async () => {
 		const stateDir = await tempStateDir();
 		const trace = await createCreatorMission(
