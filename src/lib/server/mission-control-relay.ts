@@ -207,7 +207,7 @@ function persistState() {
 		const persistPath = getMissionControlPersistPath();
 		const dir = path.dirname(persistPath);
 		if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-		const tmp = persistPath + '.tmp';
+		const tmp = `${persistPath}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`;
 		fs.writeFileSync(
 			tmp,
 			JSON.stringify({
