@@ -410,7 +410,8 @@
 												type="button"
 												class="text-red-400 hover:text-red-300"
 												onclick={() => removeTask(task.id)}
-											>x</button>
+												aria-label={`Remove task ${i + 1}: ${task.title}`}
+											><span aria-hidden="true">x</span></button>
 										</div>
 									{/each}
 								</div>
