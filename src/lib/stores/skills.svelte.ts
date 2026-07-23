@@ -78,19 +78,55 @@ export const filters = writable<SkillFilters>({
 	tags: []
 });
 
+// Grammatical filler dropped from multi-word search queries so a project
+// description like "a landing page with stripe payments" matches on its
+// meaningful terms instead of requiring the whole sentence as a substring.
+const SEARCH_STOPWORDS = new Set([
+	'a', 'an', 'the', 'and', 'or', 'with', 'for', 'my', 'our', 'your',
+	'of', 'to', 'in', 'on', 'i', 'we', 'me', 'it', 'this', 'that'
+]);
+
+export function tokenizeSkillSearchQuery(query: string): string[] {
+	return query
+		.toLowerCase()
+		.split(/[^a-z0-9+#]+/)
+		.filter((token) => token.length >= 2 && !SEARCH_STOPWORDS.has(token));
+}
+
+function skillMatchesTerm(skill: Skill, term: string): boolean {
+	return (
+		skill.name.toLowerCase().includes(term) ||
+		skill.description.toLowerCase().includes(term) ||
+		skill.tags.some((tag) => tag.toLowerCase().includes(term))
+	);
+}
+
+/**
+ * Search the catalog with graceful widening:
+ * 1. exact-substring match on the whole query (previous behavior, unchanged
+ *    whenever it produces results)
+ * 2. if the phrase matches nothing, require every meaningful token to match
+ * 3. if no skill matches all tokens, surface skills matching any token
+ * Widening only engages when the previous behavior returned zero results.
+ */
+export function searchSkills(skillList: Skill[], query: string): Skill[] {
+	const phrase = query.toLowerCase().trim();
+	if (!phrase) return skillList;
+	const phraseMatches = skillList.filter((skill) => skillMatchesTerm(skill, phrase));
+	if (phraseMatches.length > 0) return phraseMatches;
+	const tokens = tokenizeSkillSearchQuery(phrase);
+	if (tokens.length === 0) return [];
+	const allTokenMatches = skillList.filter((skill) =>
+		tokens.every((token) => skillMatchesTerm(skill, token))
+	);
+	if (allTokenMatches.length > 0) return allTokenMatches;
+	return skillList.filter((skill) => tokens.some((token) => skillMatchesTerm(skill, token)));
+}
+
 // Derived stores
 export const filteredSkills = derived([skills, filters], ([$skills, $filters]) => {
-	return $skills.filter((skill) => {
-		// Search filter
-		if ($filters.search) {
-			const searchLower = $filters.search.toLowerCase();
-			const matchesSearch =
-				skill.name.toLowerCase().includes(searchLower) ||
-				skill.description.toLowerCase().includes(searchLower) ||
-				skill.tags.some((tag) => tag.toLowerCase().includes(searchLower));
-			if (!matchesSearch) return false;
-		}
-
+	const searchPool = $filters.search ? searchSkills($skills, $filters.search) : $skills;
+	return searchPool.filter((skill) => {
 		// Category filter
 		if ($filters.category !== 'all' && skill.category !== $filters.category) {
 			return false;
