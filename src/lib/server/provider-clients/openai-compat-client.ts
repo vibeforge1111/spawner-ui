@@ -246,7 +246,15 @@ async function handleNonStreamingResponse(
 ): Promise<ProviderResult> {
 	const { provider, onEvent } = options;
 	const rawBody = await response.text().catch(() => '');
-	let data: { choices?: Array<{ message?: { content?: string } }>; usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } } | null = null;
+	let data: {
+		choices?: Array<{ message?: { content?: string } }>;
+		usage?: {
+			prompt_tokens?: number;
+			completion_tokens?: number;
+			total_tokens?: number;
+			prompt_tokens_details?: { cached_tokens?: number };
+		};
+	} | null = null;
 	try {
 		data = rawBody ? JSON.parse(rawBody) : null;
 	} catch {
