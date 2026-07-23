@@ -37,9 +37,11 @@ function streamResponse(chunks: string[]): Response {
 
 describe('anthropic-client', () => {
 	it('reuses one idempotency key across retry attempts', async () => {
+		const retryResponse = new Response('retry', { status: 500, headers: { 'retry-after': '0' } });
+		const cancel = vi.spyOn(retryResponse.body!, 'cancel');
 		const fetchMock = vi
 			.fn()
-			.mockResolvedValueOnce(new Response('retry', { status: 500, headers: { 'retry-after': '0' } }))
+			.mockResolvedValueOnce(retryResponse)
 			.mockResolvedValueOnce(
 				streamResponse([
 					'data: {"type":"message_start","message":{"usage":{"input_tokens":1,"output_tokens":0}}}\n\n',
@@ -63,6 +65,7 @@ describe('anthropic-client', () => {
 		expect(result.success).toBe(true);
 		expect(firstHeaders['Idempotency-Key']).toBeTruthy();
 		expect(secondHeaders['Idempotency-Key']).toBe(firstHeaders['Idempotency-Key']);
+		expect(cancel).toHaveBeenCalledOnce();
 	});
 
 	it('preserves prompt tokens when message_delta only reports output tokens', async () => {

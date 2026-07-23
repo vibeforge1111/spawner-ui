@@ -105,6 +105,11 @@ export async function executeAnthropicRequest(
 						progress: 0
 					})
 				);
+				try {
+					await response.body?.cancel();
+				} catch {
+					// The body may already have been drained by the runtime.
+				}
 				await sleep(delay, signal);
 				continue;
 			}
