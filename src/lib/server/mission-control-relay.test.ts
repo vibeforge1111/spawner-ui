@@ -1,5 +1,6 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { rmSync } from 'node:fs';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
 
 const testState = vi.hoisted(() => {
 	const originalSpawnerStateDir = process.env.SPAWNER_STATE_DIR;
@@ -112,6 +113,44 @@ describe('mission-control-relay', () => {
 		const board = getMissionControlBoard();
 		const entry = Object.values(board).flat().find((candidate) => candidate.missionId === missionId);
 		expect(entry?.executionPolicy).toBe('read_only');
+	});
+
+	it('keeps relay state when creator trace synchronization fails', async () => {
+		const missionId = `mission-creator-trace-sync-failure-${Date.now()}`;
+		const creatorDir = path.join(testState.spawnerStateDir, 'creator-missions');
+		const tracePath = path.join(creatorDir, `${missionId}.json`);
+		mkdirSync(creatorDir, { recursive: true });
+		writeFileSync(
+			tracePath,
+			JSON.stringify({
+				schema_version: 'spark-creator-mission-trace.v1',
+				mission_id: missionId,
+				current_stage: 'dispatch_ready',
+				stage_status: 'ready',
+				created_at: freshIso(-1000),
+				updated_at: freshIso(-1000),
+				repo_changes: [],
+				benchmarks: [],
+				artifact_manifests: [],
+				validation_runs: []
+			})
+		);
+		mkdirSync(`${tracePath}.tmp`);
+		const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+		await expect(
+			relayMissionControlEvent({
+				type: 'mission_started',
+				missionId,
+				source: 'creator-mission'
+			})
+		).resolves.toBeUndefined();
+
+		expect(getMissionControlRelaySnapshot(missionId).recent).toHaveLength(1);
+		expect(warning).toHaveBeenCalledWith(
+			'[MissionControlRelay] creator trace sync failed (best-effort):',
+			expect.any(Error)
+		);
 	});
 
 	it('deduplicates repeated lifecycle status events while preserving actual transitions', async () => {
