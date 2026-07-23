@@ -3,6 +3,7 @@ import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises';
+import os from 'os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { autoDispatchPrdCanvasLoad, type PrdAutoDispatchResult } from './prd-auto-dispatch';
@@ -285,6 +286,8 @@ export interface CreatorPlanOptions {
 	pythonCommand?: string;
 	timeoutMs?: number;
 	envRecord?: Record<string, string | undefined>;
+	cwd?: string;
+	homedir?: () => string;
 }
 
 interface CreateCreatorMissionOptions extends CreatorPlanOptions {
@@ -398,12 +401,30 @@ export function creatorMissionPath(missionId: string, stateDir = spawnerStateDir
 	return path.join(creatorMissionDir(stateDir), `${missionId}.json`);
 }
 
-function defaultBuilderRepo(envRecord: Record<string, string | undefined> = env): string {
-	return path.resolve(
-		envRecord.SPARK_BUILDER_REPO ||
-			process.env.SPARK_BUILDER_REPO ||
-			path.join(process.cwd(), '..', 'spark-intelligence-builder')
-	);
+export function defaultBuilderRepo(
+	envRecord: Record<string, string | undefined> = env,
+	options: { homedir?: () => string; cwd?: string } = {}
+): string {
+	const explicit = envRecord.SPARK_BUILDER_REPO || process.env.SPARK_BUILDER_REPO;
+	if (explicit) {
+		return path.resolve(explicit);
+	}
+	const homeDir = options.homedir ? options.homedir() : os.homedir();
+	const cwd = options.cwd ?? process.cwd();
+	const candidates = [
+		// Installed layout: `spark setup` places modules as siblings under ~/.spark/modules.
+		path.join(homeDir, '.spark', 'modules', 'spark-intelligence-builder', 'source'),
+		// Dev checkout layout: spawner-ui and spark-intelligence-builder cloned side by side.
+		path.resolve(cwd, '..', 'spark-intelligence-builder')
+	];
+	for (const candidate of candidates) {
+		if (existsSync(path.join(candidate, 'src', 'spark_intelligence', 'cli.py'))) {
+			return candidate;
+		}
+	}
+	// No valid candidate found; return the first installed-layout path so the
+	// error message points at the location the user is most likely to need to fix.
+	return candidates[0];
 }
 
 function defaultPythonCommand(envRecord: Record<string, string | undefined> = env): string {
@@ -516,10 +537,27 @@ export async function runCreatorPlan(
 	options: CreatorPlanOptions = {}
 ): Promise<CreatorIntentPacket> {
 	const envRecord = options.envRecord || env;
-	const builderRepo = path.resolve(options.builderRepo || defaultBuilderRepo(envRecord));
-	if (!existsSync(builderRepo)) {
+	const builderRepoExplicitlySelected = Boolean(
+		options.builderRepo || envRecord.SPARK_BUILDER_REPO || process.env.SPARK_BUILDER_REPO
+	);
+	const builderRepo = path.resolve(options.builderRepo || defaultBuilderRepo(envRecord, options));
+	if (
+		!existsSync(builderRepo) ||
+		(!builderRepoExplicitlySelected &&
+			!existsSync(path.join(builderRepo, 'src', 'spark_intelligence', 'cli.py')))
+	) {
+		const homeDir = options.homedir ? options.homedir() : os.homedir();
+		const cwd = options.cwd ?? process.cwd();
+		const installedPath = path.join(
+			homeDir,
+			'.spark',
+			'modules',
+			'spark-intelligence-builder',
+			'source'
+		);
+		const devPath = path.resolve(cwd, '..', 'spark-intelligence-builder');
 		throw new Error(
-			`Builder repo not found: ${builderRepo}. Set SPARK_BUILDER_REPO to the absolute path of your spark-intelligence-builder checkout, or place that checkout one directory up from the spawner-ui working directory.`
+			`Builder repo not found: ${builderRepo}. Set SPARK_BUILDER_REPO to the absolute path of your spark-intelligence-builder checkout. The expected install location is ${installedPath}; the dev-checkout location is ${devPath}. Run \`spark setup\` if the module is missing.`
 		);
 	}
 	const pythonCommand = options.pythonCommand || defaultPythonCommand(envRecord);
@@ -556,10 +594,27 @@ export async function runCreatorArtifactBundle(
 	options: CreatorPlanOptions = {}
 ): Promise<CreatorArtifactBundle> {
 	const envRecord = options.envRecord || env;
-	const builderRepo = path.resolve(options.builderRepo || defaultBuilderRepo(envRecord));
-	if (!existsSync(builderRepo)) {
+	const builderRepoExplicitlySelected = Boolean(
+		options.builderRepo || envRecord.SPARK_BUILDER_REPO || process.env.SPARK_BUILDER_REPO
+	);
+	const builderRepo = path.resolve(options.builderRepo || defaultBuilderRepo(envRecord, options));
+	if (
+		!existsSync(builderRepo) ||
+		(!builderRepoExplicitlySelected &&
+			!existsSync(path.join(builderRepo, 'src', 'spark_intelligence', 'cli.py')))
+	) {
+		const homeDir = options.homedir ? options.homedir() : os.homedir();
+		const cwd = options.cwd ?? process.cwd();
+		const installedPath = path.join(
+			homeDir,
+			'.spark',
+			'modules',
+			'spark-intelligence-builder',
+			'source'
+		);
+		const devPath = path.resolve(cwd, '..', 'spark-intelligence-builder');
 		throw new Error(
-			`Builder repo not found: ${builderRepo}. Set SPARK_BUILDER_REPO to the absolute path of your spark-intelligence-builder checkout, or place that checkout one directory up from the spawner-ui working directory.`
+			`Builder repo not found: ${builderRepo}. Set SPARK_BUILDER_REPO to the absolute path of your spark-intelligence-builder checkout. The expected install location is ${installedPath}; the dev-checkout location is ${devPath}. Run \`spark setup\` if the module is missing.`
 		);
 	}
 	const pythonCommand = options.pythonCommand || defaultPythonCommand(envRecord);
