@@ -33,6 +33,7 @@ import {
 	type SparkMutationClass
 } from '$lib/server/harness-authority';
 import { stripAuthorityResidue } from '$lib/server/authority-residue';
+import { BoundedProcessOutput } from '$lib/server/bounded-process-output';
 
 export type SparkAgentCommandName =
 	| 'canvas.create_pipeline'
@@ -1517,8 +1518,8 @@ class SparkAgentBridgeService {
 		}
 
 		return await new Promise((resolve) => {
-			let stdout = '';
-			let stderr = '';
+			const stdout = new BoundedProcessOutput('OUTPUT');
+			const stderr = new BoundedProcessOutput('STDERR');
 			let finished = false;
 			let progressMarks = 0;
 			let timeout: ReturnType<typeof setTimeout> | null = null;
@@ -1593,13 +1594,13 @@ class SparkAgentBridgeService {
 
 			child.stdout?.on('data', (chunk: Buffer) => {
 				const text = chunk.toString();
-				stdout += text;
+				stdout.append(text);
 				progressMarks += 1;
 				context.emitProgress(Math.min(90, progressMarks * 10), `${context.providerId} processing...`);
 			});
 
 			child.stderr?.on('data', (chunk: Buffer) => {
-				stderr += chunk.toString();
+				stderr.append(chunk.toString());
 			});
 
 			child.on('error', (err) => {
@@ -1608,12 +1609,14 @@ class SparkAgentBridgeService {
 
 			child.on('close', (code) => {
 				clearKillTimeout();
-				const trimmed = stdout.trim();
+				const stdoutText = stdout.toString();
+				const stderrText = stderr.toString();
+				const trimmed = stdoutText.trim();
 				if (code === 0) {
 					finalize({ success: true, response: trimmed });
 					return;
 				}
-				finalize({ success: false, error: providerProcessFailureMessage(code, stdout, stderr) });
+				finalize({ success: false, error: providerProcessFailureMessage(code, stdoutText, stderrText) });
 			});
 
 			if (child.stdin) {

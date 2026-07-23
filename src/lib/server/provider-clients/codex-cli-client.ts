@@ -18,6 +18,7 @@ import {
 } from '../high-agency-workers';
 import { spawnerStateDir } from '../spawner-state';
 import { prepareProviderWorkingDirectory } from '$lib/services/spark-agent-bridge';
+import { BoundedProcessOutput } from '../bounded-process-output';
 
 export interface CodexCliOptions extends ProviderClientOptions {
 	workingDirectory?: string;
@@ -153,8 +154,8 @@ export async function executeCodexCliRequest(
 			return;
 		}
 
-		let stdout = '';
-		let stderr = '';
+		const stdout = new BoundedProcessOutput('OUTPUT');
+		const stderr = new BoundedProcessOutput('STDERR');
 		let lastProgressEmit = Date.now();
 		let killed = false;
 		let killTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -202,12 +203,12 @@ export async function executeCodexCliRequest(
 
 		child.stdout?.on('data', (data: Buffer) => {
 			const chunk = data.toString();
-			stdout += chunk;
+			stdout.append(chunk);
 
 			// Emit progress periodically
 			const now = Date.now();
 			if (now - lastProgressEmit > 3000) {
-				const lines = stdout.split('\n').filter(Boolean);
+				const lines = stdout.toString().split('\n').filter(Boolean);
 				onEvent(
 					createBridgeEvent('task_progress', options, {
 						progress: Math.min(80, Math.floor(lines.length * 5)),
@@ -219,7 +220,7 @@ export async function executeCodexCliRequest(
 		});
 
 		child.stderr?.on('data', (data: Buffer) => {
-			stderr += data.toString();
+			stderr.append(data.toString());
 		});
 
 		child.on('error', (err) => {
@@ -262,7 +263,8 @@ export async function executeCodexCliRequest(
 			}
 
 			const success = code === 0;
-			const response = stdout.trim();
+			const response = stdout.toString().trim();
+			const stderrText = stderr.toString();
 
 			if (success) {
 				onEvent(
@@ -274,12 +276,12 @@ export async function executeCodexCliRequest(
 			} else {
 				onEvent(
 					createBridgeEvent('task_failed', options, {
-						message: `${provider.label} exited with code ${code}: ${stderr.slice(0, 500)}`,
+						message: `${provider.label} exited with code ${code}: ${stderrText.slice(0, 500)}`,
 						data: {
 							success: false,
-							error: `Exit code ${code}: ${stderr.slice(0, 500)}`,
+							error: `Exit code ${code}: ${stderrText.slice(0, 500)}`,
 							exitCode: code,
-							stderr: stderr.slice(0, 500),
+							stderr: stderrText.slice(0, 500),
 							provider: provider.id,
 							providerLabel: provider.label
 						}
@@ -290,7 +292,7 @@ export async function executeCodexCliRequest(
 			resolve({
 				success,
 				response,
-				error: success ? undefined : `Exit code ${code}: ${stderr.slice(0, 500)}`,
+				error: success ? undefined : `Exit code ${code}: ${stderrText.slice(0, 500)}`,
 				durationMs: Date.now() - startTime
 			});
 		});
