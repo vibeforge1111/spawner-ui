@@ -406,6 +406,20 @@ export function deleteSelected() {
 // Clipboard for copy/paste
 let clipboard: { nodes: CanvasNode[]; connections: Connection[] } | null = null;
 
+export function cloneCanvasSelectionForClipboard(
+	nodes: CanvasNode[],
+	connections: Connection[]
+): { nodes: CanvasNode[]; connections: Connection[] } | null {
+	try {
+		return JSON.parse(JSON.stringify({ nodes, connections })) as {
+			nodes: CanvasNode[];
+			connections: Connection[];
+		};
+	} catch {
+		return null;
+	}
+}
+
 export function duplicateSelected(): string[] {
 	const state = get(canvasState);
 	if (state.selectedNodeIds.length === 0) return [];
@@ -462,10 +476,7 @@ export function copySelected() {
 		(c) => state.selectedNodeIds.includes(c.sourceNodeId) && state.selectedNodeIds.includes(c.targetNodeId)
 	);
 
-	clipboard = {
-		nodes: JSON.parse(JSON.stringify(nodesToCopy)),
-		connections: JSON.parse(JSON.stringify(connectionsToCopy))
-	};
+	clipboard = cloneCanvasSelectionForClipboard(nodesToCopy, connectionsToCopy);
 }
 
 export function pasteFromClipboard(): string[] {
