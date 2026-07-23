@@ -80,4 +80,14 @@ describe('MCP control auth', () => {
 		);
 		expect(authorized).toBeNull();
 	});
+
+	it('never accepts configured API keys from URL query parameters', async () => {
+		PRIVATE_ENV.MCP_API_KEY = 'mcp-secret';
+
+		const response = requireMcpAuth(
+			event('http://127.0.0.1/api/mcp?apiKey=mcp-secret')
+		);
+
+		expect(response?.status).toBe(401);
+	});
 });

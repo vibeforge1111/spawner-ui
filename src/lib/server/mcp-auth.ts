@@ -4,7 +4,6 @@ import { timingSafeEqual } from 'node:crypto';
 import {
 	hostedUiHostIsLoopback,
 	hostedUiIsLocalOperatorLoopbackRequest,
-	hostedUiLooksHosted,
 	hostedUiSessionIsValid
 } from '$lib/server/hosted-ui-auth';
 
@@ -64,16 +63,9 @@ function extractApiKey(event: RequestEvent, options: ApiKeyExtractionOptions = {
 		}
 	}
 
-	if (options.queryParam && controlQueryApiKeysAllowed()) {
-		try {
-			const value = new URL(event.request.url).searchParams.get(options.queryParam);
-			if (value && value.trim().length > 0) {
-				return value.trim();
-			}
-		} catch {
-			// Ignore malformed URLs and continue to cookie fallback.
-		}
-	}
+	// API keys in URLs leak through history, access logs, referrers, and proxies.
+	// `queryParam` remains accepted in route options for compatibility but is
+	// deliberately ignored as an authentication source.
 
 	const cookieToken = getCookieValue(event.request.headers.get('cookie'), options.cookieName);
 	if (cookieToken) {
@@ -88,10 +80,6 @@ function extractApiKey(event: RequestEvent, options: ApiKeyExtractionOptions = {
 	}
 
 	return null;
-}
-
-export function controlQueryApiKeysAllowed(): boolean {
-	return !hostedUiLooksHosted(env);
 }
 
 function getClientIdentity(event: RequestEvent): string {

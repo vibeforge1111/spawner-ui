@@ -10,7 +10,7 @@ import type { RequestHandler } from './$types';
 import { env } from '$env/dynamic/private';
 import { eventBridge } from '$lib/services/event-bridge';
 import { assertSafeId, PathSafetyError, resolveWithinBaseDir } from '$lib/server/path-safety';
-import { controlQueryApiKeysAllowed, enforceRateLimit, requireControlAuth } from '$lib/server/mcp-auth';
+import { enforceRateLimit, requireControlAuth } from '$lib/server/mcp-auth';
 import { hostedUiHostIsLoopback } from '$lib/server/hosted-ui-auth';
 import { relayMissionControlEvent, isMissionControlMissionId } from '$lib/server/mission-control-relay';
 import { providerRuntime } from '$lib/server/provider-runtime';
@@ -109,17 +109,6 @@ function extractApiKeyFromRequest(request: Request): string | null {
 		const bearerToken = match?.[1]?.trim() || null;
 		if (bearerToken) {
 			return bearerToken;
-		}
-	}
-
-	if (controlQueryApiKeysAllowed()) {
-		try {
-			const queryKey = new URL(request.url).searchParams.get('apiKey');
-			if (queryKey && queryKey.trim().length > 0) {
-				return queryKey.trim();
-			}
-		} catch {
-			// Ignore malformed URLs.
 		}
 	}
 

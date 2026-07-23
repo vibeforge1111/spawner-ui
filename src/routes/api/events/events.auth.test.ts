@@ -112,13 +112,13 @@ describe('/api/events auth', () => {
 		expect(unsubscribe).toHaveBeenCalledOnce();
 	});
 
-	it('accepts configured API key through query param for SSE clients', async () => {
+	it('rejects API keys in query parameters without persisting them in cookies', async () => {
 		const response = await GET(
 			createEvent('https://example.com/api/events?apiKey=events-secret', { method: 'GET' })
 		);
 
-		expect(response.status).toBe(200);
-		expect(response.headers.get('set-cookie')).toContain('spawner_events_api_key=');
+		expect(response.status).toBe(401);
+		expect(response.headers.get('set-cookie')).toBeNull();
 	});
 
 	it('rejects query API keys in hosted deployments', async () => {
