@@ -146,6 +146,19 @@ describe('/api/events auth', () => {
 		expect(response.headers.get('set-cookie')).toContain('spawner_events_api_key=');
 	});
 
+	it('does not persist an API key cookie over insecure HTTP', async () => {
+		const response = await GET(
+			createEvent('http://example.com/api/events', {
+				method: 'GET',
+				headers: { 'x-api-key': 'events-secret' }
+			})
+		);
+
+		expect(response.status).toBe(200);
+		expect(response.headers.get('set-cookie')).toBeNull();
+		await response.body?.cancel();
+	});
+
 	it('rejects non-local requests without API key when one is configured', async () => {
 		const response = await GET(createEvent('https://example.com/api/events', { method: 'GET' }));
 

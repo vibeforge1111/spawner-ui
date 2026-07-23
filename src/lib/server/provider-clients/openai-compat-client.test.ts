@@ -21,6 +21,37 @@ afterEach(() => {
 });
 
 describe('openai-compat-client', () => {
+	it('keeps the provider response in the result without copying it into bridge events', async () => {
+		const events: Array<{ type: string; data?: Record<string, unknown> }> = [];
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () =>
+				new Response(
+					'data: {"choices":[{"delta":{"content":"private provider response"}}]}\n\ndata: [DONE]\n\n',
+					{ status: 200, headers: { 'content-type': 'text/event-stream' } }
+				)
+			)
+		);
+
+		const result = await executeOpenAICompatRequest(
+			{
+				provider,
+				apiKey: 'test-api-key',
+				missionId: 'mission-openai-compatible-privacy',
+				onEvent: (event) => events.push(event)
+			},
+			[{ role: 'user', content: 'Return private work' }]
+		);
+
+		expect(result).toMatchObject({ success: true, response: 'private provider response' });
+		const completed = events.find((event) => event.type === 'task_completed');
+		expect(completed?.data).toMatchObject({
+			success: true,
+			responseLength: 'private provider response'.length
+		});
+		expect(completed?.data).not.toHaveProperty('response');
+	});
+
 	it('releases a retry response body before the next request', async () => {
 		const retryResponse = new Response('retry', {
 			status: 503,
