@@ -68,6 +68,7 @@ let _store: StoreShape | null = null;
 let _tickTimer: NodeJS.Timeout | null = null;
 let _starting = false;
 const _firingIds = new Set<string>();
+let _tickInFlight = false;
 
 function _id(): string {
   return 'sched-' + randomBytes(4).toString('hex');
@@ -293,53 +294,59 @@ async function _relayToTelegram(record: ScheduleRecord, result: { ok: boolean; s
 }
 
 async function _tick(): Promise<void> {
-  const store = await _load();
-  const now = new Date();
-  let dirty = false;
-  for (const rec of store.schedules) {
-    if (!rec.enabled) continue;
-    if (!rec.nextFireAt) {
-      rec.nextFireAt = _computeNext(rec.cron, rec.timezone);
+  if (_tickInFlight) return;
+  _tickInFlight = true;
+  try {
+    const store = await _load();
+    const now = new Date();
+    let dirty = false;
+    for (const rec of store.schedules) {
+      if (!rec.enabled) continue;
+      if (!rec.nextFireAt) {
+        rec.nextFireAt = _computeNext(rec.cron, rec.timezone);
+        dirty = true;
+        continue;
+      }
+      const nextFireMs = Date.parse(rec.nextFireAt);
+      if (!Number.isFinite(nextFireMs)) {
+        // Stored nextFireAt is non-empty but unparseable (state-file drift /
+        // hand edit / older format). Recompute from the cron expression
+        // instead of falling through, which would make `new Date(<invalid>)
+        // > now` evaluate false (because Invalid Date comparisons always
+        // return false) and re-fire the schedule every TICK_MS (~30s)
+        // instead of on its cron cadence.
+        rec.nextFireAt = _computeNext(rec.cron, rec.timezone);
+        dirty = true;
+        continue;
+      }
+      if (nextFireMs > now.getTime()) continue;
+      if (_firingIds.has(rec.id)) {
+        // Previous fire for this schedule is still in flight (e.g. long subprocess).
+        // Skip so we do not relaunch the mission or emit a duplicate relay message.
+        continue;
+      }
+      const nextFireAt = _computeNext(rec.cron, rec.timezone);
+      rec.nextFireAt = nextFireAt;
+      _firingIds.add(rec.id);
+      try {
+        const result = await _fire(rec);
+        rec.lastFiredAt = new Date().toISOString();
+        rec.fireCount += 1;
+        rec.lastStatus = (result.ok ? 'ok: ' : 'fail: ') + result.summary.slice(0, 200);
+        await _relayToTelegram(rec, result);
+      } catch (err: unknown) {
+        rec.lastFiredAt = new Date().toISOString();
+        rec.fireCount += 1;
+        rec.lastStatus = 'crash: ' + errorMessage(err);
+      } finally {
+        _firingIds.delete(rec.id);
+      }
       dirty = true;
-      continue;
     }
-    const nextFireMs = Date.parse(rec.nextFireAt);
-    if (!Number.isFinite(nextFireMs)) {
-      // Stored nextFireAt is non-empty but unparseable (state-file drift /
-      // hand edit / older format). Recompute from the cron expression
-      // instead of falling through, which would make `new Date(<invalid>)
-      // > now` evaluate false (because Invalid Date comparisons always
-      // return false) and re-fire the schedule every TICK_MS (~30s)
-      // instead of on its cron cadence.
-      rec.nextFireAt = _computeNext(rec.cron, rec.timezone);
-      dirty = true;
-      continue;
-    }
-    if (nextFireMs > now.getTime()) continue;
-    if (_firingIds.has(rec.id)) {
-      // Previous fire for this schedule is still in flight (e.g. long subprocess).
-      // Skip so we do not relaunch the mission or emit a duplicate relay message.
-      continue;
-    }
-    const nextFireAt = _computeNext(rec.cron, rec.timezone);
-    _firingIds.add(rec.id);
-    try {
-      const result = await _fire(rec);
-      rec.lastFiredAt = new Date().toISOString();
-      rec.fireCount += 1;
-      rec.lastStatus = (result.ok ? 'ok: ' : 'fail: ') + result.summary.slice(0, 200);
-      await _relayToTelegram(rec, result);
-    } catch (err: unknown) {
-      rec.lastFiredAt = new Date().toISOString();
-      rec.fireCount += 1;
-      rec.lastStatus = 'crash: ' + errorMessage(err);
-    } finally {
-      _firingIds.delete(rec.id);
-    }
-    rec.nextFireAt = _computeNext(rec.cron, rec.timezone);
-    dirty = true;
+    if (dirty) await _save();
+  } finally {
+    _tickInFlight = false;
   }
-  if (dirty) await _save();
 }
 
 export function startScheduler(): void {
@@ -370,6 +377,8 @@ export function resetSchedulerForTests(): void {
   stopScheduler();
   _store = null;
   _starting = false;
+  _tickInFlight = false;
+  _firingIds.clear();
 }
 
 export async function runSchedulerTickForTests(): Promise<void> {
@@ -383,6 +392,8 @@ export const _schedulerInternalsForTests = {
   tick: _tick,
   reset(): void {
     _store = null;
+    _tickInFlight = false;
+    _firingIds.clear();
     stopScheduler();
   },
 };

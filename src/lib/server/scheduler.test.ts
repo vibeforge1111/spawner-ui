@@ -199,6 +199,24 @@ describe('scheduler reliability guards', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('serializes overlapping scheduler ticks', async () => {
+    const dir = await tempStateDir();
+    await writeFile(
+      path.join(dir, 'schedules.json'),
+      JSON.stringify({ schedules: [record()] }, null, 2),
+      'utf-8'
+    );
+
+    await Promise.all([
+      _schedulerInternalsForTests.tick(),
+      _schedulerInternalsForTests.tick(),
+      _schedulerInternalsForTests.tick()
+    ]);
+
+    const [saved] = await listSchedules();
+    expect(saved.fireCount).toBe(1);
+  });
+
   it('repairs an invalid nextFireAt without firing the schedule', async () => {
     const dir = await tempStateDir();
     await writeFile(
