@@ -29,6 +29,19 @@ function card(partial: Partial<MissionBoardCard>): MissionBoardCard {
 }
 
 describe('mergeMissionBoardCards', () => {
+	it('keeps the finite updated timestamp when the matching card timestamp is malformed', () => {
+		const live = card({ id: 'mission-malformed-time', updatedAt: 'not-a-date' });
+		const stored = card({
+			id: 'mission-malformed-time',
+			source: 'mcp',
+			updatedAt: '2026-04-28T10:00:00.000Z'
+		});
+
+		const [merged] = mergeMissionBoardCards([live], [stored]);
+
+		expect(merged.updatedAt).toBe('2026-04-28T10:00:00.000Z');
+	});
+
 	it('keeps live relay status when an older static mission has the same id', () => {
 		const live = card({
 			id: 'mission-1777211869020',
