@@ -27,6 +27,8 @@
 	let techStack = $state('');
 	let goals = $state('');
 	let showPrompt = $state(false);
+	let promptCopyState = $state<'idle' | 'copied' | 'failed'>('idle');
+	let promptCopyTimer: ReturnType<typeof setTimeout> | null = null;
 
 	// Get agents from stack store
 	let agentsList = $state<Array<{id: string; name: string; role: string; skills: string[]; model?: 'sonnet' | 'opus' | 'haiku'}>>([]);
@@ -61,6 +63,7 @@
 
 	onDestroy(() => {
 		stopLogPolling();
+		if (promptCopyTimer) clearTimeout(promptCopyTimer);
 	});
 
 	function addTask() {
@@ -118,11 +121,20 @@
 		}
 	}
 
-	function copyPromptToClipboard() {
-		if ($currentMission) {
-			const prompt = generateClaudeCodePrompt($currentMission);
-			navigator.clipboard.writeText(prompt);
+	async function copyPromptToClipboard() {
+		if (!$currentMission) return;
+		const prompt = generateClaudeCodePrompt($currentMission);
+		try {
+			await navigator.clipboard.writeText(prompt);
+			promptCopyState = 'copied';
+		} catch {
+			promptCopyState = 'failed';
 		}
+		if (promptCopyTimer) clearTimeout(promptCopyTimer);
+		promptCopyTimer = setTimeout(() => {
+			promptCopyTimer = null;
+			promptCopyState = 'idle';
+		}, 2000);
 	}
 
 	function getStatusColor(status: string): string {
@@ -294,8 +306,9 @@
 										type="button"
 										class="text-xs px-2 py-1 bg-violet-600 hover:bg-violet-500 rounded"
 										onclick={copyPromptToClipboard}
+										aria-live="polite"
 									>
-										Copy
+										{promptCopyState === 'copied' ? 'Copied' : promptCopyState === 'failed' ? 'Copy failed' : 'Copy'}
 									</button>
 								</div>
 								<pre class="text-xs text-zinc-400 whitespace-pre-wrap max-h-48 overflow-y-auto">{generateClaudeCodePrompt($currentMission)}</pre>
