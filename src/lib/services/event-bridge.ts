@@ -30,6 +30,16 @@ export interface BridgeEvent {
 type EventCallback = (event: BridgeEvent) => void;
 
 const MAX_SUBSCRIBERS = 1000; // Security: Limit concurrent subscribers to prevent DoS
+const MAX_RECONNECT_ATTEMPTS = 10;
+
+export function eventBridgeReconnectDelay(
+	attempt: number,
+	random: () => number = Math.random
+): number | null {
+	if (!Number.isInteger(attempt) || attempt < 1 || attempt > MAX_RECONNECT_ATTEMPTS) return null;
+	const ceiling = Math.min(60_000, 1000 * 2 ** Math.min(attempt - 1, 6));
+	return Math.floor(Math.max(0, Math.min(0.999999999, random())) * ceiling);
+}
 
 /**
  * Server-side event bridge (used in +server.ts)
@@ -139,9 +149,13 @@ class ClientEventBridge {
 	// the herd and bounds load amplification.
 	private scheduleReconnect(): void {
 		if (this.reconnectTimer) return;
-		this.reconnectAttempts += 1;
-		const base = Math.min(60_000, 1000 * 2 ** Math.min(this.reconnectAttempts - 1, 6));
-		const delay = Math.floor(Math.random() * base);
+		const nextAttempt = this.reconnectAttempts + 1;
+		const delay = eventBridgeReconnectDelay(nextAttempt);
+		if (delay === null) {
+			logger.warn(`[EventBridge] Reconnect paused after ${MAX_RECONNECT_ATTEMPTS} failed attempts`);
+			return;
+		}
+		this.reconnectAttempts = nextAttempt;
 
 		this.reconnectTimer = setTimeout(() => {
 			this.reconnectTimer = null;
@@ -158,6 +172,7 @@ class ClientEventBridge {
 			this.eventSource.close();
 			this.eventSource = null;
 		}
+		this.reconnectAttempts = 0;
 		this.connectionStatus.set('disconnected');
 	}
 
