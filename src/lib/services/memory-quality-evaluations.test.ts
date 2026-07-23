@@ -32,6 +32,7 @@ describe('memory quality evaluations', () => {
 	});
 
 	it('appends a valid manual evaluation to the local file-backed dataset', async () => {
+		const randomSpy = vi.spyOn(Math, 'random');
 		const result = await appendManualEvaluation({
 			query: 'Did recall match the source?',
 			source: 'domain-chip-memory',
@@ -46,6 +47,8 @@ describe('memory quality evaluations', () => {
 		const stored = JSON.parse(await readFile(paths.evaluationsFile, 'utf-8'));
 		expect(stored[0].query).toBe('Did recall match the source?');
 		expect(result.dataset.events[0].query).toBe('Did recall match the source?');
+		expect(result.event?.id).toMatch(/^manual-\d+-[0-9a-f]{8}$/);
+		expect(randomSpy).not.toHaveBeenCalled();
 	});
 
 	it('returns inline errors without writing invalid submissions', async () => {

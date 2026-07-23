@@ -42,6 +42,30 @@ afterEach(() => {
 });
 
 describe('MissionExecutor sync state transitions', () => {
+	it('creates production transition IDs without Math.random', () => {
+		const { executor } = createExecutor('running');
+		const randomSpy = vi.spyOn(Math, 'random');
+
+		(executor as unknown as {
+			appendTaskTransition: (event: {
+				type: 'task_started';
+				taskId: string;
+				taskName: string;
+				message: string;
+			}) => void;
+		}).appendTaskTransition({
+			type: 'task_started',
+			taskId: 'task-crypto',
+			taskName: 'Crypto transition',
+			message: 'started'
+		});
+
+		expect(executor.getProgress().taskTransitions.at(-1)?.id).toMatch(
+			/^transition-\d+-[0-9a-f]{8}$/
+		);
+		expect(randomSpy).not.toHaveBeenCalled();
+	});
+
 	it.each<ExecutionStatus>(['completed', 'failed', 'cancelled'])(
 		'keeps %s missions terminal when a stale mission_started event arrives',
 		(status) => {
