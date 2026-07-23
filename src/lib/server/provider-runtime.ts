@@ -758,46 +758,50 @@ class ProviderRuntimeManager {
 
 		// Run all providers in parallel - don't await here for immediate return
 		// But we need to handle completion
-		Promise.allSettled(providerPromises).then(() => {
-			const allSessions = this.getSessionsForMission(missionId);
-			const allComplete = allSessions.every((s) => isTerminalProviderStatus(s.status));
-			const anyFailed = allSessions.some((s) => s.status === 'failed');
+		Promise.allSettled(providerPromises)
+			.then(() => {
+				const allSessions = this.getSessionsForMission(missionId);
+				const allComplete = allSessions.every((s) => isTerminalProviderStatus(s.status));
+				const anyFailed = allSessions.some((s) => s.status === 'failed');
 
-			if (allComplete && !this.pausedMissions.has(missionId)) {
-				const allCancelled = allSessions.every((s) => s.status === 'cancelled');
-				const type = allCancelled ? 'mission_cancelled' : anyFailed ? 'mission_failed' : 'mission_completed';
-				this.rememberStatusReason(
-					missionId,
-					allCancelled
-						? 'Mission cancelled'
-						: anyFailed
-							? 'Mission completed with provider failures'
-							: 'Mission completed successfully'
-				);
-				onEvent({
-					type,
-					missionId,
-					source: 'spawner-ui',
-					timestamp: new Date().toISOString(),
-					message: allCancelled
-						? 'Mission cancelled'
-						: anyFailed
-						? `Mission completed with errors (${allSessions.filter((s) => s.status === 'failed').length} failed)`
-						: `All ${allSessions.length} providers completed successfully`,
-					data: {
-						providers: Object.fromEntries(
-							allSessions.map((s) => [
-								s.providerId,
-								{ status: s.status, error: s.error, durationMs: s.result?.durationMs }
-							])
-						)
-					}
-				});
-			}
-			if (allComplete) {
-				this.missionEventHandlers.delete(missionId);
-			}
-		});
+				if (allComplete && !this.pausedMissions.has(missionId)) {
+					const allCancelled = allSessions.every((s) => s.status === 'cancelled');
+					const type = allCancelled ? 'mission_cancelled' : anyFailed ? 'mission_failed' : 'mission_completed';
+					this.rememberStatusReason(
+						missionId,
+						allCancelled
+							? 'Mission cancelled'
+							: anyFailed
+								? 'Mission completed with provider failures'
+								: 'Mission completed successfully'
+					);
+					onEvent({
+						type,
+						missionId,
+						source: 'spawner-ui',
+						timestamp: new Date().toISOString(),
+						message: allCancelled
+							? 'Mission cancelled'
+							: anyFailed
+								? `Mission completed with errors (${allSessions.filter((s) => s.status === 'failed').length} failed)`
+								: `All ${allSessions.length} providers completed successfully`,
+						data: {
+							providers: Object.fromEntries(
+								allSessions.map((s) => [
+									s.providerId,
+									{ status: s.status, error: s.error, durationMs: s.result?.durationMs }
+								])
+							)
+						}
+					});
+				}
+				if (allComplete) {
+					this.missionEventHandlers.delete(missionId);
+				}
+			})
+			.catch((error) => {
+				console.warn('[ProviderRuntime] Mission completion handler failed:', error);
+			});
 		this.persistMissionSessions(missionId);
 
 		return {
