@@ -107,11 +107,19 @@ function getProviderResultsPath(): string {
 	return path.join(getSpawnerStateDir(), 'mission-provider-results.json');
 }
 
+function envStaleRunningProviderMs(): number | null {
+	const raw = process.env.SPAWNER_PROVIDER_STALE_RUNNING_MS;
+	if (!raw) return null;
+	const parsed = Number(raw);
+	return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
 function staleRunningProviderMs(): number {
+	const fromEnv = envStaleRunningProviderMs();
+	if (fromEnv !== null) return Math.max(60_000, fromEnv);
 	return Math.max(
 		60_000,
-		Number(process.env.SPAWNER_PROVIDER_STALE_RUNNING_MS) ||
-			agentWorkTimeoutMs() + PROVIDER_STALE_RUNNING_GRACE_MS
+		agentWorkTimeoutMs() + PROVIDER_STALE_RUNNING_GRACE_MS
 	);
 }
 
