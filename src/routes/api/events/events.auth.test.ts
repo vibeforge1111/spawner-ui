@@ -86,6 +86,32 @@ function emitPrivateBridgeEvent(): BridgeEvent {
 }
 
 describe('/api/events auth', () => {
+	it('unsubscribes the Event Bridge when enqueue fails after the reader disconnects', async () => {
+		let subscriber: ((event: BridgeEvent) => void) | undefined;
+		const unsubscribe = vi.fn();
+		vi.spyOn(eventBridge, 'subscribe').mockImplementation((callback) => {
+			subscriber = callback;
+			return unsubscribe;
+		});
+		const response = await GET(
+			createEvent('https://example.com/api/events', {
+				method: 'GET',
+				headers: { 'x-api-key': 'events-secret' }
+			})
+		);
+		const reader = response.body!.getReader();
+		await reader.read();
+		await reader.cancel();
+
+		subscriber?.({
+			type: 'task_completed',
+			timestamp: new Date().toISOString(),
+			source: 'packet-204'
+		});
+
+		expect(unsubscribe).toHaveBeenCalledOnce();
+	});
+
 	it('accepts configured API key through query param for SSE clients', async () => {
 		const response = await GET(
 			createEvent('https://example.com/api/events?apiKey=events-secret', { method: 'GET' })

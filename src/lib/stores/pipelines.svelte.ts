@@ -100,6 +100,8 @@ function generateId(): string {
 	return `pipe-${Date.now().toString(36)}-${crypto.randomUUID().replace(/-/g, '').slice(0, 8)}`;
 }
 
+export const _generatePipelineIdForTests = generateId;
+
 /**
  * Get storage key for a pipeline's data
  */

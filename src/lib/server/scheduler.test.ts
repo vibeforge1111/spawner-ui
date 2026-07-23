@@ -2,7 +2,7 @@ import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { _computeNext, _schedulerInternalsForTests, _validTimezone, listSchedules } from './scheduler';
+import { _computeNext, _schedulerInternalsForTests, _validTimezone, createSchedule, listSchedules } from './scheduler';
 
 // Regression test for the scheduled-mission timezone mismatch: _computeNext built
 // `new Cron(cron, { paused: true })` with no timezone, so cron fields were
@@ -22,6 +22,7 @@ function hourInZone(tz: string, iso: string): number {
 
 const originalSpawnerStateDir = process.env.SPAWNER_STATE_DIR;
 const originalSpawnerUiUrl = process.env.SPAWNER_UI_URL;
+const originalTelegramBotToken = process.env.TELEGRAM_BOT_TOKEN;
 let tempDirs: string[] = [];
 
 function restoreEnv(name: string, value: string | undefined): void {
@@ -67,6 +68,7 @@ afterEach(async () => {
   vi.restoreAllMocks();
   restoreEnv('SPAWNER_STATE_DIR', originalSpawnerStateDir);
   restoreEnv('SPAWNER_UI_URL', originalSpawnerUiUrl);
+  restoreEnv('TELEGRAM_BOT_TOKEN', originalTelegramBotToken);
   _schedulerInternalsForTests.reset();
   for (const dir of tempDirs) {
     await rm(dir, { recursive: true, force: true });
@@ -103,6 +105,37 @@ describe('_computeNext timezone handling', () => {
 });
 
 describe('scheduler reliability guards', () => {
+  it('rejects a non-empty misspelled IANA timezone', async () => {
+    await tempStateDir();
+
+    await expect(
+      createSchedule({
+        cron: '0 9 * * *',
+        action: 'mission',
+        payload: { goal: 'timezone proof' },
+        timezone: 'America/NewYork'
+      })
+    ).rejects.toThrow('Invalid IANA timezone: America/NewYork');
+  });
+
+  it('keeps Telegram relay text under the platform limit', async () => {
+    process.env.TELEGRAM_BOT_TOKEN = 'packet-204-token';
+    const fetchSpy = vi.fn(async (_url: string, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as { text: string };
+      expect(body.text.length).toBeLessThan(4096);
+      expect(body.text).toContain('... [truncated]');
+      return new Response('{}', { status: 200 });
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await _schedulerInternalsForTests.relayToTelegram(
+      record({ chatId: '1234' }),
+      { ok: false, summary: 'x'.repeat(5000) }
+    );
+
+    expect(fetchSpy).toHaveBeenCalledOnce();
+  });
+
   it('backs up corrupt schedules before resetting the in-memory store', async () => {
     const dir = await tempStateDir();
     await writeFile(path.join(dir, 'schedules.json'), '{bad json', 'utf-8');

@@ -366,6 +366,7 @@ export async function runSchedulerTickForTests(): Promise<void> {
 
 export const _schedulerInternalsForTests = {
   fire: _fire,
+  relayToTelegram: _relayToTelegram,
   load: _load,
   tick: _tick,
   reset(): void {

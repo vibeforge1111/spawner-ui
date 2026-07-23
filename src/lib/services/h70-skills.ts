@@ -380,3 +380,17 @@ export function clearSkillCache(): void {
 	skillCache.clear();
 	cacheTimestamps.clear();
 }
+
+export const _h70SkillCacheForTests = {
+	seed(skillId: string, skill: H70SkillContent, timestamp: number): void {
+		skillCache.set(skillId, skill);
+		cacheTimestamps.set(skillId, timestamp);
+	},
+	isValid: isCacheValid,
+	hasSkill(skillId: string): boolean {
+		return skillCache.has(skillId);
+	},
+	hasTimestamp(skillId: string): boolean {
+		return cacheTimestamps.has(skillId);
+	}
+};

@@ -70,6 +70,11 @@ describe('prepareProviderWorkingDirectory', () => {
 		expect(existsSync(dir)).toBe(true);
 	});
 
+	it('creates the session pipeline ID through the production crypto path', () => {
+		const session = sparkAgentBridge.startSession();
+		expect(session.canvas.pipelineId).toMatch(/^pipe-[0-9a-z]+-[0-9a-f]{8}$/);
+	});
+
 	it('rejects explicit provider workspaces outside Spark workspace by default', () => {
 		const root = mkdtempSync(join(tmpdir(), 'spark-provider-root-'));
 		const external = mkdtempSync(join(tmpdir(), 'spark-provider-external-'));

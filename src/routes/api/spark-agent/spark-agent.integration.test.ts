@@ -87,6 +87,30 @@ afterEach(() => {
 });
 
 describe('/api/spark-agent integration', () => {
+	it('unsubscribes the Spark Agent bridge when enqueue fails after reader disconnect', async () => {
+		const session = sparkAgentBridge.startSession({ sessionId: 'packet-204-sse' });
+		let subscriber: ((event: unknown) => void) | undefined;
+		const unsubscribe = vi.fn();
+		vi.spyOn(sparkAgentBridge, 'subscribe').mockImplementation((_sessionId, callback) => {
+			subscriber = callback;
+			return unsubscribe;
+		});
+		const url = new URL(
+			`http://localhost/api/spark-agent/events?sessionId=${session.id}`
+		);
+		const response = await events({
+			request: new Request(url, { headers: authHeaders() }),
+			url
+		} as never);
+		const reader = response.body!.getReader();
+		await reader.read();
+		await reader.cancel();
+
+		subscriber?.({ type: 'packet-204-disconnect' });
+
+		expect(unsubscribe).toHaveBeenCalledOnce();
+	});
+
 	it('rejects non-local requests without an API key', async () => {
 		const response = await command({
 			request: new Request('https://example.com/api/spark-agent/command', {
