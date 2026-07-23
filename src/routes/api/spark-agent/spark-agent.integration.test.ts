@@ -4,7 +4,10 @@ import { POST as command } from './command/+server';
 import { GET as events } from './events/+server';
 import { GET as canvasState } from './canvas-state/+server';
 import { POST as endSession } from './session/end/+server';
-import { sparkAgentBridge } from '$lib/services/spark-agent-bridge';
+import {
+	sparkAgentBridge,
+	type SparkAgentBridgeEvent
+} from '$lib/services/spark-agent-bridge';
 import { getConnections } from '$lib/services/mcp/client';
 import {
 	buildClientGovernorDecisionAuthority,
@@ -89,7 +92,7 @@ afterEach(() => {
 describe('/api/spark-agent integration', () => {
 	it('unsubscribes the Spark Agent bridge when enqueue fails after reader disconnect', async () => {
 		const session = sparkAgentBridge.startSession({ sessionId: 'packet-204-sse' });
-		let subscriber: ((event: unknown) => void) | undefined;
+		let subscriber: ((event: SparkAgentBridgeEvent) => void) | undefined;
 		const unsubscribe = vi.fn();
 		vi.spyOn(sparkAgentBridge, 'subscribe').mockImplementation((_sessionId, callback) => {
 			subscriber = callback;
@@ -106,7 +109,13 @@ describe('/api/spark-agent integration', () => {
 		await reader.read();
 		await reader.cancel();
 
-		subscriber?.({ type: 'packet-204-disconnect' });
+		subscriber?.({
+			id: 'packet-204-event',
+			sessionId: session.id,
+			type: 'packet-204-disconnect',
+			timestamp: new Date().toISOString(),
+			data: {}
+		});
 
 		expect(unsubscribe).toHaveBeenCalledOnce();
 	});

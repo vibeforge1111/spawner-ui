@@ -18,12 +18,11 @@ describe('H70 cache expiry', () => {
 					id: skillId,
 					name: 'Expired proof',
 					description: 'Expired proof',
-					category: 'development',
-					tier: 'free',
 					tags: [],
 					triggers: []
 				},
-				content: 'proof'
+				rawYaml: 'proof',
+				formattedContent: 'proof'
 			},
 			Date.now() - 6 * 60 * 1000
 		);
