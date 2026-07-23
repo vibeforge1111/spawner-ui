@@ -1320,8 +1320,7 @@ class MissionExecutor {
 					break;
 
 				default:
-					// Log unknown event types for debugging
-					log.debug('Unknown event type:', event.type);
+					log.warn('Unknown event type, dropping from dispatcher:', event.type);
 			}
 		});
 	}
