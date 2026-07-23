@@ -42,7 +42,7 @@ export type RecentRecallEvent = Pick<
 export function buildAccuracyBuckets(events: MemoryRecallEvent[]): AccuracyBucket[] {
 	const buckets = new Map<string, AccuracyBucket>();
 	for (const event of events) {
-		const day = toLocalDay(event.timestamp);
+		const day = toUtcDay(event.timestamp);
 		const bucket = buckets.get(day) || { day, hit: 0, miss: 0, drift: 0, unsure: 0, total: 0 };
 		bucket[event.outcome] += 1;
 		bucket.total += 1;
@@ -116,10 +116,10 @@ function percentile(sortedValues: number[], percentileValue: number): number {
 	return sortedValues[Math.max(0, Math.min(sortedValues.length - 1, index))];
 }
 
-function toLocalDay(timestamp: string): string {
+function toUtcDay(timestamp: string): string {
 	const date = new Date(timestamp);
-	const year = date.getFullYear();
-	const month = String(date.getMonth() + 1).padStart(2, '0');
-	const day = String(date.getDate()).padStart(2, '0');
+	const year = date.getUTCFullYear();
+	const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+	const day = String(date.getUTCDate()).padStart(2, '0');
 	return `${year}-${month}-${day}`;
 }

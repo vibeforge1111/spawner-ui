@@ -16,10 +16,21 @@ const events: MemoryRecallEvent[] = [
 ];
 
 describe('memory quality aggregates', () => {
-	it('groups accuracy buckets by local day and outcome', () => {
+	it('groups accuracy buckets by UTC day and outcome', () => {
 		const buckets = buildAccuracyBuckets(events);
 		expect(buckets).toHaveLength(2);
 		expect(buckets[1]).toMatchObject({ day: '2026-04-28', hit: 1, miss: 1, drift: 0, unsure: 0 });
+	});
+
+	it('uses the timestamp UTC day regardless of its explicit offset', () => {
+		const offsetEvent: MemoryRecallEvent = {
+			...events[0],
+			id: 'offset',
+			timestamp: '2026-04-28T23:30:00-02:00'
+		};
+		expect(buildAccuracyBuckets([offsetEvent])).toEqual([
+			expect.objectContaining({ day: '2026-04-29', hit: 1, total: 1 })
+		]);
 	});
 
 	it('counts every failure mode with zeros for absent modes', () => {
