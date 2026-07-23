@@ -35,6 +35,33 @@ export interface ParseCodexCliCommandOptions {
 	allowHighAgency?: boolean;
 }
 
+interface PromptPersistence {
+	exists: (path: string) => boolean;
+	mkdir: (path: string) => void;
+	write: (path: string, value: string) => void;
+}
+
+const promptPersistence: PromptPersistence = {
+	exists: existsSync,
+	mkdir: (path) => mkdirSync(path, { recursive: true }),
+	write: (path, value) => writeFileSync(path, value, 'utf-8')
+};
+
+export function persistCodexPrompt(
+	promptsDir: string,
+	promptFile: string,
+	prompt: string,
+	persistence: PromptPersistence = promptPersistence
+): boolean {
+	try {
+		if (!persistence.exists(promptsDir)) persistence.mkdir(promptsDir);
+		persistence.write(promptFile, prompt);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
 function isSafeCommandToken(value: string): boolean {
 	return /^[A-Za-z0-9._:/@+=-]+$/.test(value);
 }
@@ -138,11 +165,17 @@ export async function executeCodexCliRequest(
 
 	// Write prompt to file for reference
 	const promptsDir = join(spawnerStateDir(), 'prompts');
-	if (!existsSync(promptsDir)) {
-		mkdirSync(promptsDir, { recursive: true });
-	}
 	const promptFile = join(promptsDir, `${missionId}-${provider.id}.md`);
-	writeFileSync(promptFile, prompt, 'utf-8');
+	if (!persistCodexPrompt(promptsDir, promptFile, prompt)) {
+		const error = 'Unable to persist Codex prompt';
+		onEvent(
+			createBridgeEvent('error', options, {
+				message: error,
+				data: { error }
+			})
+		);
+		return { success: false, error, durationMs: Date.now() - startTime };
+	}
 
 	return new Promise<ProviderResult>((resolve) => {
 		let cwd: string;
