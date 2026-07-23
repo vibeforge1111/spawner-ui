@@ -8,6 +8,7 @@ import {
 	_buildFallbackAnalysisResult,
 	_demoteProvisionalPrdDraftResult,
 	_extractPrdBridgeProjectLineage,
+	_parsePositiveIntegerEnvForTests,
 	_provisionalPrdDraftDelayMs,
 	_shouldUseDeterministicPrdFallback
 } from './+server';
@@ -15,6 +16,13 @@ import {
 let testSpawnerDir = '';
 
 describe('PRD bridge fallback analysis', () => {
+	it('rejects unit-suffixed and non-positive auto-analysis timeouts', () => {
+		for (const value of ['30s', '5m', '0', '-1', 'Infinity', '']) {
+			expect(_parsePositiveIntegerEnvForTests(value, 420_000)).toBe(420_000);
+		}
+		expect(_parsePositiveIntegerEnvForTests(' 180000 ', 420_000)).toBe(180_000);
+	});
+
 	beforeEach(async () => {
 		testSpawnerDir = await mkdtemp(path.join(tmpdir(), 'spawner-prd-write-'));
 		await mkdir(path.join(testSpawnerDir, 'results'), { recursive: true });
