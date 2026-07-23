@@ -471,7 +471,9 @@
 			loading = s.loading;
 			error = s.error;
 		});
-		loadMissions({ limit: 200 }).catch(() => {});
+		loadMissions({ limit: 200 }).catch((error) => {
+			console.error('[MissionBoard] Failed to load missions:', error);
+		});
 		fetchRelay();
 		applyMissionUrlParams();
 		applyImproveUrlParams();
