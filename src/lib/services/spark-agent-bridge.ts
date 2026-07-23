@@ -580,6 +580,12 @@ class SparkAgentBridgeService {
 		return session;
 	}
 
+	private endSessionIfActive(sessionId: string, reason: string): void {
+		if (this.sessions.get(sessionId)?.status === 'active') {
+			this.endSession(sessionId, reason);
+		}
+	}
+
 	getSession(sessionId: string): SparkAgentSession | null {
 		return this.sessions.get(sessionId) || null;
 	}
@@ -735,7 +741,7 @@ class SparkAgentBridgeService {
 					error: { message: blockedReason, providerId },
 					response: result.response || ''
 				});
-				this.endSession(sparkAgentSessionId, 'failed');
+				this.endSessionIfActive(sparkAgentSessionId, 'failed');
 				return {
 					success: false,
 					sparkAgentSessionId,
@@ -754,7 +760,7 @@ class SparkAgentBridgeService {
 					message: `${providerId} worker completed`,
 					response: result.response || ''
 				});
-				this.endSession(sparkAgentSessionId, 'completed');
+				this.endSessionIfActive(sparkAgentSessionId, 'completed');
 				return {
 					success: true,
 					sparkAgentSessionId,
@@ -776,7 +782,7 @@ class SparkAgentBridgeService {
 				},
 				response: result.response || ''
 			});
-			this.endSession(sparkAgentSessionId, 'failed');
+			this.endSessionIfActive(sparkAgentSessionId, 'failed');
 			return {
 				success: false,
 				sparkAgentSessionId,
@@ -794,7 +800,7 @@ class SparkAgentBridgeService {
 					message,
 					error: { message, providerId }
 				});
-				this.endSession(sparkAgentSessionId, 'failed');
+				this.endSessionIfActive(sparkAgentSessionId, 'failed');
 			}
 			return {
 				success: false,
