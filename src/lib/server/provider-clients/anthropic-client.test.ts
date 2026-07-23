@@ -68,6 +68,39 @@ describe('anthropic-client', () => {
 		expect(cancel).toHaveBeenCalledOnce();
 	});
 
+	it('emits a structured task failure when retries are exhausted', async () => {
+		const events: BridgeEvent[] = [];
+		const fetchMock = vi.fn(async () =>
+			new Response('temporarily unavailable', {
+				status: 503,
+				headers: { 'retry-after': '0' }
+			})
+		);
+		vi.stubGlobal('fetch', fetchMock);
+
+		const result = await executeAnthropicRequest(
+			{
+				provider,
+				apiKey: 'test-api-key',
+				missionId: 'mission-anthropic-exhausted',
+				onEvent: (event) => events.push(event)
+			},
+			'Retry until exhausted'
+		);
+
+		expect(result.success).toBe(false);
+		expect(fetchMock).toHaveBeenCalledTimes(3);
+		expect(events.at(-1)).toMatchObject({
+			type: 'task_failed',
+			data: {
+				success: false,
+				provider: 'anthropic',
+				providerLabel: 'Anthropic'
+			}
+		});
+		expect(events.at(-1)?.data?.error).toContain('HTTP 503');
+	});
+
 	it('preserves prompt tokens when message_delta only reports output tokens', async () => {
 		const events: BridgeEvent[] = [];
 		vi.stubGlobal(
