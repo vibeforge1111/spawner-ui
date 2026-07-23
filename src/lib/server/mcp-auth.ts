@@ -88,7 +88,7 @@ function getClientIdentity(event: RequestEvent): string {
 	try {
 		return `ip:${event.getClientAddress()}`;
 	} catch {
-		return `host:${new URL(event.request.url).hostname}`;
+		return 'anonymous';
 	}
 }
 

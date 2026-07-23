@@ -7,7 +7,7 @@ const PRIVATE_ENV = vi.hoisted((): Record<string, string | undefined> => ({
 
 vi.mock('$env/dynamic/private', () => ({ env: PRIVATE_ENV }));
 
-import { requireControlAuth, requireMcpAuth } from './mcp-auth';
+import { enforceRateLimit, requireControlAuth, requireMcpAuth } from './mcp-auth';
 
 function event(url = 'http://127.0.0.1/api/mcp', init?: RequestInit, clientAddress = '127.0.0.1') {
 	return {
@@ -89,5 +89,23 @@ describe('MCP control auth', () => {
 		);
 
 		expect(response?.status).toBe(401);
+	});
+
+	it('does not let unresolvable clients bypass limits by rotating Host values', () => {
+		const first = {
+			request: new Request('https://first.example/api/events'),
+			getClientAddress: () => {
+				throw new Error('address unavailable');
+			}
+		};
+		const second = {
+			request: new Request('https://second.example/api/events'),
+			getClientAddress: () => {
+				throw new Error('address unavailable');
+			}
+		};
+
+		expect(enforceRateLimit(first as never, { scope: 'host-rotation-proof', limit: 1, windowMs: 60_000 })).toBeNull();
+		expect(enforceRateLimit(second as never, { scope: 'host-rotation-proof', limit: 1, windowMs: 60_000 })?.status).toBe(429);
 	});
 });
