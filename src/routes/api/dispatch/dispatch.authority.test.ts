@@ -199,7 +199,7 @@ describe('/api/dispatch authority contract', () => {
 		const response = await POST(event({
 			executionPack,
 			relay: { requestId },
-			executionAuthority: buildClientGovernorDecisionAuthority({
+			executionAuthority: buildServerGovernorDecisionAuthority({
 				source: 'dispatch-authority-test',
 				reason: 'Exercise the dispatch error boundary.',
 				toolName: 'spawner.dispatch',
@@ -336,7 +336,7 @@ describe('/api/dispatch authority contract', () => {
 			new Error('redis://10.0.0.8:6379 /private/provider-cancel.ts')
 		);
 		vi.spyOn(console, 'error').mockImplementation(() => {});
-		const executionAuthority = buildClientGovernorDecisionAuthority({
+		const executionAuthority = buildServerGovernorDecisionAuthority({
 			source: 'dispatch-cancel-authority-test',
 			reason: 'Exercise the cancellation error boundary.',
 			toolName: 'spawner.mission_control.command',

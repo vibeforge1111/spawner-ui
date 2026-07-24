@@ -14,7 +14,7 @@ vi.mock('$env/dynamic/private', () => ({ env: PRIVATE_ENV }));
 vi.mock('$lib/services/mcp/client', () => mcpClientMocks);
 
 import { POST } from './+server';
-import { buildClientGovernorDecisionAuthority } from '$lib/services/harness-authority-client';
+import { buildServerGovernorDecisionAuthority } from '$lib/server/harness-authority';
 
 function event(body: unknown) {
 	return {
@@ -53,7 +53,7 @@ describe('/api/mcp/call', () => {
 				instanceId: 'filesystem',
 				toolName: 'read_file',
 				args: { path: 'README.md' },
-				executionAuthority: buildClientGovernorDecisionAuthority({
+				executionAuthority: buildServerGovernorDecisionAuthority({
 					source: 'mcp-call.integration.test',
 					reason: 'Exercise the bounded MCP tool-call failure.',
 					toolName: 'spawner.mcp.call_tool',
