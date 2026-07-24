@@ -555,7 +555,7 @@ describe('PRD auto-dispatch helpers', () => {
 			expect(dispatchSpy).not.toHaveBeenCalled();
 			expect(missionStartedEvents).toHaveLength(0);
 		} finally {
-			unsubscribe();
+			unsubscribe?.();
 			dispatchSpy.mockRestore();
 		}
 	});
