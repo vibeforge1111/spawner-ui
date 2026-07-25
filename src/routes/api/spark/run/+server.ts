@@ -22,6 +22,7 @@ import {
 import {
 	HarnessAuthorityError,
 	assertNativeGovernorHarnessAuthority,
+	buildServerGovernorDecisionAuthority,
 	resolveExecutionAuthority
 } from '$lib/server/harness-authority';
 import { normalizeTraceRef } from '$lib/server/trace-ref';
@@ -231,6 +232,15 @@ export const POST: RequestHandler = async (event) => {
 			ownerSystem: 'spawner-ui',
 			mutationClass: 'launches_mission'
 		});
+		const dispatchExecutionAuthority = buildServerGovernorDecisionAuthority({
+			source: 'spark-run.route',
+			reason: 'The Spark run route verified fresh spawner.run authority before delegating the nested provider dispatch.',
+			toolName: 'spawner.dispatch',
+			mutationClass: 'launches_mission',
+			requestId: body.requestId?.trim() || null,
+			actorKind: 'human',
+			actorIdRef: body.userId?.trim() || body.chatId?.trim() || 'spark-run-caller'
+		});
 		const capability = assertCapability(createCapabilityEnvelope(event, {
 			actorId: body.userId?.trim() || body.chatId?.trim() || undefined,
 			surface: 'spawner',
@@ -352,7 +362,8 @@ export const POST: RequestHandler = async (event) => {
 			executionPack,
 			apiKeys,
 			workingDirectory: body.promptMode === 'simple' ? undefined : mission.context.projectPath,
-			executionAuthority,
+			executionAuthority: dispatchExecutionAuthority,
+			authorityRequestId: body.requestId?.trim() || undefined,
 			onEvent: (bridgeEvent) => {
 				const providerId = typeof bridgeEvent.source === 'string' ? bridgeEvent.source : null;
 				const relayEvent = {
