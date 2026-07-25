@@ -6,6 +6,7 @@
 	"license": "MIT",
 	"files": [
 		"build",
+		"static",
 		"vendor/harness-core",
 		"scripts/health-spark.mjs",
 		".env.example",
