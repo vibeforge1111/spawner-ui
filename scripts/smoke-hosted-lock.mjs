@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process';
 const PORT = Number(process.env.SPARK_HOSTED_LOCK_SMOKE_PORT || 3374);
 const BASE_URL = process.env.SPARK_HOSTED_LOCK_BASE_URL || `http://127.0.0.1:${PORT}`;
 const startedHere = !process.env.SPARK_HOSTED_LOCK_BASE_URL;
+const hostedClientAddress = '203.0.113.10';
 const publicAppPaths = ['/canvas', '/kanban', '/trace', '/skills', '/settings', '/missions', '/spark-live/login'];
 const publicApiPaths = ['/api/mission-control/board', '/api/spark/run', '/api/prd-bridge/pending'];
 
@@ -35,6 +36,7 @@ async function expectStatus(path, expectedStatus, init = {}) {
 		...init,
 		headers: {
 			accept: 'text/html',
+			'x-forwarded-for': hostedClientAddress,
 			...(init.headers || {})
 		}
 	});
@@ -52,6 +54,8 @@ async function runSmoke() {
 			env: {
 				...process.env,
 				PORT: String(PORT),
+				ADDRESS_HEADER: 'x-forwarded-for',
+				XFF_DEPTH: '1',
 				SPARK_LIVE_CONTAINER: '1',
 				SPARK_HOSTED_PRIVATE_PREVIEW: '',
 				SPARK_WORKSPACE_ID: '',
@@ -94,6 +98,7 @@ async function runSmoke() {
 		headers: {
 			origin: 'https://evil.example',
 			'sec-fetch-site': 'cross-site',
+			'x-forwarded-for': hostedClientAddress,
 			'content-type': 'application/x-www-form-urlencoded'
 		},
 		body: 'workspaceId=bad&uiKey=bad'

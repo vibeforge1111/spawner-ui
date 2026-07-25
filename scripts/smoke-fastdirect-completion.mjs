@@ -2,7 +2,8 @@
 
 import {
 	createHarnessCoreActionEnvelopeVNext,
-	createHarnessCoreAuthorizedGovernorDecision
+	createHarnessCoreAuthorizedGovernorDecision,
+	signHarnessCoreGovernorDecision
 } from '@spark/harness-core';
 import { existsSync, readFileSync } from 'node:fs';
 
@@ -27,11 +28,16 @@ const apiKey =
 	process.env.MCP_API_KEY ||
 	process.env.EVENTS_API_KEY ||
 	'';
+const governorHmacKey = process.env.SPARK_GOVERNOR_HMAC_KEY || '';
+const governorHmacKeyId = process.env.SPARK_GOVERNOR_HMAC_KEY_ID || 'local';
 const stamp = Date.now();
 const requestId = `tg-build-fastdirect-smoke-${stamp}`;
 const missionId = `mission-${stamp}`;
 const projectName = 'Fast Direct Completion Smoke';
 const traceRef = `trace:spawner-prd:${missionId}`;
+const projectPath = process.env.SPAWNER_SMOKE_PROJECT_PATH || '';
+const proofMarker = `SPARK_OS_FASTDIRECT_SMOKE_${stamp}`;
+const proofSentence = 'Spawner fast direct completion is bound to verified local artifacts';
 
 function url(path) {
 	return `${baseUrl}${path}`;
@@ -40,6 +46,8 @@ function url(path) {
 function assert(condition, message) {
 	if (!condition) throw new Error(message);
 }
+
+assert(projectPath, 'SPAWNER_SMOKE_PROJECT_PATH is required for the isolated deterministic artifact target.');
 
 function parseJson(text, path) {
 	try {
@@ -106,7 +114,7 @@ function buildWriteAuthority() {
 		publishes: false,
 		confidence: 0.95
 	});
-	return createHarnessCoreAuthorizedGovernorDecision({
+	const decision = createHarnessCoreAuthorizedGovernorDecision({
 		envelope,
 		tool_name: 'spawner.prd.write',
 		restrictions: {
@@ -115,11 +123,23 @@ function buildWriteAuthority() {
 			publish_allowed: false
 		}
 	});
+	return governorHmacKey
+		? signHarnessCoreGovernorDecision(decision, {
+				key: governorHmacKey,
+				key_id: governorHmacKeyId
+			})
+		: decision;
 }
 
 const writeBody = await postJson('/api/prd-bridge/write', {
-	content:
-		'Create one-file only index.html. Keep it as static HTML only. Build a countdown timer page. No package.json. Do not make a full app.',
+	content: [
+		`Create a local-only static proof in ${projectPath}.`,
+		'You must create exactly 2 local proof files and no others: index.html and README.md.',
+		'Do not create app.js, styles.css, package.json, assets, folders, or any extra file.',
+		'Put all styling inline inside index.html.',
+		`Include the visible marker ${proofMarker} in both files.`,
+		`Include the exact sentence "${proofSentence}" in both files.`
+	].join(' '),
 	requestId,
 	projectName,
 	buildMode: 'direct',
@@ -135,6 +155,14 @@ const writeBody = await postJson('/api/prd-bridge/write', {
 assert(writeBody?.success === true, 'fast_direct write did not succeed');
 assert(writeBody?.autoAnalysis?.provider === 'deterministic-fast-lane', `unexpected provider ${writeBody?.autoAnalysis?.provider}`);
 assert(writeBody?.autoAnalysis?.started === false, 'fast_direct smoke should not dispatch a provider worker');
+assert(
+	writeBody?.autoAnalysis?.deterministicArtifactProof?.status === 'written',
+	`deterministic artifact proof was ${writeBody?.autoAnalysis?.deterministicArtifactProof?.status}`
+);
+assert(
+	writeBody?.autoAnalysis?.deterministicArtifactProof?.fileCount === 2,
+	`deterministic artifact count was ${writeBody?.autoAnalysis?.deterministicArtifactProof?.fileCount}`
+);
 
 const status = await waitFor('fast_direct completion relay events', async () => {
 	const body = await getJson(`/api/mission-control/status?missionId=${encodeURIComponent(missionId)}`);

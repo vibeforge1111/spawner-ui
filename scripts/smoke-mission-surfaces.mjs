@@ -1,7 +1,16 @@
 #!/usr/bin/env node
 
+import {
+	createHarnessCoreActionEnvelopeVNext,
+	createHarnessCoreAuthorizedGovernorDecision,
+	signHarnessCoreGovernorDecision
+} from '@spark/harness-core';
+import { createServer } from 'node:http';
+
 const baseUrl = (process.env.SPAWNER_SMOKE_BASE_URL || 'http://127.0.0.1:3333').replace(/\/$/, '');
 const apiKey = process.env.EVENTS_API_KEY || process.env.MCP_API_KEY || '';
+const governorHmacKey = process.env.SPARK_GOVERNOR_HMAC_KEY || '';
+const governorHmacKeyId = process.env.SPARK_GOVERNOR_HMAC_KEY_ID || 'local';
 const stamp = Date.now();
 const requestId = `smoke-surfaces-${stamp}`;
 const missionId = `mission-${stamp}`;
@@ -11,7 +20,7 @@ const tasks = [
 		id: 'task-1-plan-route',
 		title: 'Plan route smoke',
 		summary: 'Create the project canvas and planned mission tasks.',
-		skills: ['mission-control'],
+		skills: ['observability'],
 		dependencies: [],
 		acceptanceCriteria: ['Canvas can be opened from a mission-scoped URL.'],
 		verificationCommands: ['npm run smoke:routes']
@@ -20,7 +29,7 @@ const tasks = [
 		id: 'task-2-verify-surfaces',
 		title: 'Verify mission surfaces',
 		summary: 'Check Kanban, mission detail, trace, and Spark agent surfaces.',
-		skills: ['testing'],
+		skills: ['api-design'],
 		dependencies: ['task-1-plan-route'],
 		acceptanceCriteria: ['Trace reports a completed mission with 100% task progress.'],
 		verificationCommands: ['npm run smoke:mission-surfaces']
@@ -29,6 +38,75 @@ const tasks = [
 
 function url(path) {
 	return `${baseUrl}${path}`;
+}
+
+function governedAuthority({ toolName, mutationClass, reason }) {
+	const envelope = createHarnessCoreActionEnvelopeVNext({
+		surface: 'spawner',
+		ownerSystem: 'spawner-ui',
+		source: 'smoke-script',
+		reason,
+		toolName,
+		mutationClass,
+		requestId,
+		actorKind: 'human',
+		actorIdRef: 'spawner-smoke',
+		target: requestId,
+		publishes: false,
+		externalNetwork: false,
+		requiresHumanConfirmation: false,
+		confidence: 1
+	});
+	const decision = createHarnessCoreAuthorizedGovernorDecision({
+		envelope,
+		tool_name: toolName,
+		restrictions: {
+			network_allowed: false,
+			write_allowed: mutationClass === 'writes_files' || mutationClass === 'launches_mission',
+			publish_allowed: false
+		}
+	});
+	return governorHmacKey
+		? signHarnessCoreGovernorDecision(decision, {
+				key: governorHmacKey,
+				key_id: governorHmacKeyId
+			})
+		: decision;
+}
+
+function startLocalProvider() {
+	return new Promise((resolve, reject) => {
+		const server = createServer(async (request, response) => {
+			if (request.method !== 'POST' || request.url !== '/v1/chat/completions') {
+				response.writeHead(404).end();
+				return;
+			}
+			for await (const _chunk of request) {
+				// Drain the request before returning the deterministic local response.
+			}
+			response.writeHead(200, {
+				'content-type': 'text/event-stream',
+				'cache-control': 'no-cache'
+			});
+			response.end(
+				`data: ${JSON.stringify({
+					choices: [{ delta: { content: 'Local mission surface smoke completed.' } }]
+				})}\n\ndata: [DONE]\n\n`
+			);
+		});
+		const onError = (error) => reject(error);
+		server.once('error', onError);
+		server.listen(0, '127.0.0.1', () => {
+			server.off('error', onError);
+			const address = server.address();
+			if (!address || typeof address === 'string') {
+				reject(new Error('Local provider did not bind to a TCP port'));
+				return;
+			}
+			server.unref();
+			resolve({ server, baseUrl: `http://127.0.0.1:${address.port}/v1` });
+		});
+	});
 }
 
 function parseJson(text, path) {
@@ -99,25 +177,6 @@ function findMission(board, bucket) {
 	return (board?.[bucket] || []).find((entry) => entry.missionId === missionId);
 }
 
-async function relay(type, data = {}) {
-	return postJson('/api/events', {
-		type,
-		missionId,
-		missionName: projectName,
-		taskId: data.taskId,
-		taskName: data.taskName,
-		message: data.message,
-		source: data.source || 'smoke-script',
-		timestamp: new Date().toISOString(),
-		data: {
-			requestId,
-			plannedTasks: tasks.map((task) => ({ title: task.title, skills: task.skills })),
-			telegramRelay: { profile: 'smoke', port: 3333 },
-			...data.data
-		}
-	});
-}
-
 const checks = [];
 async function check(name, fn) {
 	try {
@@ -127,6 +186,31 @@ async function check(name, fn) {
 		checks.push({ name, ok: false, detail: error instanceof Error ? error.message : String(error) });
 	}
 }
+
+const localProvider = await startLocalProvider();
+
+await check('create governed pending PRD request', async () => {
+	const result = await postJson('/api/prd-bridge/write', {
+		content: [
+			'# Spark Mission Surface Smoke',
+			'',
+			'Exercise the local PRD, Canvas, Kanban, mission detail, trace, and Spark agent surfaces.',
+			'Do not dispatch a real provider, use external network access, or publish anything.'
+		].join('\n'),
+		requestId,
+		projectName,
+		buildMode: 'direct',
+		buildLane: 'direct',
+		forceDispatch: true,
+		executionAuthority: governedAuthority({
+			toolName: 'spawner.prd.write',
+			mutationClass: 'writes_files',
+			reason: 'Exercise the governed PRD-to-mission surface flow in an isolated runtime.'
+		})
+	});
+	if (result?.success !== true) throw new Error('Governed pending request was not created');
+	return requestId;
+});
 
 await check('store PRD result', async () => {
 	const result = await postJson('/api/prd-bridge/result', {
@@ -160,21 +244,71 @@ await check('load mission canvas without auto-run', async () => {
 	return result.canvasUrl;
 });
 
-await check('relay mission lifecycle to completion', async () => {
-	await relay('dispatch_started', {
-		message: 'Surface smoke dispatch started.',
-		data: { providers: ['codex'] }
+await check('complete an authenticated local provider dispatch', async () => {
+	const provider = {
+		id: 'openai',
+		label: 'Local OpenAI-Compatible Smoke',
+		model: 'smoke-model',
+		enabled: true,
+		kind: 'openai_compat',
+		eventSource: 'local-smoke-provider',
+		capabilities: ['review'],
+		executesFilesystem: false,
+		requiresApiKey: true,
+		apiKeyEnv: 'OPENAI_API_KEY',
+		baseUrl: localProvider.baseUrl
+	};
+	const result = await postJson('/api/dispatch', {
+		executionPack: {
+			enabled: true,
+			strategy: 'single',
+			primaryProviderId: provider.id,
+			providers: [provider],
+			assignments: {
+				[provider.id]: {
+					providerId: provider.id,
+					mode: 'review',
+					taskIds: tasks.map((task) => task.id)
+				}
+			},
+			mcpTaskPlans: Object.fromEntries(
+				tasks.map((task) => [
+					task.id,
+					{
+						taskId: task.id,
+						taskTitle: task.title,
+						status: 'not_needed',
+						requiredCapabilities: [],
+						toolCalls: []
+					}
+				])
+			),
+			blockedTaskIds: [],
+			masterPrompt: `Mission: ${projectName}`,
+			providerPrompts: {
+				[provider.id]: 'Return one short sentence confirming the isolated mission surface smoke.'
+			},
+			launchCommands: {},
+			createdAt: new Date().toISOString(),
+			missionId
+		},
+		apiKeys: { [provider.id]: 'local-smoke-provider-key' },
+		relay: {
+			requestId,
+			traceRef: `trace:spawner-prd:${missionId}`,
+			pipelineId: `prd-${requestId}`,
+			autoRun: true
+		},
+		executionAuthority: governedAuthority({
+			toolName: 'spawner.dispatch',
+			mutationClass: 'launches_mission',
+			reason: 'Authorize a loopback-only provider session for the isolated mission surface smoke.'
+		})
 	});
-	for (const task of tasks) {
-		await relay('task_started', { taskId: task.id, taskName: task.title });
-		await relay('task_completed', { taskId: task.id, taskName: task.title });
+	if (result?.success !== true || result?.missionId !== missionId) {
+		throw new Error(`Local provider dispatch did not start: ${JSON.stringify(result)}`);
 	}
-	await relay('mission_completed', {
-		source: 'codex',
-		message: 'Mission surface smoke completed.',
-		data: { provider: 'codex', response: 'Mission surface smoke completed.' }
-	});
-	return 'completed';
+	return missionId;
 });
 
 await check('Kanban board shows completed task rollup', async () => {
@@ -183,15 +317,20 @@ await check('Kanban board shows completed task rollup', async () => {
 		if (body?.ok !== true) throw new Error('Board response was not ok');
 		return findMission(body.board, 'completed');
 	});
-	if (entry.taskStatusCounts?.completed !== tasks.length || entry.taskStatusCounts?.total !== tasks.length) {
+	if (
+		entry.taskStatusCounts?.completed < tasks.length ||
+		entry.taskStatusCounts?.completed !== entry.taskStatusCounts?.total ||
+		entry.taskStatusCounts?.failed !== 0 ||
+		entry.taskStatusCounts?.cancelled !== 0
+	) {
 		throw new Error(`Unexpected task counts: ${JSON.stringify(entry.taskStatusCounts)}`);
 	}
 	return `${entry.taskStatusCounts.completed}/${entry.taskStatusCounts.total} complete`;
 });
 
-await check('Mission detail route stays inspectable', async () => {
-	await getHtml(`/missions/${missionId}`, `/missions/${missionId}`);
-	return `/missions/${missionId}`;
+await check('Mission detail link resolves to canonical Kanban view', async () => {
+	await getHtml(`/missions/${missionId}`, '/kanban');
+	return `/kanban?mission=${missionId}`;
 });
 
 await check('Canvas route stays mission-scoped', async () => {
@@ -212,8 +351,12 @@ await check('Trace stitches mission, canvas, kanban, and dispatch', async () => 
 	if (trace.surfaces?.kanban?.bucket !== 'completed') {
 		throw new Error(`Trace Kanban bucket mismatch: ${trace.surfaces?.kanban?.bucket}`);
 	}
-	if (trace.surfaces?.dispatch?.lastReason !== 'Mission completed from lifecycle event') {
-		throw new Error(`Trace dispatch reason mismatch: ${trace.surfaces?.dispatch?.lastReason}`);
+	if (
+		trace.surfaces?.dispatch?.allComplete !== true ||
+		trace.surfaces?.dispatch?.anyFailed !== false ||
+		trace.surfaces?.dispatch?.providers?.openai !== 'completed'
+	) {
+		throw new Error(`Trace dispatch state mismatch: ${JSON.stringify(trace.surfaces?.dispatch)}`);
 	}
 	if (trace.timeline?.[0]?.eventType !== 'mission_completed') {
 		throw new Error(`Trace timeline did not end with mission_completed: ${trace.timeline?.[0]?.eventType}`);
@@ -236,3 +379,5 @@ for (const result of checks) {
 if (checks.some((result) => !result.ok)) {
 	process.exitCode = 1;
 }
+
+await new Promise((resolve) => localProvider.server.close(resolve));
