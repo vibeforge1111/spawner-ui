@@ -66,8 +66,9 @@
 		"yaml": "^2.8.2"
 	},
 	"dependencies": {
-		"@spark/harness-core": "file:vendor/harness-core",
+		"@hono/node-server": "2.0.11",
 		"@modelcontextprotocol/sdk": "^1.25.2",
+		"@spark/harness-core": "file:vendor/harness-core",
 		"@types/three": "^0.182.0",
 		"croner": "^10.0.1",
 		"dompurify": "^3.3.1",
