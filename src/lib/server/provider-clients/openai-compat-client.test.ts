@@ -17,6 +17,7 @@ const provider: MultiLLMProviderConfig = {
 
 afterEach(() => {
 	vi.unstubAllGlobals();
+	vi.unstubAllEnvs();
 	vi.restoreAllMocks();
 });
 
@@ -86,5 +87,72 @@ describe('openai-compat-client', () => {
 		expect(result).toMatchObject({ success: true, response: 'done' });
 		expect(cancel).toHaveBeenCalledOnce();
 		expect(fetchMock).toHaveBeenCalledTimes(2);
+	});
+
+	it('preserves configured reasoning effort and service tier in compatible requests', async () => {
+		vi.stubEnv('SPARK_OPENAI_REASONING_EFFORT', ' high ');
+		vi.stubEnv('SPARK_OPENAI_SERVICE_TIER', ' priority ');
+		const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
+			const body = JSON.parse(String(init?.body || '{}'));
+			expect(body).toMatchObject({
+				model: 'test-model',
+				reasoning_effort: 'high',
+				service_tier: 'priority'
+			});
+			return new Response(
+				JSON.stringify({
+					choices: [{ message: { content: 'configured' } }],
+					usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }
+				}),
+				{ status: 200, headers: { 'content-type': 'application/json' } }
+			);
+		});
+		vi.stubGlobal('fetch', fetchMock);
+
+		const result = await executeOpenAICompatRequest(
+			{
+				provider,
+				apiKey: 'test-api-key',
+				missionId: 'mission-openai-compatible-options',
+				onEvent: () => undefined
+			},
+			[{ role: 'user', content: 'Use configured request options' }],
+			false
+		);
+
+		expect(result).toMatchObject({ success: true, response: 'configured' });
+		expect(fetchMock).toHaveBeenCalledOnce();
+	});
+
+	it('does not add optional OpenAI fields when their environment values are blank', async () => {
+		vi.stubEnv('SPARK_OPENAI_REASONING_EFFORT', ' ');
+		vi.stubEnv('SPARK_OPENAI_SERVICE_TIER', '');
+		const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
+			const body = JSON.parse(String(init?.body || '{}'));
+			expect(body).not.toHaveProperty('reasoning_effort');
+			expect(body).not.toHaveProperty('service_tier');
+			return new Response(
+				JSON.stringify({
+					choices: [{ message: { content: 'default' } }],
+					usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }
+				}),
+				{ status: 200, headers: { 'content-type': 'application/json' } }
+			);
+		});
+		vi.stubGlobal('fetch', fetchMock);
+
+		const result = await executeOpenAICompatRequest(
+			{
+				provider,
+				apiKey: 'test-api-key',
+				missionId: 'mission-openai-compatible-defaults',
+				onEvent: () => undefined
+			},
+			[{ role: 'user', content: 'Use default request options' }],
+			false
+		);
+
+		expect(result).toMatchObject({ success: true, response: 'default' });
+		expect(fetchMock).toHaveBeenCalledOnce();
 	});
 });

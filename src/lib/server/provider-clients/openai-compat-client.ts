@@ -59,6 +59,16 @@ export async function executeOpenAICompatRequest(
 		}
 
 		try {
+			const reasoningEffort = (
+				process.env.SPARK_OPENAI_REASONING_EFFORT ||
+				process.env.OPENAI_REASONING_EFFORT ||
+				''
+			).trim();
+			const serviceTier = (
+				process.env.SPARK_OPENAI_SERVICE_TIER ||
+				process.env.OPENAI_SERVICE_TIER ||
+				''
+			).trim();
 			const response = await fetch(`${baseUrl}/chat/completions`, {
 				method: 'POST',
 				headers: {
@@ -71,7 +81,9 @@ export async function executeOpenAICompatRequest(
 					messages,
 					stream: streaming,
 					max_tokens: 16384,
-					...(streaming ? { stream_options: { include_usage: true } } : {})
+					...(streaming ? { stream_options: { include_usage: true } } : {}),
+					...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
+					...(serviceTier ? { service_tier: serviceTier } : {})
 				}),
 				signal
 			});
