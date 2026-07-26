@@ -213,7 +213,7 @@ export function addNode(skill: Skill, position: { x: number; y: number }): strin
 	pushHistory();
 
 	nodeIdCounter++;
-	const id = 'node-' + nodeIdCounter + '-' + Math.random().toString(36).slice(2, 8);
+	const id = 'node-' + nodeIdCounter + '-' + crypto.randomUUID().replace(/-/g, '').slice(0, 8);
 	const node: CanvasNode = {
 		id,
 		skillId: skill.id,
@@ -249,7 +249,7 @@ export function addNodesWithConnections(
 	// Add all nodes
 	for (const nodeDef of nodeDefs) {
 		nodeIdCounter++;
-		const id = 'node-' + nodeIdCounter + '-' + Math.random().toString(36).slice(2, 8);
+		const id = 'node-' + nodeIdCounter + '-' + crypto.randomUUID().replace(/-/g, '').slice(0, 8);
 		const node: CanvasNode = {
 			id,
 			skillId: nodeDef.skill.id,
@@ -406,6 +406,20 @@ export function deleteSelected() {
 // Clipboard for copy/paste
 let clipboard: { nodes: CanvasNode[]; connections: Connection[] } | null = null;
 
+export function cloneCanvasSelectionForClipboard(
+	nodes: CanvasNode[],
+	connections: Connection[]
+): { nodes: CanvasNode[]; connections: Connection[] } | null {
+	try {
+		return JSON.parse(JSON.stringify({ nodes, connections })) as {
+			nodes: CanvasNode[];
+			connections: Connection[];
+		};
+	} catch {
+		return null;
+	}
+}
+
 export function duplicateSelected(): string[] {
 	const state = get(canvasState);
 	if (state.selectedNodeIds.length === 0) return [];
@@ -420,7 +434,7 @@ export function duplicateSelected(): string[] {
 
 	nodesToDuplicate.forEach((node) => {
 		nodeIdCounter++;
-		const newId = 'node-' + nodeIdCounter + '-' + Math.random().toString(36).slice(2, 8);
+		const newId = 'node-' + nodeIdCounter + '-' + crypto.randomUUID().replace(/-/g, '').slice(0, 8);
 		idMap[node.id] = newId;
 		newNodeIds.push(newId);
 
@@ -462,10 +476,7 @@ export function copySelected() {
 		(c) => state.selectedNodeIds.includes(c.sourceNodeId) && state.selectedNodeIds.includes(c.targetNodeId)
 	);
 
-	clipboard = {
-		nodes: JSON.parse(JSON.stringify(nodesToCopy)),
-		connections: JSON.parse(JSON.stringify(connectionsToCopy))
-	};
+	clipboard = cloneCanvasSelectionForClipboard(nodesToCopy, connectionsToCopy);
 }
 
 export function pasteFromClipboard(): string[] {
@@ -478,7 +489,7 @@ export function pasteFromClipboard(): string[] {
 	// Create new nodes from clipboard
 	const newNodes: CanvasNode[] = clipboard.nodes.map((node) => {
 		nodeIdCounter++;
-		const newId = 'node-' + nodeIdCounter + '-' + Math.random().toString(36).slice(2, 8);
+		const newId = 'node-' + nodeIdCounter + '-' + crypto.randomUUID().replace(/-/g, '').slice(0, 8);
 		idMap[node.id] = newId;
 		newNodeIds.push(newId);
 

@@ -1,10 +1,12 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
+	import { onDestroy } from 'svelte';
 
 	interface Props {
 		text: string;
 		position?: 'top' | 'bottom' | 'left' | 'right';
 		delay?: number;
+		wrap?: boolean;
 		class?: string;
 		children: Snippet;
 	}
@@ -13,12 +15,21 @@
 		text,
 		position = 'top',
 		delay = 200,
+		wrap = false,
 		class: className = '',
 		children
 	}: Props = $props();
 
 	let visible = $state(false);
 	let timeoutId: ReturnType<typeof setTimeout> | null = null;
+	const tooltipId = `tooltip-${Math.random().toString(36).slice(2, 10)}`;
+
+	onDestroy(() => {
+		if (timeoutId) {
+			clearTimeout(timeoutId);
+			timeoutId = null;
+		}
+	});
 
 	const positionClasses = {
 		top: 'bottom-full left-1/2 -translate-x-1/2 mb-2',
@@ -56,13 +67,15 @@
 	onmouseleave={hideTooltip}
 	onfocus={showTooltip}
 	onblur={hideTooltip}
+	aria-describedby={visible && text ? tooltipId : undefined}
 >
 	{@render children()}
 
 	{#if visible && text}
 		<div
-			class="tooltip {positionClasses[position]} whitespace-nowrap"
+			class="tooltip {positionClasses[position]} {wrap ? 'max-w-80 whitespace-normal text-left leading-5' : 'whitespace-nowrap'}"
 			role="tooltip"
+			id={tooltipId}
 		>
 			{text}
 			<span class="absolute w-0 h-0 border-4 {arrowClasses[position]}"></span>

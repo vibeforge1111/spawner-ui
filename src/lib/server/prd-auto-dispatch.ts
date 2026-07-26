@@ -1,5 +1,4 @@
 import { env } from '$env/dynamic/private';
-import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { CanvasNode, Connection } from '$lib/stores/canvas.svelte';
 import { eventBridge, type BridgeEvent } from '$lib/services/event-bridge';
@@ -28,7 +27,11 @@ import {
 	resolveExecutionAuthority,
 	type HarnessAuthorityVerdict
 } from '$lib/server/harness-authority';
-import { spawnerStateDir } from '$lib/server/spawner-state';
+import {
+	recheckSparkRunProjectPath,
+	resolveSparkRunProjectPath,
+	sparkWorkspaceRoot
+} from '$lib/server/spark-run-workspace';
 
 interface PrdAutoSkill {
 	id?: string;
@@ -91,6 +94,7 @@ const NO_BUILD_INCOMPATIBLE_SKILLS = new Set([
 
 export interface PrdAutoDispatchOptions {
 	allowExistingNonTerminalMission?: boolean;
+	beforeFinalProjectPathCheck?: (projectPath: string) => void | Promise<void>;
 }
 
 function normalizeProviderId(value: string | undefined): string | null {
@@ -350,12 +354,21 @@ function slugPart(value: string): string {
 	);
 }
 
-function hostedWorkspaceRoot(envRecord: Record<string, string | undefined>): string | null {
-	return envRecord.SPAWNER_WORKSPACE_ROOT?.trim() || envRecord.SPARK_WORKSPACE_ROOT?.trim() || null;
+function hasConfiguredWorkspaceRoot(envRecord: Record<string, string | undefined>): boolean {
+	return Boolean(
+		envRecord.SPARK_WORKSPACE_ROOT?.trim() ||
+		envRecord.SPAWNER_WORKSPACE_ROOT?.trim()
+	);
 }
 
-function generatedProjectRoot(envRecord: Record<string, string | undefined>): string {
-	return envRecord.SPAWNER_STATE_DIR?.trim() || spawnerStateDir();
+function hasEvidenceOnlyProjectPath(load: PrdCanvasLoadForAutoDispatch): boolean {
+	const evidence = load.relay?.projectPathEvidence;
+	return Boolean(
+		evidence &&
+		typeof evidence === 'object' &&
+		!Array.isArray(evidence) &&
+		(evidence as Record<string, unknown>).evidenceOnly === true
+	);
 }
 
 function relayProjectLineagePath(load: PrdCanvasLoadForAutoDispatch): string | null {
@@ -367,24 +380,58 @@ function relayProjectLineagePath(load: PrdCanvasLoadForAutoDispatch): string | n
 
 export function inferProjectPathFromPrdLoad(
 	load: PrdCanvasLoadForAutoDispatch,
-	envRecord: Record<string, string | undefined> = env as Record<string, string | undefined>
+	envRecord: Record<string, string | undefined> = process.env
 ): string {
-	const lineagePath = relayProjectLineagePath(load);
-	if (lineagePath) return lineagePath;
+	const evidenceOnly = hasEvidenceOnlyProjectPath(load);
+	if (!evidenceOnly) {
+		const lineagePath = relayProjectLineagePath(load);
+		if (lineagePath) return lineagePath;
 
-	const text = [
-		load.executionPrompt || '',
-		typeof load.relay?.goal === 'string' ? load.relay.goal : ''
-	].join('\n');
-	const explicitPath = extractExplicitProjectPath(text);
-	if (explicitPath) return explicitPath;
-
-	const workspaceRoot = hostedWorkspaceRoot(envRecord);
-	if (workspaceRoot) {
-		return join(workspaceRoot, `${slugPart(load.missionId)}-${slugPart(load.pipelineName)}`);
+		const text = [
+			load.executionPrompt || '',
+			typeof load.relay?.goal === 'string' ? load.relay.goal : ''
+		].join('\n');
+		const explicitPath = extractExplicitProjectPath(text);
+		if (explicitPath) return explicitPath;
 	}
 
-	return join(generatedProjectRoot(envRecord), 'generated-projects', `${slugPart(load.missionId)}-${slugPart(load.pipelineName)}`);
+	const workspaceRoot = sparkWorkspaceRoot(envRecord);
+	const generatedName = `${slugPart(load.missionId)}-${slugPart(load.pipelineName)}`;
+	return hasConfiguredWorkspaceRoot(envRecord)
+		? join(workspaceRoot, generatedName)
+		: join(workspaceRoot, 'generated-projects', generatedName);
+}
+
+export function _resolvedProjectRelay(
+	load: PrdCanvasLoadForAutoDispatch,
+	projectPath: string
+): Record<string, unknown> {
+	const relay = load.relay ? { ...load.relay } : {};
+	if (!hasEvidenceOnlyProjectPath(load)) return relay;
+
+	const lineage = relay.projectLineage;
+	const lineageRecord = lineage && typeof lineage === 'object' && !Array.isArray(lineage)
+		? lineage as Record<string, unknown>
+		: {};
+	const {
+		projectPath: _rejectedProjectPath,
+		project_path: _rejectedProjectPathSnake,
+		previewUrl: _rejectedPreviewUrl,
+		preview_url: _rejectedPreviewUrlSnake,
+		openUrl: _rejectedOpenUrl,
+		open_url: _rejectedOpenUrlSnake,
+		projectId: _rejectedProjectId,
+		project_id: _rejectedProjectIdSnake,
+		...preservedLineage
+	} = lineageRecord;
+	delete relay.goal;
+	return {
+		...relay,
+		projectLineage: {
+			...preservedLineage,
+			projectPath
+		}
+	};
 }
 
 function plannedTasksFromMission(
@@ -452,8 +499,8 @@ export async function autoDispatchPrdCanvasLoad(
 		}
 
 		const graph = canvasLoadToMissionGraph(load);
-		const projectPath = inferProjectPathFromPrdLoad(load);
-		await mkdir(projectPath, { recursive: true });
+		const requestedProjectPath = inferProjectPathFromPrdLoad(load);
+		const projectPath = resolveSparkRunProjectPath(requestedProjectPath);
 		const provider = resolveRelayMissionProvider(
 			DEFAULT_MULTI_LLM_PROVIDERS.map(configuredProvider),
 			getSparkDefaultProviderId()
@@ -517,7 +564,7 @@ export async function autoDispatchPrdCanvasLoad(
 		const apiKeys = _providerApiKeysFromEnv(executionPack.providers);
 
 		const relayData = {
-			...load.relay,
+			..._resolvedProjectRelay(load, projectPath),
 			...(load.traceRef ? { traceRef: load.traceRef } : {}),
 			pipelineId: load.pipelineId || null,
 			missionName: load.pipelineName,
@@ -541,26 +588,29 @@ export async function autoDispatchPrdCanvasLoad(
 			};
 			eventBridge.emit(event);
 			void relayMissionControlEvent(event as unknown as MissionControlBridgeEvent);
+			if (bridgeEvent.type === 'dispatch_started') {
+				const missionStartedEvent: BridgeEvent = {
+					type: 'mission_started',
+					missionId: load.missionId,
+					source: 'prd-auto-dispatch',
+					timestamp: bridgeEvent.timestamp || new Date().toISOString(),
+					message: `Auto-started ${load.pipelineName} with ${provider.label}`,
+					data: relayData
+				};
+				eventBridge.emit(missionStartedEvent);
+				void relayMissionControlEvent({
+					...missionStartedEvent,
+					missionName: load.pipelineName
+				});
+			}
 		};
 
-		const missionStartedEvent: BridgeEvent = {
-			type: 'mission_started',
-			missionId: load.missionId,
-			source: 'prd-auto-dispatch',
-			timestamp: new Date().toISOString(),
-			message: `Auto-started ${load.pipelineName} with ${provider.label}`,
-			data: relayData
-		};
-		eventBridge.emit(missionStartedEvent);
-		void relayMissionControlEvent({
-			...missionStartedEvent,
-			missionName: load.pipelineName
-		});
-
+		await options.beforeFinalProjectPathCheck?.(projectPath);
+		const dispatchProjectPath = recheckSparkRunProjectPath(projectPath);
 		await providerRuntime.dispatch({
 			executionPack,
 			apiKeys,
-			workingDirectory: projectPath,
+			workingDirectory: dispatchProjectPath,
 			executionAuthority,
 			authorityRequestId: load.requestId,
 			traceRef: load.traceRef || null,

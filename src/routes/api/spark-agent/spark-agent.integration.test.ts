@@ -4,13 +4,16 @@ import { POST as command } from './command/+server';
 import { GET as events } from './events/+server';
 import { GET as canvasState } from './canvas-state/+server';
 import { POST as endSession } from './session/end/+server';
-import { sparkAgentBridge } from '$lib/services/spark-agent-bridge';
+import {
+	sparkAgentBridge,
+	type SparkAgentBridgeEvent
+} from '$lib/services/spark-agent-bridge';
 import { getConnections } from '$lib/services/mcp/client';
 import {
-	buildClientGovernorDecisionAuthority,
-	buildClientTurnIntentVNextAuthority,
-	type SparkClientMutationClass
-} from '$lib/services/harness-authority-client';
+	buildServerGovernorDecisionAuthority,
+	buildServerTurnIntentVNextAuthority,
+	type SparkMutationClass
+} from '$lib/server/harness-authority';
 
 const TEST_API_KEY = 'spark-agent-route-test-secret';
 const originalMcpApiKey = process.env.MCP_API_KEY;
@@ -46,11 +49,11 @@ async function readChunk(response: Response, timeoutMs = 1000): Promise<string> 
 
 function commandAuthority(input: {
 	toolName: string;
-	mutationClass: SparkClientMutationClass;
+	mutationClass: SparkMutationClass;
 	target?: string;
 	externalNetwork?: boolean;
 }) {
-	return buildClientGovernorDecisionAuthority({
+	return buildServerGovernorDecisionAuthority({
 		source: 'spark-agent.integration.test',
 		reason: `Focused Spark Agent authority regression for ${input.toolName}.`,
 		toolName: input.toolName,
@@ -62,11 +65,11 @@ function commandAuthority(input: {
 
 function commandVNextAuthority(input: {
 	toolName: string;
-	mutationClass: SparkClientMutationClass;
+	mutationClass: SparkMutationClass;
 	target?: string;
 	externalNetwork?: boolean;
 }) {
-	return buildClientTurnIntentVNextAuthority({
+	return buildServerTurnIntentVNextAuthority({
 		source: 'spark-agent.integration.test',
 		reason: `Focused Spark Agent bare-VNext regression for ${input.toolName}.`,
 		toolName: input.toolName,
@@ -87,6 +90,36 @@ afterEach(() => {
 });
 
 describe('/api/spark-agent integration', () => {
+	it('unsubscribes the Spark Agent bridge when enqueue fails after reader disconnect', async () => {
+		const session = sparkAgentBridge.startSession({ sessionId: 'packet-204-sse' });
+		let subscriber: ((event: SparkAgentBridgeEvent) => void) | undefined;
+		const unsubscribe = vi.fn();
+		vi.spyOn(sparkAgentBridge, 'subscribe').mockImplementation((_sessionId, callback) => {
+			subscriber = callback;
+			return unsubscribe;
+		});
+		const url = new URL(
+			`http://localhost/api/spark-agent/events?sessionId=${session.id}`
+		);
+		const response = await events({
+			request: new Request(url, { headers: authHeaders() }),
+			url
+		} as never);
+		const reader = response.body!.getReader();
+		await reader.read();
+		await reader.cancel();
+
+		subscriber?.({
+			id: 'packet-204-event',
+			sessionId: session.id,
+			type: 'packet-204-disconnect',
+			timestamp: new Date().toISOString(),
+			data: {}
+		});
+
+		expect(unsubscribe).toHaveBeenCalledOnce();
+	});
+
 	it('rejects non-local requests without an API key', async () => {
 		const response = await command({
 			request: new Request('https://example.com/api/spark-agent/command', {

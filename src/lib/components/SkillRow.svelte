@@ -58,7 +58,7 @@
 	</div>
 
 	<!-- Arrow -->
-	<div class="flex-shrink-0 text-accent-primary opacity-0 group-hover:opacity-100 transition-opacity">
+	<div class="flex-shrink-0 text-accent-primary transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100">
 		<Icon name="chevron-right" size={16} />
 	</div>
 </a>

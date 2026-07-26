@@ -59,4 +59,17 @@ describe('memory dashboard aggregates', () => {
 		expect(insights.map((memory) => memory.status)).toEqual(['risky', 'stale', 'needs review', 'reinforce']);
 		expect(insights[0].recommendedAction).toBe('archive');
 	});
+
+	it('sorts malformed timestamps after valid timestamps within the same priority', () => {
+		const [first, second] = sampleMemoryDashboardRecords();
+		const insights = selectActionableInsights(
+			[
+				{ ...first, id: 'malformed-time', status: 'risky', lastTouchedAt: 'not-a-date' },
+				{ ...second, id: 'valid-time', status: 'risky', lastTouchedAt: '2026-04-01T00:00:00.000Z' }
+			],
+			now
+		);
+
+		expect(insights.map((memory) => memory.id)).toEqual(['valid-time', 'malformed-time']);
+	});
 });

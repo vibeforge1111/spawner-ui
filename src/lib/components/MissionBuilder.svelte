@@ -27,6 +27,8 @@
 	let techStack = $state('');
 	let goals = $state('');
 	let showPrompt = $state(false);
+	let promptCopyState = $state<'idle' | 'copied' | 'failed'>('idle');
+	let promptCopyTimer: ReturnType<typeof setTimeout> | null = null;
 
 	// Get agents from stack store
 	let agentsList = $state<Array<{id: string; name: string; role: string; skills: string[]; model?: 'sonnet' | 'opus' | 'haiku'}>>([]);
@@ -61,6 +63,7 @@
 
 	onDestroy(() => {
 		stopLogPolling();
+		if (promptCopyTimer) clearTimeout(promptCopyTimer);
 	});
 
 	function addTask() {
@@ -113,16 +116,26 @@
 	}
 
 	async function handleDeleteMission(missionId: string) {
-		if (confirm('Are you sure you want to delete this mission?')) {
+		const name = $currentMission?.name?.trim() || 'this mission';
+		if (confirm(`Delete "${name}"? This cannot be undone.`)) {
 			await deleteMission(missionId);
 		}
 	}
 
-	function copyPromptToClipboard() {
-		if ($currentMission) {
-			const prompt = generateClaudeCodePrompt($currentMission);
-			navigator.clipboard.writeText(prompt);
+	async function copyPromptToClipboard() {
+		if (!$currentMission) return;
+		const prompt = generateClaudeCodePrompt($currentMission);
+		try {
+			await navigator.clipboard.writeText(prompt);
+			promptCopyState = 'copied';
+		} catch {
+			promptCopyState = 'failed';
 		}
+		if (promptCopyTimer) clearTimeout(promptCopyTimer);
+		promptCopyTimer = setTimeout(() => {
+			promptCopyTimer = null;
+			promptCopyState = 'idle';
+		}, 2000);
 	}
 
 	function getStatusColor(status: string): string {
@@ -159,6 +172,13 @@
 			default:
 				return '*';
 		}
+	}
+
+	function formatLogTime(value: string | null | undefined): string {
+		if (!value) return '';
+		const date = new Date(value);
+		if (Number.isNaN(date.getTime())) return value;
+		return date.toLocaleTimeString();
 	}
 </script>
 
@@ -199,7 +219,7 @@
 									<span class="text-xs px-2 py-1 rounded {getStatusColor(mission.status)}">{mission.status}</span>
 								</div>
 								<p class="text-xs text-zinc-500 mt-1">
-									{mission.agents.length} agents, {mission.tasks.length} tasks
+									{mission.agents.length} agent{mission.agents.length === 1 ? '' : 's'}, {mission.tasks.length} task{mission.tasks.length === 1 ? '' : 's'}
 								</p>
 							</button>
 						{/each}
@@ -294,8 +314,9 @@
 										type="button"
 										class="text-xs px-2 py-1 bg-violet-600 hover:bg-violet-500 rounded"
 										onclick={copyPromptToClipboard}
+										aria-live="polite"
 									>
-										Copy
+										{promptCopyState === 'copied' ? 'Copied' : promptCopyState === 'failed' ? 'Copy failed' : 'Copy'}
 									</button>
 								</div>
 								<pre class="text-xs text-zinc-400 whitespace-pre-wrap max-h-48 overflow-y-auto">{generateClaudeCodePrompt($currentMission)}</pre>
@@ -309,7 +330,7 @@
 								<div class="space-y-1 max-h-48 overflow-y-auto bg-zinc-800/50 rounded-lg p-2">
 									{#each $missionLogs as log}
 										<div class="text-xs font-mono flex gap-2">
-											<span class="text-zinc-600">{new Date(log.created_at).toLocaleTimeString()}</span>
+											<span class="text-zinc-600">{formatLogTime(log.created_at)}</span>
 											<span class="w-4">{getLogTypeIcon(log.type)}</span>
 											<span class="{log.type === 'error' ? 'text-red-400' : 'text-zinc-300'}">{log.message}</span>
 										</div>
@@ -330,7 +351,7 @@
 								type="text"
 								bind:value={missionName}
 								placeholder="e.g., Build User Dashboard"
-								class="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm focus:border-violet-500 focus:outline-none"
+								class="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-base focus:border-violet-500 focus:outline-none"
 							/>
 						</div>
 
@@ -341,7 +362,7 @@
 								bind:value={missionDescription}
 								placeholder="What should be built?"
 								rows="2"
-								class="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm focus:border-violet-500 focus:outline-none resize-none"
+								class="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-base focus:border-violet-500 focus:outline-none resize-none"
 							></textarea>
 						</div>
 
@@ -353,7 +374,7 @@
 									type="text"
 									bind:value={projectPath}
 									placeholder="/path/to/project"
-									class="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm focus:border-violet-500 focus:outline-none"
+									class="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-base focus:border-violet-500 focus:outline-none"
 								/>
 							</div>
 							<div>
@@ -361,7 +382,7 @@
 								<select
 									id="project-type"
 									bind:value={projectType}
-									class="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm focus:border-violet-500 focus:outline-none"
+									class="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-base focus:border-violet-500 focus:outline-none"
 								>
 									<option value="saas">SaaS</option>
 									<option value="marketplace">Marketplace</option>
@@ -380,7 +401,7 @@
 								type="text"
 								bind:value={techStack}
 								placeholder="e.g., Next.js, Supabase, Tailwind"
-								class="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm focus:border-violet-500 focus:outline-none"
+								class="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-base focus:border-violet-500 focus:outline-none"
 							/>
 						</div>
 
@@ -391,7 +412,7 @@
 								bind:value={goals}
 								placeholder="What does success look like?"
 								rows="3"
-								class="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm focus:border-violet-500 focus:outline-none resize-none"
+								class="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-base focus:border-violet-500 focus:outline-none resize-none"
 							></textarea>
 						</div>
 
@@ -410,7 +431,8 @@
 												type="button"
 												class="text-red-400 hover:text-red-300"
 												onclick={() => removeTask(task.id)}
-											>x</button>
+												aria-label={`Remove task ${i + 1}: ${task.title}`}
+											><span aria-hidden="true">x</span></button>
 										</div>
 									{/each}
 								</div>
@@ -421,18 +443,21 @@
 									type="text"
 									bind:value={newTaskTitle}
 									placeholder="Task title"
-									class="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm focus:border-violet-500 focus:outline-none"
+									aria-label="New task title"
+									class="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-base focus:border-violet-500 focus:outline-none"
 								/>
 								<textarea
 									bind:value={newTaskDescription}
 									placeholder="Task description"
+									aria-label="New task description"
 									rows="2"
-									class="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm focus:border-violet-500 focus:outline-none resize-none"
+									class="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-base focus:border-violet-500 focus:outline-none resize-none"
 								></textarea>
 								<div class="flex gap-2">
 									<select
 										bind:value={newTaskAssignee}
-										class="flex-1 px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm focus:border-violet-500 focus:outline-none"
+										aria-label="Assign task to agent"
+										class="flex-1 px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-base focus:border-violet-500 focus:outline-none"
 									>
 										<option value="">Assign to agent...</option>
 										{#each agents as agent}
@@ -441,7 +466,8 @@
 									</select>
 									<select
 										bind:value={newTaskHandoffType}
-										class="px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm focus:border-violet-500 focus:outline-none"
+										aria-label="Task handoff type"
+										class="px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-base focus:border-violet-500 focus:outline-none"
 									>
 										<option value="sequential">Sequential</option>
 										<option value="parallel">Parallel</option>
@@ -484,3 +510,22 @@
 		</div>
 	{/if}
 </div>
+
+
+<style>
+	/* Restore a visible focus ring for keyboard users on the mission form.
+	   Tailwind utilities apply `focus:outline-none` to every input/textarea/select
+	   in this component; `focus:border-violet-500` alone is a sub-2:1 border-color
+	   shift against the surrounding zinc-700 border on a zinc-800 fill — which
+	   fails WCAG 2.4.7 (Focus Visible) and 1.4.11 (Non-text Contrast 3:1).
+	   The `:focus-visible` ring only activates on keyboard focus, so sighted mouse
+	   users see no change. */
+	input:focus-visible,
+	textarea:focus-visible,
+	select:focus-visible {
+		box-shadow:
+			0 0 0 2px rgb(139 92 246 / 0.7),
+			0 0 0 4px rgb(24 24 27);
+		border-color: rgb(139 92 246) !important;
+	}
+</style>

@@ -25,6 +25,7 @@
 	import { get } from 'svelte/store';
 	import { parseJsonResponse } from '$lib/services/http-response';
 	import { getEventsAuthHeaders } from '$lib/services/events-auth-client';
+	import { createPrdRequestId, createQueuedPipelineId } from '$lib/utils/runtime-id';
 
 	let {
 		onStart: _onStart,
@@ -69,10 +70,6 @@
 		nodes: { skill: Skill; position: { x: number; y: number } }[];
 		connections: { sourceIndex: number; targetIndex: number }[];
 	} | null = null;
-
-	function createQueuedPipelineId(): string {
-		return `pipe-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
-	}
 
 	async function handlePRDUpload(e: Event) {
 		const input = e.target as HTMLInputElement;
@@ -124,7 +121,7 @@
 							headers: { 'Content-Type': 'application/json' },
 							body: JSON.stringify({
 								content,
-								requestId: `prd-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+								requestId: createPrdRequestId(),
 								projectName: processingProjectName,
 								options: { includeSkills, includeMCPs }
 							})

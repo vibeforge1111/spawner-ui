@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { appendFile, readFile, writeFile, mkdir } from 'fs/promises';
+import { readFile, mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join } from 'path';
 import { relayMissionControlEvent } from '$lib/server/mission-control-relay';
@@ -15,8 +15,13 @@ import {
 	normalizeCapabilityProposalPacket
 } from '$lib/server/capability-proposal-packet';
 import { extractTraceRef, normalizeTraceRef, traceRefFromMissionId } from '$lib/server/trace-ref';
-import { pendingRequestFileForRequest, readPendingRequestRecord } from '$lib/server/prd-pending-requests';
+import {
+	pendingRequestFileForRequest,
+	readPendingPrdContent,
+	readPendingRequestRecord
+} from '$lib/server/prd-pending-requests';
 import { writeFileAtomic } from '$lib/server/atomic-write';
+import { appendPrdTraceWithContinuity } from '$lib/server/prd-trace-proof-continuity';
 import {
 	HarnessAuthorityError,
 	assertNativeGovernorHarnessAuthority,
@@ -26,6 +31,11 @@ import {
 import { stripAuthorityResidue } from '$lib/server/authority-residue';
 import { requireControlAuth } from '$lib/server/mcp-auth';
 import { parseJsonOrThrow } from '$lib/utils/safe-json';
+import {
+	expectedDeterministicArtifactTargetFromPending,
+	verifyWrittenDeterministicArtifactProof
+} from '$lib/server/prd-deterministic-artifact-proof';
+import { sparkWorkspaceRoot } from '$lib/server/spark-run-workspace';
 
 function getSpawnerDir(): string {
 	return spawnerStateDir();
@@ -54,13 +64,7 @@ function resultFilePath(requestId: string): string {
 
 async function appendPrdTrace(requestId: string, event: string, details: Record<string, unknown> = {}): Promise<void> {
 	try {
-		const row = {
-			ts: new Date().toISOString(),
-			requestId,
-			event,
-			...details
-		};
-		await appendFile(join(getSpawnerDir(), 'prd-auto-trace.jsonl'), `${JSON.stringify(row)}\n`, 'utf-8');
+		await appendPrdTraceWithContinuity({ stateDir: getSpawnerDir(), requestId, event, details });
 	} catch {
 		// Trace writes are evidence only; never fail the live build path.
 	}
@@ -298,7 +302,7 @@ export const POST: RequestHandler = async (event) => {
 				missionId: resolvedMissionId,
 				...traceRefDetails(resolvedTraceRef)
 			});
-			return json({ error: `No analysis result for ${requestId} yet` }, { status: 404 });
+			return json({ error: 'No analysis result found for that request.' }, { status: 404 });
 		}
 
 		const raw = await readFile(path, 'utf-8');
@@ -325,9 +329,26 @@ export const POST: RequestHandler = async (event) => {
 		const nodes = parsed.tasks.map(taskToNode);
 		const connections = buildConnections(parsed.tasks);
 		const canvasMaterialization = canvasMaterializationSummary(nodes);
-		const deterministicStaticResult =
-			parsed.projectType === 'static-exact-file-proof' || parsed.projectType === 'static-single-file-html';
-		let effectiveAutoRun = autoRun !== false && !deterministicStaticResult;
+		const [currentPrdContent, artifactPendingRequest] = await Promise.all([
+			readPendingPrdContent(spawnerDir, requestId),
+			readPendingRequestRecord(spawnerDir, requestId)
+		]);
+		const expectedArtifactTarget = expectedDeterministicArtifactTargetFromPending(artifactPendingRequest);
+		const deterministicArtifactVerification = currentPrdContent === null
+			? { ok: false, reason: 'artifact_proof_prd_content_missing', proof: null }
+			: !expectedArtifactTarget
+				? { ok: false, reason: 'artifact_proof_expected_target_missing', proof: null }
+			: verifyWrittenDeterministicArtifactProof({
+					metadata: parsed.metadata,
+					requestId,
+					prdContent: currentPrdContent,
+					projectType: parsed.projectType,
+					allowedRoots: [sparkWorkspaceRoot(), spawnerDir],
+					expectedTargetRoot: expectedArtifactTarget
+				});
+		let deterministicStaticArtifactsWritten = deterministicArtifactVerification.ok;
+		let deterministicArtifactProofChanged = false;
+		let effectiveAutoRun = autoRun !== false && !deterministicStaticArtifactsWritten;
 		let dispatchAuthority: unknown;
 		let dispatchAuthorityVerdict: HarnessAuthorityVerdict | undefined;
 		let dispatchAuthorityBlock: HarnessAuthorityVerdict | undefined;
@@ -373,6 +394,8 @@ export const POST: RequestHandler = async (event) => {
 				const pending = ((await readPendingRequestRecord(spawnerDir, requestId)) ?? {}) as {
 					requestId?: string;
 					relay?: Record<string, unknown>;
+					projectLineage?: unknown;
+					projectPathEvidence?: unknown;
 					buildMode?: 'direct' | 'advanced_prd';
 					buildModeReason?: string;
 					tier?: string;
@@ -391,9 +414,18 @@ export const POST: RequestHandler = async (event) => {
 					buildMode = pending.buildMode === 'advanced_prd' ? 'advanced_prd' : 'direct';
 					buildModeReason = typeof pending.buildModeReason === 'string' ? pending.buildModeReason : '';
 				}
-				if (pending.requestId === requestId && pending.relay) {
+				if (pending.requestId === requestId && (pending.relay || pending.projectPathEvidence)) {
+					const rawProjectPathEvidence = pending.projectPathEvidence ?? pending.relay?.projectPathEvidence;
+					const projectPathEvidence = rawProjectPathEvidence && typeof rawProjectPathEvidence === 'object' && !Array.isArray(rawProjectPathEvidence)
+						? (rawProjectPathEvidence as Record<string, unknown>)
+						: null;
+					const evidenceOnly = projectPathEvidence?.evidenceOnly === true;
 					relay = {
-						...pending.relay,
+						...(pending.relay || {}),
+						...(projectPathEvidence ? { projectPathEvidence } : {}),
+						...(!evidenceOnly && pending.projectLineage && !pending.relay?.projectLineage
+							? { projectLineage: pending.projectLineage }
+							: {}),
 						missionId: resolvedMissionId,
 						...(typeof pending.tier === 'string' ? { tier: pending.tier } : {}),
 						...(normalizedTelegramRelay ? { telegramRelay: normalizedTelegramRelay } : {}),
@@ -403,6 +435,10 @@ export const POST: RequestHandler = async (event) => {
 						buildMode,
 						buildModeReason
 					};
+					if (evidenceOnly) {
+						delete relay.goal;
+						delete relay.projectLineage;
+					}
 				}
 			} catch {
 				// Relay metadata is best-effort; canvas loading should still work.
@@ -491,10 +527,11 @@ export const POST: RequestHandler = async (event) => {
 		};
 
 		const persistedLoad = storedCanvasLoad(load);
-		await writeFile(pendingLoadFile, JSON.stringify(persistedLoad, null, 2), 'utf-8');
-		await writeFile(lastLoadFile, JSON.stringify(persistedLoad, null, 2), 'utf-8');
-		await writeFile(archivedLoadFileForPipeline(load.pipelineId), JSON.stringify(persistedLoad, null, 2), 'utf-8');
-		await writeFile(archivedLoadFileForMission(resolvedMissionId), JSON.stringify(persistedLoad, null, 2), 'utf-8');
+		const persistedLoadJson = JSON.stringify(persistedLoad, null, 2);
+		await writeFileAtomic(pendingLoadFile, persistedLoadJson);
+		await writeFileAtomic(lastLoadFile, persistedLoadJson);
+		await writeFileAtomic(archivedLoadFileForPipeline(load.pipelineId), persistedLoadJson);
+		await writeFileAtomic(archivedLoadFileForMission(resolvedMissionId), persistedLoadJson);
 		await appendPrdTrace(requestId, 'canvas_load_materialized', {
 			missionId: resolvedMissionId,
 			...traceRefDetails(resolvedTraceRef),
@@ -531,7 +568,7 @@ export const POST: RequestHandler = async (event) => {
 			// this request.
 			const scopedPendingRequestFile = pendingRequestFileForRequest(spawnerDir, requestId);
 			if (existsSync(scopedPendingRequestFile)) {
-				await writeFile(scopedPendingRequestFile, updatedPendingRequest, 'utf-8');
+				await writeFileAtomic(scopedPendingRequestFile, updatedPendingRequest);
 			}
 			if (existsSync(pendingRequestFile)) {
 				try {
@@ -594,12 +631,34 @@ export const POST: RequestHandler = async (event) => {
 			}
 		});
 
-		const autoDispatchResult = effectiveAutoRun
+		if (deterministicStaticArtifactsWritten && currentPrdContent !== null && expectedArtifactTarget) {
+			const finalArtifactVerification = verifyWrittenDeterministicArtifactProof({
+				metadata: parsed.metadata,
+				requestId,
+				prdContent: currentPrdContent,
+				projectType: parsed.projectType,
+				allowedRoots: [sparkWorkspaceRoot(), spawnerDir],
+				expectedTargetRoot: expectedArtifactTarget
+			});
+			if (!finalArtifactVerification.ok) {
+				deterministicStaticArtifactsWritten = false;
+				deterministicArtifactProofChanged = true;
+			}
+		}
+
+		const autoDispatchResult = deterministicArtifactProofChanged
+			? {
+					started: false,
+					skipped: true,
+					reason: 'deterministic artifact proof changed during canvas load; retry for governed dispatch',
+					missionId: resolvedMissionId
+				}
+			: effectiveAutoRun
 			? await autoDispatchPrdCanvasLoad(load, { allowExistingNonTerminalMission: true })
 			: {
 					started: false,
 					skipped: true,
-					reason: deterministicStaticResult
+					reason: deterministicStaticArtifactsWritten
 						? 'deterministic static artifacts already written'
 						: dispatchAuthorityBlock
 							? `autoRun requires native GovernorDecisionV1 authority: ${dispatchAuthorityBlock.reasonCodes.join(', ')}`
@@ -680,7 +739,6 @@ export const POST: RequestHandler = async (event) => {
 			missionControlAccess
 		});
 	} catch (error) {
-		const message = error instanceof Error ? error.message : String(error);
-		return json({ error: message }, { status: 500 });
+		return json({ error: 'Failed to load PRD result into canvas.' }, { status: 500 });
 	}
 };

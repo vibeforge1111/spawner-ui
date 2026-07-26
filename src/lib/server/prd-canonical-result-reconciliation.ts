@@ -1,8 +1,9 @@
 import { existsSync } from 'fs';
-import { appendFile, readFile, writeFile } from 'fs/promises';
+import { readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { spawnerStateDir } from './spawner-state';
 import { parseJsonOrFallback } from '$lib/utils/safe-json';
+import { appendPrdTraceWithContinuity } from './prd-trace-proof-continuity';
 
 type ReconciliationReason =
 	| 'pending_missing'
@@ -48,13 +49,7 @@ async function appendPrdTrace(
 	details: Record<string, unknown>
 ): Promise<void> {
 	try {
-		const row = {
-			ts: new Date().toISOString(),
-			requestId,
-			event,
-			...details
-		};
-		await appendFile(join(stateDir, 'prd-auto-trace.jsonl'), `${JSON.stringify(row)}\n`, 'utf-8');
+		await appendPrdTraceWithContinuity({ stateDir, requestId, event, details });
 	} catch {
 		// State reconciliation must not fail because trace persistence is unavailable.
 	}

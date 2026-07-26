@@ -2,7 +2,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { providerRuntime, reconcileStaleProviderResults } from './provider-runtime';
+import {
+	_isAllowedProviderApiKeyEnvForTests,
+	_staleRunningProviderMsForTests,
+	providerRuntime,
+	reconcileStaleProviderResults
+} from './provider-runtime';
 import { sparkAgentBridge } from '$lib/services/spark-agent-bridge';
 import { eventBridge, type BridgeEvent } from '$lib/services/event-bridge';
 import type { MultiLLMExecutionPack, MultiLLMProviderConfig } from '$lib/services/multi-llm-orchestrator';
@@ -97,6 +102,23 @@ afterEach(() => {
 });
 
 describe('provider-runtime Spark agent bridge', () => {
+	it('allows canonical provider keys and rejects arbitrary environment names during recovery', () => {
+		expect(_isAllowedProviderApiKeyEnvForTests('OPENAI_API_KEY')).toBe(true);
+		expect(_isAllowedProviderApiKeyEnvForTests('ZAI_API_KEY')).toBe(true);
+		expect(_isAllowedProviderApiKeyEnvForTests('KIMI_API_KEY')).toBe(true);
+		expect(_isAllowedProviderApiKeyEnvForTests('PATH')).toBe(false);
+		expect(_isAllowedProviderApiKeyEnvForTests('DATABASE_URL')).toBe(false);
+	});
+
+	it('falls back safely when the stale-running override is non-finite', () => {
+		process.env.SPAWNER_PROVIDER_STALE_RUNNING_MS = 'Infinity';
+		const fallback = _staleRunningProviderMsForTests();
+		process.env.SPAWNER_PROVIDER_STALE_RUNNING_MS = 'NaN';
+
+		expect(_staleRunningProviderMsForTests()).toBe(fallback);
+		expect(fallback).toBeGreaterThanOrEqual(60_000);
+	});
+
 	it('reconciles persisted running provider results once they outlive the worker timeout', () => {
 		const startedAt = Date.parse('2026-04-29T10:00:00.000Z');
 		const result = reconcileStaleProviderResults(
@@ -226,7 +248,7 @@ describe('provider-runtime Spark agent bridge', () => {
 
 		await waitFor(() => providerRuntime.getMissionStatus('mission-step2-success').allComplete);
 
-		unsubscribe();
+		unsubscribe?.();
 		const status = providerRuntime.getMissionStatus('mission-step2-success');
 		expect(status.providers.claude).toBe('completed');
 		expect(status.providers.codex).toBe('completed');
@@ -381,7 +403,7 @@ describe('provider-runtime Spark agent bridge', () => {
 		});
 
 		await waitFor(() => providerRuntime.getMissionStatus('mission-step2-failure').allComplete);
-		unsubscribe();
+		unsubscribe?.();
 
 		const status = providerRuntime.getMissionStatus('mission-step2-failure');
 		expect(status.anyFailed).toBe(true);
@@ -407,7 +429,7 @@ describe('provider-runtime Spark agent bridge', () => {
 		});
 
 		await waitFor(() => providerRuntime.getMissionStatus('mission-step2-response-failure').allComplete);
-		unsubscribe();
+		unsubscribe?.();
 
 		const failures = emitted.filter((event) => event.type === 'task_failed');
 		expect(failures.some((event) => event.message?.includes('Blocked by session permissions'))).toBe(true);
@@ -439,7 +461,7 @@ describe('provider-runtime Spark agent bridge', () => {
 		});
 
 		await waitFor(() => providerRuntime.getMissionStatus('mission-step2-blocked-success').allComplete);
-		unsubscribe();
+		unsubscribe?.();
 
 		const status = providerRuntime.getMissionStatus('mission-step2-blocked-success');
 		expect(status.anyFailed).toBe(true);
@@ -481,7 +503,7 @@ describe('provider-runtime Spark agent bridge', () => {
 		await providerRuntime.cancelMission('mission-step2-cancel', 'Mission cancelled', controlAuthority());
 		await waitFor(() => providerRuntime.getMissionStatus('mission-step2-cancel').providers.claude === 'cancelled');
 
-		unsubscribe();
+		unsubscribe?.();
 		expect(emitted.some((event) => event.type === 'task_cancelled')).toBe(true);
 	});
 

@@ -8,7 +8,7 @@ import { GET as getTrace } from './trace/+server';
 import { relayMissionControlEvent } from '$lib/server/mission-control-relay';
 import { providerRuntime, type ProviderMissionResultSnapshot } from '$lib/server/provider-runtime';
 import type { ProviderSessionStatus } from '$lib/server/provider-clients/types';
-import { buildClientGovernorDecisionAuthority } from '$lib/services/harness-authority-client';
+import { buildServerGovernorDecisionAuthority } from '$lib/server/harness-authority';
 
 const TEST_API_KEY = 'mission-control-lifecycle-test-secret';
 const originalMcpApiKey = process.env.MCP_API_KEY;
@@ -123,7 +123,7 @@ async function loadRequestToCanvas(requestId: string) {
 			requestId,
 			autoRun: true,
 			telegramRelay: { port: 8789, profile: 'spark-agi' },
-			executionAuthority: buildClientGovernorDecisionAuthority({
+			executionAuthority: buildServerGovernorDecisionAuthority({
 				source: 'mission-lifecycle-test',
 				reason: 'Focused Mission Control lifecycle dispatch authority regression.',
 				toolName: 'spawner.dispatch',

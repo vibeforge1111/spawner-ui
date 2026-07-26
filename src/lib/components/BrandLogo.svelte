@@ -26,7 +26,7 @@
 	const c = $derived(SIZE_MAP[size]);
 </script>
 
-<a {href} class="inline-flex items-center min-w-0 group {c.gap} {klass}">
+<a {href} class="inline-flex items-center min-w-0 group {c.gap} {klass}" aria-label={showProduct ? 'Spark Spawner home' : 'Spark home'}>
 	<svg
 		viewBox="0 0 264 113"
 		preserveAspectRatio="xMidYMid meet"

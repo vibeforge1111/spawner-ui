@@ -243,9 +243,12 @@ function topologicalSort(nodes: CanvasNode[], connections: Connection[]): Canvas
 		}
 	}
 
-	// Add unconnected nodes at the end
+	// Add unconnected nodes at the end. Track inclusion via a Set so the
+	// tail pass stays linear — the prior sorted.includes shape was O(N^2)
+	// across the full node list.
+	const sortedIds = new Set(sorted.map((n) => n.id));
 	for (const node of nodes) {
-		if (!sorted.includes(node)) sorted.push(node);
+		if (!sortedIds.has(node.id)) sorted.push(node);
 	}
 
 	return sorted;

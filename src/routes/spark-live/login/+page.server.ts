@@ -31,12 +31,18 @@ export const load: PageServerLoad = ({ request, url }) => {
 };
 
 export const actions: Actions = {
-	default: async ({ cookies, request }) => {
+	default: async ({ cookies, request, getClientAddress }) => {
 		const data = await request.formData();
 		const next = safeNext(data.get('next'));
 		const workspaceId = String(data.get('workspaceId') || '').trim();
 		const token = String(data.get('uiKey') || '').trim();
-		const clientKey = hostedUiAuthClientKey(request);
+		let clientAddress: string | undefined;
+		try {
+			clientAddress = getClientAddress();
+		} catch {
+			clientAddress = undefined;
+		}
+		const clientKey = hostedUiAuthClientKey(request, clientAddress);
 
 		if (hostedUiCredentialsAreValid(workspaceId, token, env)) {
 			clearHostedUiAuthFailures(clientKey);

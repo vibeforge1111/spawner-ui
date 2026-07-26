@@ -29,6 +29,18 @@ export interface BridgeEvent {
 
 type EventCallback = (event: BridgeEvent) => void;
 
+const MAX_SUBSCRIBERS = 1000; // Security: Limit concurrent subscribers to prevent DoS
+const MAX_RECONNECT_ATTEMPTS = 10;
+
+export function eventBridgeReconnectDelay(
+	attempt: number,
+	random: () => number = Math.random
+): number | null {
+	if (!Number.isInteger(attempt) || attempt < 1 || attempt > MAX_RECONNECT_ATTEMPTS) return null;
+	const ceiling = Math.min(60_000, 1000 * 2 ** Math.min(attempt - 1, 6));
+	return Math.floor(Math.max(0, Math.min(0.999999999, random())) * ceiling);
+}
+
 /**
  * Server-side event bridge (used in +server.ts)
  */
@@ -45,7 +57,12 @@ class ServerEventBridge {
 		});
 	}
 
-	subscribe(callback: EventCallback): () => void {
+	subscribe(callback: EventCallback): (() => void) | null {
+		// Security: Prevent resource exhaustion DoS by limiting concurrent subscribers
+		if (this.subscribers.size >= MAX_SUBSCRIBERS) {
+			logger.warn(`[EventBridge] Max subscribers (${MAX_SUBSCRIBERS}) reached, rejecting new subscription`);
+			return null;
+		}
 		this.subscribers.add(callback);
 		return () => {
 			this.subscribers.delete(callback);
@@ -64,6 +81,7 @@ class ClientEventBridge {
 	private eventSource: EventSource | null = null;
 	private subscribers: Set<EventCallback> = new Set();
 	private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+	private reconnectAttempts = 0;
 	private connectionStatus = writable<'disconnected' | 'connecting' | 'connected'>('disconnected');
 
 	constructor() {
@@ -92,6 +110,7 @@ class ClientEventBridge {
 			this.eventSource.onopen = () => {
 				logger.info('[EventBridge] Connected to event stream');
 				this.connectionStatus.set('connected');
+				this.reconnectAttempts = 0;
 			};
 
 			this.eventSource.onmessage = (event) => {
@@ -122,13 +141,26 @@ class ClientEventBridge {
 		}
 	}
 
+	// Exponential backoff with full jitter, capped at 60s. The previous
+	// fixed 3s delay produced an unbounded retry storm against a server
+	// that was actually down: 1 reconnect / 3s / client * N clients =
+	// 20 N attempts per minute, indefinitely. Capped exponential delay
+	// (1s, 2s, 4s, 8s, 16s, 32s, 60s, 60s, ...) plus full jitter spreads
+	// the herd and bounds load amplification.
 	private scheduleReconnect(): void {
 		if (this.reconnectTimer) return;
+		const nextAttempt = this.reconnectAttempts + 1;
+		const delay = eventBridgeReconnectDelay(nextAttempt);
+		if (delay === null) {
+			logger.warn(`[EventBridge] Reconnect paused after ${MAX_RECONNECT_ATTEMPTS} failed attempts`);
+			return;
+		}
+		this.reconnectAttempts = nextAttempt;
 
 		this.reconnectTimer = setTimeout(() => {
 			this.reconnectTimer = null;
 			this.connect();
-		}, 3000);
+		}, delay);
 	}
 
 	disconnect(): void {
@@ -140,6 +172,7 @@ class ClientEventBridge {
 			this.eventSource.close();
 			this.eventSource = null;
 		}
+		this.reconnectAttempts = 0;
 		this.connectionStatus.set('disconnected');
 	}
 

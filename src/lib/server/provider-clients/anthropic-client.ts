@@ -5,6 +5,7 @@
  * Follows the same pattern as src/routes/api/analyze/+server.ts.
  */
 
+import { randomUUID } from 'node:crypto';
 import type { ProviderResult, ProviderClientOptions } from './types';
 import { createBridgeEvent } from './types';
 import { parseRetryAfterMs } from './retry-after';
@@ -13,6 +14,12 @@ const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
 const ANTHROPIC_VERSION = '2023-06-01';
 const MAX_RETRIES = 3;
 const RETRY_BASE_MS = 1000;
+// Mark long, stable system prompts cache-eligible so repeat requests within
+// the 5-minute ephemeral cache window reuse the prefix instead of re-billing
+// it as fresh input tokens. Anthropic requires at least ~1024 cacheable tokens
+// (~4KB of text) before the cache_control marker is honored; below that the
+// API silently ignores it, so this is safe for short prompts too.
+const SYSTEM_PROMPT_CACHE_MIN_CHARS = 4096;
 
 export interface AnthropicClientOptions extends ProviderClientOptions {
 	apiKey: string;
@@ -45,6 +52,7 @@ export async function executeAnthropicRequest(
 	);
 
 	let lastError: string | undefined;
+	const idempotencyKey = randomUUID();
 
 	for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
 		if (signal?.aborted) {
@@ -59,7 +67,20 @@ export async function executeAnthropicRequest(
 				messages: [{ role: 'user', content: prompt }]
 			};
 			if (systemPrompt) {
-				body.system = systemPrompt;
+				// Use the structured-block form with cache_control so Anthropic can
+				// reuse the system-prompt prefix across repeat calls in the 5-minute
+				// window. Plain-string `system` works too but is never cached.
+				if (systemPrompt.length >= SYSTEM_PROMPT_CACHE_MIN_CHARS) {
+					body.system = [
+						{
+							type: 'text',
+							text: systemPrompt,
+							cache_control: { type: 'ephemeral' }
+						}
+					];
+				} else {
+					body.system = systemPrompt;
+				}
 			}
 
 			const response = await fetch(ANTHROPIC_API_URL, {
@@ -67,7 +88,8 @@ export async function executeAnthropicRequest(
 				headers: {
 					'Content-Type': 'application/json',
 					'x-api-key': apiKey,
-					'anthropic-version': ANTHROPIC_VERSION
+					'anthropic-version': ANTHROPIC_VERSION,
+					'Idempotency-Key': idempotencyKey
 				},
 				body: JSON.stringify(body),
 				signal
@@ -83,15 +105,31 @@ export async function executeAnthropicRequest(
 						progress: 0
 					})
 				);
+				try {
+					await response.body?.cancel();
+				} catch {
+					// The body may already have been drained by the runtime.
+				}
 				await sleep(delay, signal);
 				continue;
 			}
 
 			if (!response.ok) {
 				const errorText = await response.text().catch(() => 'unknown error');
+				const detail = errorText.slice(0, 500);
+				let actionable: string;
+				if (response.status === 404) {
+					actionable = `${provider.label} returned HTTP 404 (not found): ${detail}. The configured Anthropic model name does not exist; check the active provider model in Mission Control settings.`;
+				} else if (response.status === 401 || response.status === 403) {
+					actionable = `${provider.label} returned HTTP ${response.status}: ${detail}. The provider rejected the API key; rotate the provider secret and retry.`;
+				} else if (response.status === 400) {
+					actionable = `${provider.label} returned HTTP 400 (bad request): ${detail}. The request payload was rejected; the most common cause is an unsupported parameter for the configured model.`;
+				} else {
+					actionable = `${provider.label} API error ${response.status}: ${detail}`;
+				}
 				return {
 					success: false,
-					error: `${provider.label} API error ${response.status}: ${errorText.slice(0, 500)}`,
+					error: actionable,
 					durationMs: Date.now() - startTime
 				};
 			}
@@ -112,16 +150,22 @@ export async function executeAnthropicRequest(
 		}
 	}
 
+	const failureMessage = lastError || `${provider.label} failed after ${MAX_RETRIES} retries`;
 	onEvent(
-		createBridgeEvent('error', options, {
+		createBridgeEvent('task_failed', options, {
 			message: `${provider.label} failed after ${MAX_RETRIES} attempts: ${lastError}`,
-			data: { error: lastError }
+			data: {
+				success: false,
+				error: failureMessage,
+				provider: provider.id,
+				providerLabel: provider.label
+			}
 		})
 	);
 
 	return {
 		success: false,
-		error: lastError || `${provider.label} failed after ${MAX_RETRIES} retries`,
+		error: failureMessage,
 		durationMs: Date.now() - startTime
 	};
 }
@@ -201,6 +245,9 @@ async function handleAnthropicStream(
 			return { success: false, error: 'Cancelled', durationMs: Date.now() - startTime };
 		}
 		throw err;
+	} finally {
+		try { reader.releaseLock(); } catch { /* already released */ }
+		try { await response.body?.cancel(); } catch { /* already drained */ }
 	}
 
 	onEvent(
@@ -224,7 +271,18 @@ async function handleAnthropicNonStreaming(
 	startTime: number
 ): Promise<ProviderResult> {
 	const { provider, onEvent } = options;
-	const data = await response.json();
+	const rawBody = await response.text().catch(() => '');
+	let data: { content?: Array<{ type: string; text?: string }>; usage?: { input_tokens?: number; output_tokens?: number } } | null = null;
+	try {
+		data = rawBody ? JSON.parse(rawBody) : null;
+	} catch {
+		return {
+			success: false,
+			error: `${provider.label} returned HTTP ${response.status} OK but the body was not JSON: ${rawBody.slice(0, 300)}`,
+			durationMs: Date.now() - startTime
+		};
+	}
+	if (!data) data = {};
 
 	const textContent = data.content?.find(
 		(c: { type: string }) => c.type === 'text'

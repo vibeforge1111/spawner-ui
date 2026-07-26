@@ -127,7 +127,7 @@
 	let autoRefresh = $state(true);
 	let poller: ReturnType<typeof setInterval> | null = null;
 
-	const phaseClass = $derived(() => {
+	const phaseClass = $derived.by(() => {
 		switch (trace?.phase) {
 			case 'completed':
 				return 'border-green-500/30 bg-green-500/10 text-green-300';
@@ -186,6 +186,11 @@
 		return `/api/mission-control/trace${params.toString() ? `?${params.toString()}` : ''}`;
 	}
 
+	function parseLastUpdatedOrTail(value: string | null | undefined): number {
+		const parsed = Date.parse(value || '');
+		return Number.isFinite(parsed) ? parsed : Number.NEGATIVE_INFINITY;
+	}
+
 	async function selectLatestMission(): Promise<void> {
 		const response = await fetch('/api/mission-control/board');
 		if (!response.ok) return;
@@ -199,7 +204,7 @@
 		];
 		const latest = entries
 			.filter((entry) => entry?.missionId)
-			.sort((a, b) => Date.parse(b.lastUpdated || '') - Date.parse(a.lastUpdated || ''))[0];
+			.sort((a, b) => parseLastUpdatedOrTail(b.lastUpdated) - parseLastUpdatedOrTail(a.lastUpdated))[0];
 		if (latest && !missionId.trim() && !requestId.trim()) {
 			missionId = latest.missionId;
 		}

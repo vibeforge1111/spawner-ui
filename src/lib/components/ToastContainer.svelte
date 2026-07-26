@@ -35,16 +35,24 @@
 				return 'ℹ';
 		}
 	}
+
 </script>
 
 {#if currentToasts.length > 0}
-	<div class="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 max-w-md">
+	<div
+		class="fixed inset-x-4 sm:inset-x-auto sm:right-4 z-[100] flex flex-col gap-2 sm:max-w-md"
+		style="bottom: calc(1rem + env(safe-area-inset-bottom, 0px));"
+		role="region"
+		aria-label="Notifications"
+	>
 		{#each currentToasts as toast (toast.id)}
 			<div
 				class="flex items-start gap-3 p-4 border rounded shadow-lg backdrop-blur-sm animate-slide-in {getTypeStyles(toast.type)}"
-				role="alert"
+				role={toast.type === 'error' || toast.type === 'warning' ? 'alert' : 'status'}
+				aria-live={toast.type === 'error' || toast.type === 'warning' ? 'assertive' : 'polite'}
+				aria-atomic="true"
 			>
-				<span class="text-lg flex-shrink-0">{getIcon(toast.type)}</span>
+				<span class="text-lg flex-shrink-0" aria-hidden="true">{getIcon(toast.type)}</span>
 				<div class="flex-1 min-w-0">
 					<p class="text-sm font-mono">{toast.message}</p>
 					{#if toast.action}
@@ -85,5 +93,11 @@
 
 	.animate-slide-in {
 		animation: slide-in 0.2s ease-out;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.animate-slide-in {
+			animation: none;
+		}
 	}
 </style>

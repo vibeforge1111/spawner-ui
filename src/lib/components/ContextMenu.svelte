@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { clampContextMenuPosition } from '$lib/utils/context-menu-position';
 
 	type MenuItem = {
 		label: string;
@@ -34,15 +35,21 @@
 	let menuEl: HTMLDivElement;
 
 	onMount(() => {
-		// Adjust position if menu goes off screen
+		// Adjust position if menu goes off screen.
+		// Clamp to viewport edges with a small inset so the menu never lands
+		// half-off-screen on narrow viewports (e.g. menu width > tap x on a phone).
 		if (menuEl) {
 			const rect = menuEl.getBoundingClientRect();
-			if (rect.right > window.innerWidth) {
-				menuEl.style.left = `${x - rect.width}px`;
-			}
-			if (rect.bottom > window.innerHeight) {
-				menuEl.style.top = `${y - rect.height}px`;
-			}
+			const position = clampContextMenuPosition({
+				x,
+				y,
+				width: rect.width,
+				height: rect.height,
+				viewportWidth: window.innerWidth,
+				viewportHeight: window.innerHeight
+			});
+			menuEl.style.left = `${position.left}px`;
+			menuEl.style.top = `${position.top}px`;
 		}
 
 		// Close on click outside

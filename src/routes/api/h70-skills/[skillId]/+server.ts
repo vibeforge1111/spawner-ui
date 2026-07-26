@@ -13,6 +13,7 @@ import * as path from 'path';
 import * as os from 'os';
 import * as yaml from 'yaml';
 import { assertSafeId, PathSafetyError, resolveWithinBaseDir } from '$lib/server/path-safety';
+import { publicSkillSourcePath } from '$lib/server/skill-source-path';
 import { getTierSkills } from '$lib/server/skill-tiers';
 import { verifyH70SkillAccessToken } from '$lib/server/h70-skill-access-token';
 import { verifySparkProSkillAccess, type SparkProEntitlementVerdict } from '$lib/server/spark-pro-entitlements';
@@ -140,16 +141,46 @@ function resolveStaticSkillsJsonPath(): string | null {
 	return null;
 }
 
+// Process-lifetime cache for the parsed skills JSON, keyed by path + mtime.
+// findStaticSkillMetadata runs on every /api/h70-skills/[skillId] request and
+// today re-reads + re-parses the entire JSON (potentially MB-sized) each call.
+// Mtime check picks up edits without forcing a re-read.
+interface StaticSkillsCacheEntry {
+	skillsPath: string;
+	mtimeMs: number;
+	size: number;
+	byId: Map<string, SparkSkillGraphMetadata>;
+}
+let _staticSkillsCache: StaticSkillsCacheEntry | null = null;
+
 function findStaticSkillMetadata(skillId: string): { skill: SparkSkillGraphMetadata; path: string } | null {
 	const skillsPath = resolveStaticSkillsJsonPath();
 	if (!skillsPath) return null;
 	try {
+		const stats = fs.statSync(skillsPath);
+		const cached = _staticSkillsCache;
+		if (
+			cached &&
+			cached.skillsPath === skillsPath &&
+			cached.mtimeMs === stats.mtimeMs &&
+			cached.size === stats.size
+		) {
+			const skill = cached.byId.get(skillId);
+			return skill ? { skill, path: skillsPath } : null;
+		}
 		const parsed = parseJsonOrFallback<SparkSkillGraphMetadata[]>(
 			fs.readFileSync(skillsPath, 'utf-8'),
 			[],
 			'h70-skills'
 		);
-		const skill = parsed.find((candidate) => candidate.id === skillId);
+		const byId = new Map<string, SparkSkillGraphMetadata>();
+		for (const candidate of parsed) {
+			if (candidate && typeof candidate.id === 'string') {
+				byId.set(candidate.id, candidate);
+			}
+		}
+		_staticSkillsCache = { skillsPath, mtimeMs: stats.mtimeMs, size: stats.size, byId };
+		const skill = byId.get(skillId);
 		return skill ? { skill, path: skillsPath } : null;
 	} catch (e) {
 		console.warn(`[Skills API] Failed to read static skills graph metadata: ${skillsPath}`, e);
@@ -405,7 +436,7 @@ export const GET: RequestHandler = async ({ params, request }) => {
 			rawYaml: JSON.stringify(metadata.skill, null, 2),
 			formattedContent: formatStaticSkillContent(metadata.skill),
 			source: 'spark-skill-graphs-static',
-			path: metadata.path,
+			path: publicSkillSourcePath(metadata.path),
 			category: metadata.skill.category || null
 		});
 	}
@@ -430,7 +461,7 @@ export const GET: RequestHandler = async ({ params, request }) => {
 				rawYaml: JSON.stringify(metadata.skill, null, 2),
 				formattedContent: formatStaticSkillContent(metadata.skill),
 				source: 'spark-skill-graphs-static',
-				path: metadata.path,
+				path: publicSkillSourcePath(metadata.path),
 				category: metadata.skill.category || null
 			});
 		}
@@ -461,7 +492,7 @@ export const GET: RequestHandler = async ({ params, request }) => {
 			rawYaml,
 			formattedContent,
 			source: getSkillsSourceName(skillsLabPath),
-			path: skillPath,
+			path: publicSkillSourcePath(skillPath, skillsLabPath),
 			category
 		});
 	} catch (e) {

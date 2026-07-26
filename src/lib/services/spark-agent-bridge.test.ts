@@ -1,7 +1,7 @@
 import { existsSync, mkdtempSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { eventBridge, type BridgeEvent } from './event-bridge';
 import { buildServerGovernorDecisionAuthority } from '$lib/server/harness-authority';
 import {
@@ -70,6 +70,11 @@ describe('prepareProviderWorkingDirectory', () => {
 		expect(existsSync(dir)).toBe(true);
 	});
 
+	it('creates the session pipeline ID through the production crypto path', () => {
+		const session = sparkAgentBridge.startSession();
+		expect(session.canvas.pipelineId).toMatch(/^pipe-[0-9a-z]+-[0-9a-f]{8}$/);
+	});
+
 	it('rejects explicit provider workspaces outside Spark workspace by default', () => {
 		const root = mkdtempSync(join(tmpdir(), 'spark-provider-root-'));
 		const external = mkdtempSync(join(tmpdir(), 'spark-provider-external-'));
@@ -101,7 +106,7 @@ describe('prepareProviderWorkingDirectory', () => {
 			traceRef: 'trace:spawner-prd:mission-worker-proof',
 			commandTemplate: 'codex exec --model gpt-5.5'
 		});
-		unsubscribe();
+		unsubscribe?.();
 
 		const completed = emitted.find((event) => event.type === 'task_completed');
 		expect(completed?.data).toMatchObject({
@@ -274,6 +279,67 @@ describe('providerProcessFailureMessage', () => {
 	});
 });
 
+describe('latest canvas snapshot selection', () => {
+	afterEach(() => {
+		sparkAgentBridge.resetForTests();
+	});
+
+	it('uses canvas activity instead of unrelated later session activity', () => {
+		const olderCanvas = sparkAgentBridge.startSession({ sessionId: 'older-canvas' });
+		const newerCanvas = sparkAgentBridge.startSession({ sessionId: 'newer-canvas' });
+		olderCanvas.events.push({
+			id: 'event-older-canvas',
+			type: 'spark_agent.canvas.updated',
+			sessionId: olderCanvas.id,
+			timestamp: '2026-07-24T10:00:00.000Z',
+			data: {}
+		});
+		olderCanvas.updatedAt = '2026-07-24T12:00:00.000Z';
+		newerCanvas.events.push({
+			id: 'event-newer-canvas',
+			type: 'spark_agent.canvas.updated',
+			sessionId: newerCanvas.id,
+			timestamp: '2026-07-24T11:00:00.000Z',
+			data: {}
+		});
+		newerCanvas.updatedAt = '2026-07-24T11:00:00.000Z';
+
+		expect(sparkAgentBridge.getLatestCanvasSnapshot()).toMatchObject({
+			sessionId: newerCanvas.id,
+			updatedAt: '2026-07-24T11:00:00.000Z'
+		});
+		expect(
+			sparkAgentBridge.getLatestCanvasSnapshot('2026-07-24T10:30:00.000Z', olderCanvas.id)
+		).toBeNull();
+	});
+});
+
+describe('subscriber failure isolation', () => {
+	afterEach(() => {
+		sparkAgentBridge.resetForTests();
+		vi.restoreAllMocks();
+	});
+
+	it('continues delivering an event after one subscriber throws', () => {
+		const session = sparkAgentBridge.startSession();
+		const delivered = vi.fn();
+		sparkAgentBridge.subscribe(session.id, () => {
+			throw new Error('/Users/alice/private/subscriber.sock');
+		});
+		sparkAgentBridge.subscribe(session.id, delivered);
+		const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+		sparkAgentBridge.endSession(session.id);
+
+		expect(delivered).toHaveBeenCalledOnce();
+		expect(error).toHaveBeenCalledWith(
+			'[spark-agent-bridge] Subscriber callback failed:',
+			'Error'
+		);
+		expect(JSON.stringify(error.mock.calls)).not.toContain('/Users/alice');
+	});
+});
+
 describe('provider process timeout helpers', () => {
 	it('uses the shared agent timeout configuration', () => {
 		expect(providerProcessTimeoutMs({ SPAWNER_AGENT_WORK_TIMEOUT_MS: '120000' })).toBe(120000);
@@ -281,5 +347,62 @@ describe('provider process timeout helpers', () => {
 
 	it('renders a bounded timeout message without provider output', () => {
 		expect(providerProcessTimeoutMessage('codex', 120000)).toBe('Provider codex timed out after 2 minutes');
+	});
+});
+
+describe('endSession double-end guard', () => {
+	afterEach(() => {
+		sparkAgentBridge.resetForTests();
+	});
+
+	it('throws when ending an already-ended session (route returns 409)', () => {
+		const session = sparkAgentBridge.startSession();
+		sparkAgentBridge.endSession(session.id);
+
+		expect(() => sparkAgentBridge.endSession(session.id)).toThrow('already ended');
+	});
+
+	it('returns the session successfully on first end', () => {
+		const session = sparkAgentBridge.startSession();
+		const ended = sparkAgentBridge.endSession(session.id);
+
+		expect(ended.status).toBe('ended');
+		expect(ended.endedAt).toBeTruthy();
+	});
+
+	it('allows ending different sessions independently', () => {
+		const a = sparkAgentBridge.startSession();
+		const b = sparkAgentBridge.startSession();
+
+		sparkAgentBridge.endSession(a.id);
+		const endedB = sparkAgentBridge.endSession(b.id);
+		expect(endedB.status).toBe('ended');
+
+		expect(() => sparkAgentBridge.endSession(a.id)).toThrow('already ended');
+	});
+
+	it('reports a bounded error when worker termination throws', () => {
+		const session = sparkAgentBridge.startSession();
+		const workerSessions = (
+			sparkAgentBridge as unknown as {
+				workerSessions: Map<string, { status: 'running'; process: { kill: () => boolean } }>;
+			}
+		).workerSessions;
+		workerSessions.set(session.id, {
+			status: 'running',
+			process: {
+				kill: () => {
+					throw new Error('/Users/alice/private/worker.sock');
+				}
+			}
+		});
+		const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+		expect(() => sparkAgentBridge.endSession(session.id)).not.toThrow();
+		expect(error).toHaveBeenCalledWith(
+			'[spark-agent-bridge] Worker termination failed:',
+			'Error'
+		);
+		expect(JSON.stringify(error.mock.calls)).not.toContain('/Users/alice');
 	});
 });

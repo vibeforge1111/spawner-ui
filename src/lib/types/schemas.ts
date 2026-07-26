@@ -239,13 +239,16 @@ export const AlertConfigArraySchema = z.array(AlertConfigSchema);
 // =============================================================================
 
 export const BridgeEventTypeSchema = z.enum([
-	'mission_start',
+	'mission_started',
 	'mission_progress',
-	'mission_complete',
-	'mission_error',
-	'task_start',
-	'task_complete',
-	'task_error',
+	'mission_completed',
+	'mission_failed',
+	'mission_cancelled',
+	'task_started',
+	'task_progress',
+	'task_completed',
+	'task_failed',
+	'task_cancelled',
 	'learning_captured',
 	'sync_state',
 	'control_pause',
@@ -256,7 +259,7 @@ export const BridgeEventTypeSchema = z.enum([
 export const BridgeEventSchema = z.object({
 	type: BridgeEventTypeSchema,
 	data: z.record(z.unknown()).optional(),
-	timestamp: z.number().optional()
+	timestamp: z.string().optional()
 });
 
 export type BridgeEvent = z.infer<typeof BridgeEventSchema>;
@@ -530,10 +533,20 @@ export const ClientBridgeEventSchema = z.object({
 // Sync Client Schemas
 // =============================================================================
 
+// `timestamp` here is shape-tolerant on purpose: the sync producer surfaces in
+// this codebase emit two flavors today and the sync-client must accept both.
+//   * `sync-server.cjs` welcome message and `app.post('/sync')` echoes use
+//     `new Date().toISOString()` (string).
+//   * `syncClient.broadcast()` outer envelope at sync-client.ts:271 also uses
+//     ISO strings. Inner `data.timestamp` from broadcastSkill /
+//     broadcastExecutionControl uses `Date.now()` (number).
+// Accepting either prevents the WS consumer (sync-client.ts:178) from dropping
+// the welcome message and every echoed broadcast through `safeJsonParse`. The
+// `handleMessage` switch already coerces to string at lines 361/372.
 export const SyncMessageSchema = z.object({
 	type: z.string(),
 	data: z.record(z.unknown()).optional(),
-	timestamp: z.number().optional()
+	timestamp: z.union([z.number(), z.string()]).optional()
 });
 
 // =============================================================================

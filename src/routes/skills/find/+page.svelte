@@ -38,9 +38,10 @@
 	}
 
 	function handleProjectType(type: typeof projectTypes[0]) {
-		// Filter skills that match any of the project type tags
+		// Filter skills that match the project type tags — multi-word search
+		// tokenizes, so the applied filter now matches the displayed query
 		searchQuery = type.tags.join(' ');
-		setFilter('search', type.tags[0]);
+		setFilter('search', searchQuery);
 	}
 
 	function getRecommendedSkills(type: typeof projectTypes[0]): Skill[] {

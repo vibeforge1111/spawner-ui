@@ -612,7 +612,7 @@ class MissionExecutor {
 
 	private appendTaskTransition(event: Omit<TaskTransitionEvent, 'id' | 'timestamp'>): void {
 		const transition: TaskTransitionEvent = {
-			id: `transition-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+			id: `transition-${Date.now()}-${crypto.randomUUID().replace(/-/g, '').slice(0, 8)}`,
 			timestamp: new Date().toISOString(),
 			...event
 		};
@@ -1320,8 +1320,7 @@ class MissionExecutor {
 					break;
 
 				default:
-					// Log unknown event types for debugging
-					log.debug('Unknown event type:', event.type);
+					log.warn('Unknown event type, dropping from dispatcher:', event.type);
 			}
 		});
 	}
@@ -1768,7 +1767,12 @@ class MissionExecutor {
 		if (!response.ok) {
 			return { success: false, error: `dispatch responded ${response.status}` };
 		}
-		return response.json();
+		const rawBody = await response.text().catch(() => '');
+		try {
+			return rawBody ? JSON.parse(rawBody) : { success: false, error: 'dispatch returned empty body' };
+		} catch {
+			return { success: false, error: `dispatch returned HTTP 200 but body was not JSON: ${rawBody.slice(0, 300)}` };
+		}
 	}
 
 	/**
@@ -1800,6 +1804,12 @@ class MissionExecutor {
 	 */
 	async cancel(): Promise<boolean> {
 		if (!this.progress.missionId) {
+			return false;
+		}
+		// Guard against double-cancel: a fast user click or a stale event replay
+		// would otherwise fire a second mission-control kill request and a second
+		// mcpClient.failMission call against an already-terminal mission.
+		if (this.progress.status === 'cancelled' || this.progress.status === 'completed' || this.progress.status === 'failed') {
 			return false;
 		}
 
@@ -2220,7 +2230,7 @@ class MissionExecutor {
 	 * Get skill ID for an agent
 	 */
 	private getSkillIdForAgent(agentId: string): string | undefined {
-		const agent = this.progress.mission?.agents.find(a => a.id === agentId);
+		const agent = this.progress.mission?.agents?.find(a => a.id === agentId);
 		return agent?.skills?.[0];
 	}
 

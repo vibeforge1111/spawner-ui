@@ -88,7 +88,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 		return secureResponse(await resolve(event));
 	}
 
-	const clientKey = hostedUiAuthClientKey(event.request);
+	const clientKey = hostedUiAuthClientKey(event.request, clientAddress);
 	const token = hostedUiRequestToken(event.request, event.url, event.cookies);
 	const workspaceId = hostedUiRequestWorkspaceId(event.request, event.url, event.cookies);
 	const pairingCode = hostedUiRequestPairingCode(event.url);

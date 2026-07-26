@@ -7,7 +7,7 @@
 	import FilterBar from '$lib/components/FilterBar.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import CategoryBrowser from '$lib/components/skills/CategoryBrowser.svelte';
-	import { filteredSkills, loading, error, loadSkills, skillCounts, skillSource, categoryCounts } from '$lib/stores/skills.svelte';
+	import { filteredSkills, loading, error, loadSkills, resetFilters, skillCounts, skillSource, categoryCounts } from '$lib/stores/skills.svelte';
 
 	let showSidebar = $state(true);
 	let viewMode = $state<'cards' | 'rows'>('rows');
@@ -101,6 +101,12 @@
 						</div>
 						<h3 class="text-lg font-sans font-semibold text-text-primary mb-2">No skills found</h3>
 						<p class="text-text-secondary mb-4">Try adjusting your search or filters</p>
+						<button
+							onclick={resetFilters}
+							class="px-4 py-2 bg-accent-primary text-bg-primary font-mono text-sm rounded-md hover:bg-accent-primary-hover transition-colors"
+						>
+							Clear filters
+						</button>
 					</div>
 				{:else}
 					<!-- Results count -->

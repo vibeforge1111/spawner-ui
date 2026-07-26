@@ -10,6 +10,7 @@ import {
 	buildServerGovernorDecisionAuthority,
 	buildServerTurnIntentVNextAuthority
 } from './harness-authority';
+import { eventBridge } from '$lib/services/event-bridge';
 import { relayMissionControlEvent } from './mission-control-relay';
 import { providerRuntime } from './provider-runtime';
 import { mcpClient, type Mission } from '$lib/services/mcp-client';
@@ -191,6 +192,7 @@ describe('mission-control-command parser', () => {
 			}
 		});
 		const updateMission = vi.spyOn(mcpClient, 'updateMission').mockResolvedValue({ success: true });
+		const emit = vi.spyOn(eventBridge, 'emit');
 
 		await relayMissionControlEvent({
 			type: 'mission_started',
@@ -211,6 +213,9 @@ describe('mission-control-command parser', () => {
 		expect(result.authority).toMatchObject({ source: 'governor_decision' });
 		expect(getMission).toHaveBeenCalledWith(missionId);
 		expect(updateMission).toHaveBeenCalledWith(missionId, expect.objectContaining({ status: 'paused' }));
+		expect(emit).toHaveBeenCalledWith(expect.objectContaining({
+			id: expect.stringMatching(/^mc-cmd-\d+-[0-9a-f]{8}$/)
+		}));
 
 		const status = providerRuntime.getMissionStatus(missionId);
 		expect(status.paused).toBe(true);

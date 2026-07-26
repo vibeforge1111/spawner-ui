@@ -203,11 +203,14 @@
 				<Icon name="search" size={20} class="search-input-icon" />
 				<input
 					bind:this={inputEl}
-					type="text"
+					type="search"
 					bind:value={query}
 					oninput={() => (selectedIndex = 0)}
 					placeholder="Search skills, tags, categories..."
+					aria-label="Search skills, tags, categories"
 					class="search-input"
+					autocomplete="off"
+					spellcheck="false"
 				/>
 				{#if query}
 					<button type="button" onclick={clearQuery} class="search-clear" aria-label="Clear search">

@@ -42,7 +42,7 @@ export type RecentRecallEvent = Pick<
 export function buildAccuracyBuckets(events: MemoryRecallEvent[]): AccuracyBucket[] {
 	const buckets = new Map<string, AccuracyBucket>();
 	for (const event of events) {
-		const day = toLocalDay(event.timestamp);
+		const day = toUtcDay(event.timestamp);
 		const bucket = buckets.get(day) || { day, hit: 0, miss: 0, drift: 0, unsure: 0, total: 0 };
 		bucket[event.outcome] += 1;
 		bucket.total += 1;
@@ -62,7 +62,13 @@ export function countFailureModes(events: MemoryRecallEvent[]): FailureModeBreak
 export function summarizeLatency(events: MemoryRecallEvent[]): LatencySummary {
 	if (events.length === 0) return { p50: 0, p95: 0, slowest: null };
 	const latencies = events.map((event) => Math.max(0, event.latencyMs)).sort((a, b) => a - b);
-	const slowestEvent = [...events].sort((a, b) => b.latencyMs - a.latencyMs)[0];
+	// Find the slowest event in a single linear pass instead of allocating
+	// a spread copy of events and sorting the full list descending just to
+	// take index [0]. Same tiebreak (first-seen wins on equal latency).
+	let slowestEvent = events[0];
+	for (let i = 1; i < events.length; i += 1) {
+		if (events[i].latencyMs > slowestEvent.latencyMs) slowestEvent = events[i];
+	}
 	return {
 		p50: percentile(latencies, 0.5),
 		p95: percentile(latencies, 0.95),
@@ -90,9 +96,14 @@ export function rollupSourceHealth(dataset: MemoryQualityDataset): SourceHealthR
 	});
 }
 
+function parseTimestampOrTail(value: string | null | undefined): number {
+	const parsed = Date.parse(value || '');
+	return Number.isFinite(parsed) ? parsed : Number.NEGATIVE_INFINITY;
+}
+
 export function recentRecallEvents(events: MemoryRecallEvent[], limit = 12): RecentRecallEvent[] {
 	return [...events]
-		.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+		.sort((a, b) => parseTimestampOrTail(b.timestamp) - parseTimestampOrTail(a.timestamp))
 		.slice(0, limit)
 		.map(({ timestamp, query, source, outcome, latencyMs, notes }) => ({
 			timestamp,
@@ -116,10 +127,10 @@ function percentile(sortedValues: number[], percentileValue: number): number {
 	return sortedValues[Math.max(0, Math.min(sortedValues.length - 1, index))];
 }
 
-function toLocalDay(timestamp: string): string {
+function toUtcDay(timestamp: string): string {
 	const date = new Date(timestamp);
-	const year = date.getFullYear();
-	const month = String(date.getMonth() + 1).padStart(2, '0');
-	const day = String(date.getDate()).padStart(2, '0');
+	const year = date.getUTCFullYear();
+	const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+	const day = String(date.getUTCDate()).padStart(2, '0');
 	return `${year}-${month}-${day}`;
 }

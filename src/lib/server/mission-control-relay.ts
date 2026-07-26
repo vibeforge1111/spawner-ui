@@ -129,14 +129,22 @@ const DEFAULT_STALE_NON_TERMINAL_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_SPARK_INGEST_URL = env.SPARK_MISSION_CONTROL_INGEST_URL || '';
 const DEFAULT_SPARK_TOKEN = env.SPARKD_TOKEN || '';
 
-function localEnvValue(key: string): string | null {
-	const envPath = path.resolve(process.cwd(), '.env');
-	if (!fs.existsSync(envPath)) return null;
-	const lines = fs.readFileSync(envPath, 'utf-8').split(/\r?\n/);
-	for (const line of [...lines].reverse()) {
-		const match = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)=(.*)\s*$/);
-		if (!match || match[1] !== key) continue;
-		return match[2].trim().replace(/^(['"])(.*)\1$/, '$2');
+export function localEnvValue(key: string, cwd = process.cwd()): string | null {
+	const envPath = path.resolve(cwd, '.env');
+	try {
+		const stat = fs.lstatSync(envPath);
+		if (!stat.isFile() || stat.isSymbolicLink()) {
+			console.warn('[MissionControl] Refusing to read a non-regular or symbolic-link .env file');
+			return null;
+		}
+		const lines = fs.readFileSync(envPath, 'utf-8').split(/\r?\n/);
+		for (const line of [...lines].reverse()) {
+			const match = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)=(.*)\s*$/);
+			if (!match || match[1] !== key) continue;
+			return match[2].trim().replace(/^(['"])(.*)\1$/, '$2');
+		}
+	} catch {
+		return null;
 	}
 	return null;
 }
@@ -207,7 +215,7 @@ function persistState() {
 		const persistPath = getMissionControlPersistPath();
 		const dir = path.dirname(persistPath);
 		if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-		const tmp = persistPath + '.tmp';
+		const tmp = `${persistPath}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`;
 		fs.writeFileSync(
 			tmp,
 			JSON.stringify({
@@ -495,7 +503,11 @@ function recordRelayEvent(event: MissionControlBridgeEvent): void {
 	}
 	persistState();
 	recordAgentLedgerEvent(entry);
-	syncCreatorMissionTraceFromLifecycleEvent(event);
+	try {
+		syncCreatorMissionTraceFromLifecycleEvent(event);
+	} catch (err) {
+		console.warn('[MissionControlRelay] creator trace sync failed (best-effort):', err);
+	}
 }
 
 function recordAgentLedgerEvent(entry: MissionControlRelayStatusEntry): void {
@@ -520,7 +532,8 @@ function recordAgentLedgerEvent(entry: MissionControlRelayStatusEntry): void {
 			{
 				requestId: requestIdFromStatusEntry(entry),
 				sessionId: `mission-control:${entry.missionId}`,
-				actorId: entry.source
+				actorId: entry.source,
+				createdAt: entry.timestamp
 			}
 		);
 	} catch {
@@ -596,15 +609,20 @@ function mapEventTypeToBoardStatus(eventType: string): MissionControlBoardStatus
 	}
 }
 
+// Hoisted to module scope so recordLifecycleTimestamps (called once per
+// relayState.recent entry inside getMissionControlBoard) doesn't allocate
+// a fresh 6-element array per call.
+const MISSION_START_EVENT_TYPES = new Set<string>([
+	'mission_started',
+	'mission_resumed',
+	'dispatch_started',
+	'task_started',
+	'task_progress',
+	'progress'
+]);
+
 function isMissionStartEvent(eventType: string): boolean {
-	return [
-		'mission_started',
-		'mission_resumed',
-		'dispatch_started',
-		'task_started',
-		'task_progress',
-		'progress'
-	].includes(eventType);
+	return MISSION_START_EVENT_TYPES.has(eventType);
 }
 
 function isExecutionStartEvent(eventType: string): boolean {
@@ -1179,6 +1197,17 @@ export function getMissionControlBoard(): Record<string, MissionControlBoardEntr
 		maybeRecordTask(current, entry);
 	}
 
+	// Pre-bucket recent events by missionId once so the per-mission burst
+	// normalizer below stays O(M+N) instead of scanning the full
+	// relayState.recent ring (up to MISSION_CONTROL_RECENT_EVENT_LIMIT,
+	// default 1000) once per mission entry. With ~30 live missions and
+	// 1000 events that turns 30,000 string compares into 1000.
+	const eventsByMission = new Map<string, MissionControlRelayStatusEntry[]>();
+	for (const event of relayState.recent) {
+		const bucket = eventsByMission.get(event.missionId);
+		if (bucket) bucket.push(event);
+		else eventsByMission.set(event.missionId, [event]);
+	}
 	const board: Record<MissionControlBoardStatus, MissionControlBoardEntry[]> = {
 		running: [],
 		paused: [],
@@ -1189,7 +1218,7 @@ export function getMissionControlBoard(): Record<string, MissionControlBoardEntr
 	};
 
 	for (const entry of byMission.values()) {
-		const missionEvents = relayState.recent.filter((event) => event.missionId === entry.missionId);
+		const missionEvents = eventsByMission.get(entry.missionId) ?? [];
 		normalizeSingleSourceRunningTaskBurst(entry, missionEvents);
 		closeOpenTasksForTerminalMission(entry);
 		recalculateTaskStatusCounts(entry);

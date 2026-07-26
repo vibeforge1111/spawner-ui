@@ -160,23 +160,49 @@ export function buildMissionControlAgentEvent(input: MissionControlAgentEventInp
 	};
 }
 
+export function tryAppendAgentEventLine(
+	ledgerPath: string,
+	line: string,
+	io: Pick<typeof fs, 'mkdirSync' | 'appendFileSync'> = fs
+): boolean {
+	try {
+		io.mkdirSync(path.dirname(ledgerPath), { recursive: true });
+		io.appendFileSync(ledgerPath, line, 'utf-8');
+		return true;
+	} catch (error) {
+		console.warn(
+			'[agent-event-ledger] append failed; the entry remains in memory but was not persisted',
+			error instanceof Error ? error.name : typeof error
+		);
+		return false;
+	}
+}
+
 export function appendAgentEvent(
 	event: AgentEventRecord,
-	options: { requestId?: string | null; traceRef?: string | null; sessionId?: string | null; actorId?: string | null } = {}
+	options: {
+		requestId?: string | null;
+		traceRef?: string | null;
+		sessionId?: string | null;
+		actorId?: string | null;
+		createdAt?: string | null;
+	} = {}
 ): AgentEventLedgerEntry {
+	const requestedCreatedAt = normalizeNullable(options.createdAt);
+	const parsedCreatedAt = requestedCreatedAt ? Date.parse(requestedCreatedAt) : Number.NaN;
+	const createdAtMs = Number.isFinite(parsedCreatedAt) ? parsedCreatedAt : Date.now();
 	const entry: AgentEventLedgerEntry = {
 		...event,
-		event_id: `agent-${Date.now()}-${Math.random().toString(16).slice(2, 10)}`,
+		event_id: `agent-${createdAtMs}-${crypto.randomUUID().replace(/-/g, '').slice(0, 8)}`,
 		component: AGENT_EVENT_COMPONENT,
-		created_at: new Date().toISOString(),
+		created_at: new Date(createdAtMs).toISOString(),
 		request_id: normalizeNullable(options.requestId),
 		trace_ref: normalizeNullable(options.traceRef) || traceRefFromFacts(event.facts),
 		session_id: normalizeNullable(options.sessionId),
 		actor_id: normalizeNullable(options.actorId)
 	};
 	const ledgerPath = getAgentEventLedgerPath();
-	fs.mkdirSync(path.dirname(ledgerPath), { recursive: true });
-	fs.appendFileSync(ledgerPath, `${JSON.stringify(entry)}\n`, 'utf-8');
+	tryAppendAgentEventLine(ledgerPath, `${JSON.stringify(entry)}\n`);
 	return entry;
 }
 
@@ -194,7 +220,8 @@ export function readRecentAgentEvents(
 				.filter(Boolean)
 				.map((line) => {
 					try {
-						return JSON.parse(line) as AgentEventLedgerEntry;
+						const parsed = JSON.parse(line) as unknown;
+						return normalizeAgentEventLedgerEntry(parsed);
 					} catch {
 						warnMalformedJsonlLine('agent-events', line);
 						return null;
@@ -203,10 +230,18 @@ export function readRecentAgentEvents(
 				.filter((entry): entry is AgentEventLedgerEntry => Boolean(entry))
 		: [];
 	const finalAnswerEntries = readFinalAnswerGateAuditEvents();
+	const createdAtMs = (entry: AgentEventLedgerEntry): number => {
+		const parsed = Date.parse(entry.created_at);
+		return Number.isFinite(parsed) ? parsed : 0;
+	};
 	return [...ledgerEntries, ...finalAnswerEntries]
 		.filter((entry) => !requestId || entry.request_id === requestId)
 		.filter((entry) => !sessionId || entry.session_id === sessionId)
-		.sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at))
+		.sort(
+			(a, b) =>
+				createdAtMs(a) - createdAtMs(b) ||
+				a.event_id.localeCompare(b.event_id)
+		)
 		.slice(-limit)
 		.reverse();
 }
@@ -234,8 +269,51 @@ function warnMalformedJsonlLine(source: string, line: string): void {
 	console.warn(`[agent-event-ledger] skipped malformed ${source} JSONL line (${line.length} chars)`);
 }
 
+function normalizeAgentEventLedgerEntry(value: unknown): AgentEventLedgerEntry | null {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		warnMalformedJsonlLine('agent-events', 'non-object payload');
+		return null;
+	}
+	const record = value as Record<string, unknown>;
+	const sources = Array.isArray(record.sources) ? (record.sources as AgentSourceRef[]) : [];
+	const assumptions = Array.isArray(record.assumptions) ? (record.assumptions as string[]) : [];
+	const blockers = Array.isArray(record.blockers) ? (record.blockers as string[]) : [];
+	const changed = Array.isArray(record.changed) ? (record.changed as string[]) : [];
+	const facts = record.facts && typeof record.facts === 'object' && !Array.isArray(record.facts)
+		? (record.facts as Record<string, unknown>)
+		: {};
+	const memoryCandidate = record.memory_candidate && typeof record.memory_candidate === 'object' && !Array.isArray(record.memory_candidate)
+		? (record.memory_candidate as Record<string, unknown>)
+		: null;
+	return {
+		schema_version: AGENT_EVENT_SCHEMA_VERSION,
+		event_type: (record.event_type as AgentEventType) ?? 'task_intent_detected',
+		summary: typeof record.summary === 'string' ? record.summary : '',
+		user_intent: typeof record.user_intent === 'string' ? record.user_intent : null,
+		selected_route: typeof record.selected_route === 'string' ? record.selected_route : null,
+		route_confidence: typeof record.route_confidence === 'string' ? record.route_confidence : null,
+		facts,
+		sources,
+		assumptions,
+		blockers,
+		changed,
+		memory_candidate: memoryCandidate,
+		event_id: typeof record.event_id === 'string' ? record.event_id : '',
+		component: AGENT_EVENT_COMPONENT,
+		created_at: typeof record.created_at === 'string' ? record.created_at : new Date(0).toISOString(),
+		request_id: typeof record.request_id === 'string' ? record.request_id : null,
+		trace_ref: typeof record.trace_ref === 'string' ? record.trace_ref : null,
+		session_id: typeof record.session_id === 'string' ? record.session_id : null,
+		actor_id: typeof record.actor_id === 'string' ? record.actor_id : null
+	};
+}
+
 function finalAnswerAuditToAgentEvent(record: Record<string, unknown>, index: number): AgentEventLedgerEntry {
-	const createdAt = typeof record.ts === 'string' && record.ts.trim() ? record.ts : new Date(0).toISOString();
+	const rawTs =
+		typeof record.ts === 'string' && record.ts.trim() && Number.isFinite(Date.parse(record.ts))
+			? record.ts
+			: null;
+	const createdAt = rawTs ?? new Date(0).toISOString();
 	const chatId = stringValue(record.chat_id);
 	const userId = stringValue(record.user_id);
 	const reason = stringValue(record.suppression_reason) || 'unknown';
@@ -307,11 +385,17 @@ export function buildAgentBlackBoxReport(
 		checked_at: new Date().toISOString(),
 		request_id: normalizeNullable(options.requestId),
 		session_id: normalizeNullable(options.sessionId),
-		counts: {
-			entries: entries.length,
-			blocker_events: entries.filter((entry) => entry.blockers.length > 0).length,
-			memory_candidates: entries.filter((entry) => entry.memory_candidate !== null).length
-		},
+		// Single reduce pass instead of two .filter().length walks over the
+		// same entries array — the audit report routinely returns hundreds
+		// of entries and the prior shape traversed them twice.
+		counts: entries.reduce(
+			(acc, entry) => {
+				if (entry.blockers.length > 0) acc.blocker_events += 1;
+				if (entry.memory_candidate !== null) acc.memory_candidates += 1;
+				return acc;
+			},
+			{ entries: entries.length, blocker_events: 0, memory_candidates: 0 }
+		),
 		entries
 	};
 }

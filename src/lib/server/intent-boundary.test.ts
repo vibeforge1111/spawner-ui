@@ -3,15 +3,20 @@ import { evaluateExecutionIntentBoundary } from './intent-boundary';
 
 describe('execution intent boundary', () => {
 	it('blocks meta-language word hijacks across Spark terms', () => {
-		const verdict = evaluateExecutionIntentBoundary(
-			'mission, build, Codex, schedule, and provider are words here, not a request'
-		);
+		for (const prompt of [
+			'mission, build, Codex, schedule, and provider are words here, not a request',
+			'build appears in this sentence as meta-language; stay in chat and explain the boundary',
+			'Bug report: schedule hijacked routing before; do not create a mission',
+			'QA case for provider: words alone should not execute'
+		]) {
+			const verdict = evaluateExecutionIntentBoundary(prompt);
 
-		expect(verdict).toMatchObject({
-			allowed: false,
-			reasonCode: 'conversation_only_boundary'
-		});
-		expect(verdict.reasons).toContain('meta_language_boundary');
+			expect(verdict).toMatchObject({
+				allowed: false,
+				reasonCode: 'conversation_only_boundary'
+			});
+			expect(verdict.reasons).toContain('meta_language_boundary');
+		}
 	});
 
 	it('blocks denied creation or scaffold language before provider dispatch', () => {

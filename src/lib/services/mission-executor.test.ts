@@ -42,6 +42,30 @@ afterEach(() => {
 });
 
 describe('MissionExecutor sync state transitions', () => {
+	it('creates production transition IDs without Math.random', () => {
+		const { executor } = createExecutor('running');
+		const randomSpy = vi.spyOn(Math, 'random');
+
+		(executor as unknown as {
+			appendTaskTransition: (event: {
+				type: 'task_started';
+				taskId: string;
+				taskName: string;
+				message: string;
+			}) => void;
+		}).appendTaskTransition({
+			type: 'task_started',
+			taskId: 'task-crypto',
+			taskName: 'Crypto transition',
+			message: 'started'
+		});
+
+		expect(executor.getProgress().taskTransitions.at(-1)?.id).toMatch(
+			/^transition-\d+-[0-9a-f]{8}$/
+		);
+		expect(randomSpy).not.toHaveBeenCalled();
+	});
+
 	it.each<ExecutionStatus>(['completed', 'failed', 'cancelled'])(
 		'keeps %s missions terminal when a stale mission_started event arrives',
 		(status) => {
@@ -68,6 +92,28 @@ describe('MissionExecutor sync state transitions', () => {
 });
 
 describe('MissionExecutor dispatch authority boundaries', () => {
+	it.each([
+		['an empty body', '', 'dispatch returned empty body'],
+		['a non-JSON body', 'not-json', 'dispatch returned HTTP 200 but body was not JSON']
+	])('returns bounded failure evidence for %s', async (_label, body, expectedError) => {
+		const executor = new MissionExecutor();
+		executors.push(executor);
+		vi.stubGlobal('fetch', vi.fn(async () => new Response(body, { status: 200 })));
+
+		const result = await (executor as unknown as {
+			dispatchToProviders: (
+				executionPack: Record<string, unknown>,
+				options: Record<string, unknown>
+			) => Promise<{ success: boolean; error?: string }>;
+		}).dispatchToProviders(
+			{ missionId: 'mission-invalid-dispatch-body', tasks: [] },
+			{ apiKeys: {}, providers: ['codex'] }
+		);
+
+		expect(result).toMatchObject({ success: false });
+		expect(result.error).toContain(expectedError);
+	});
+
 	it('does not replay relay authority into provider dispatch', async () => {
 		const executor = new MissionExecutor();
 		executors.push(executor);
@@ -202,4 +248,19 @@ describe('MissionExecutor local lifecycle authority boundaries', () => {
 		expect(executor.getProgress().status).toBe('running');
 		expect(statusChanges).toEqual([]);
 	});
+
+	it.each<ExecutionStatus>(['completed', 'failed', 'cancelled'])(
+		'does not send another kill request for a %s mission',
+		async (status) => {
+			const { executor, statusChanges } = createExecutor(status);
+			const fetchMock = vi.fn();
+			vi.stubGlobal('fetch', fetchMock);
+
+			await expect(executor.cancel()).resolves.toBe(false);
+
+			expect(fetchMock).not.toHaveBeenCalled();
+			expect(executor.getProgress().status).toBe(status);
+			expect(statusChanges).toEqual([]);
+		}
+	);
 });

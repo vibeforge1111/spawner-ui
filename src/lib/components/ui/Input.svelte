@@ -26,6 +26,8 @@
 		oninput,
 		onkeydown
 	}: Props = $props();
+
+	const errorId = `input-error-${Math.random().toString(36).slice(2, 10)}`;
 </script>
 
 <div class="w-full">
@@ -44,8 +46,10 @@
 		class="input {className}"
 		class:border-status-error={error}
 		class:focus:border-status-error={error}
+		aria-invalid={error ? 'true' : undefined}
+		aria-describedby={error ? errorId : undefined}
 	/>
 	{#if error}
-		<p class="mt-1 text-xs text-status-error">{error}</p>
+		<p id={errorId} class="mt-1 text-xs text-status-error" role="alert">{error}</p>
 	{/if}
 </div>

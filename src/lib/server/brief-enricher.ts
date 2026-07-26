@@ -26,7 +26,10 @@
 import { spawn } from 'child_process';
 import { existsSync } from 'fs';
 import { dirname, join } from 'path';
+import { z } from 'zod';
 import { resolveCliBinary } from './cli-resolver';
+import { BoundedProcessOutput } from './bounded-process-output';
+import { safeJsonParse } from '$lib/types/schemas';
 
 // Aggressive timeout: enrichment is a nice-to-have. If claude can't
 // respond fast, use deterministic assumptions/questions so the user's
@@ -47,6 +50,17 @@ export interface EnrichmentResult {
 	addedAssumptions: string[];
 	openQuestions: string[];
 	wasEnriched: boolean;
+}
+
+const EnrichmentPayloadSchema = z.object({
+	enrichedContent: z.string().optional(),
+	addedAssumptions: z.array(z.string()).optional(),
+	openQuestions: z.array(z.string()).optional(),
+	wasEnriched: z.boolean().optional()
+}).passthrough();
+
+export function parseEnrichmentPayload(raw: string): Partial<EnrichmentResult> | null {
+	return safeJsonParse(raw, EnrichmentPayloadSchema, 'brief-enricher') ?? null;
 }
 
 export function isSparseUnderstandingClarification(content: string): boolean {
@@ -319,17 +333,17 @@ function runClaudePrint(prompt: string): Promise<string> {
 			windowsVerbatimArguments: command.windowsVerbatimArguments,
 			env: { ...process.env }
 		});
-		let stdout = '';
-		let stderr = '';
+		const stdout = new BoundedProcessOutput('OUTPUT');
+		const stderr = new BoundedProcessOutput('STDERR');
 		const timer = setTimeout(() => {
 			child.kill('SIGKILL');
 			reject(new Error(`brief-enricher claude --print timed out after ${ENRICH_TIMEOUT_MS}ms`));
 		}, ENRICH_TIMEOUT_MS);
 		child.stdout.on('data', (chunk) => {
-			stdout += chunk.toString('utf-8');
+			stdout.append(chunk.toString('utf-8'));
 		});
 		child.stderr.on('data', (chunk) => {
-			stderr += chunk.toString('utf-8');
+			stderr.append(chunk.toString('utf-8'));
 		});
 		child.on('error', (err) => {
 			clearTimeout(timer);
@@ -338,10 +352,10 @@ function runClaudePrint(prompt: string): Promise<string> {
 		child.on('close', (code) => {
 			clearTimeout(timer);
 			if (code !== 0) {
-				reject(new Error(`brief-enricher exited ${code}. stderr: ${stderr.slice(0, 300)}`));
+				reject(new Error(`brief-enricher exited ${code}. stderr: ${stderr.toString().slice(0, 300)}`));
 				return;
 			}
-			resolve(stdout);
+			resolve(stdout.toString());
 		});
 		child.stdin.write(prompt);
 		child.stdin.end();
@@ -370,7 +384,10 @@ export async function enrichBrief(content: string): Promise<EnrichmentResult> {
 			console.warn('[brief-enricher] no JSON in claude output, falling back to deterministic brief');
 			return buildDeterministicEnrichment(content);
 		}
-		const parsed = JSON.parse(json) as Partial<EnrichmentResult>;
+		const parsed = parseEnrichmentPayload(json);
+		if (!parsed) {
+			return buildDeterministicEnrichment(content);
+		}
 		const enrichedContent = typeof parsed.enrichedContent === 'string' && parsed.enrichedContent.trim()
 			? parsed.enrichedContent
 			: content;

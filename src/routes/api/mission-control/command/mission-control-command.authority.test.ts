@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { POST } from './+server';
-import { buildClientTurnIntentVNextAuthority } from '$lib/services/harness-authority-client';
+import { buildServerTurnIntentVNextAuthority } from '$lib/server/harness-authority';
 
 const privateEnv = vi.hoisted(() => ({
 	EVENTS_API_KEY: 'mission-control-command-test-secret',
@@ -62,7 +62,7 @@ describe('/api/mission-control/command authority contract', () => {
 				missionId: 'mission-command-route-vnext-authority',
 				action: 'kill',
 				source: 'route-test',
-				executionAuthority: buildClientTurnIntentVNextAuthority({
+				executionAuthority: buildServerTurnIntentVNextAuthority({
 					source: 'route-test',
 					reason: 'Route regression for strict Governor mission-control authority.',
 					toolName: 'spawner.mission_control.command',

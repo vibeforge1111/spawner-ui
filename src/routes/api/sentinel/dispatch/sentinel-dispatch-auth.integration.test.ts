@@ -116,4 +116,44 @@ describe('/api/sentinel/dispatch auth boundary', () => {
 
 		expect(response.status).toBe(401);
 	});
+
+	it('bounds the retained action history at 100 entries', async () => {
+		for (let batch = 0; batch < 3; batch += 1) {
+			const actions = Array.from({ length: 50 }, (_, index) => ({
+				kind: 'pr_review',
+				id: `retention-${batch}-${index}`,
+				priority: 'P2_MAINTENANCE',
+				title: `Retention action ${batch}-${index}`,
+				reasons: ['Retention boundary proof']
+			}));
+			const response = await POST(
+				event('http://127.0.0.1:3333/api/sentinel/dispatch', {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+						'x-api-key': 'events-key'
+					},
+					body: JSON.stringify({
+						source: 'spark-pr-sentinel',
+						generated_at: '2026-07-24T00:00:00Z',
+						summary: { open_prs: actions.length },
+						actions
+					})
+				}) as never
+			);
+			expect(response.status).toBe(200);
+		}
+
+		const read = await GET(
+			event('http://127.0.0.1:3333/api/sentinel/dispatch?limit=100', {
+				headers: { 'x-api-key': 'events-key' }
+			}) as never
+		);
+		expect(read.status).toBe(200);
+		const body = await read.json();
+		expect(body.total).toBe(100);
+		expect(body.count).toBe(100);
+		expect(body.actions).toHaveLength(100);
+		expect(body.actions[0].id).toBe('retention-2-49');
+	});
 });

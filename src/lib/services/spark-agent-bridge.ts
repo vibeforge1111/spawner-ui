@@ -33,6 +33,7 @@ import {
 	type SparkMutationClass
 } from '$lib/server/harness-authority';
 import { stripAuthorityResidue } from '$lib/server/authority-residue';
+import { BoundedProcessOutput } from '$lib/server/bounded-process-output';
 
 export type SparkAgentCommandName =
 	| 'canvas.create_pipeline'
@@ -331,7 +332,7 @@ function nowIso(): string {
 }
 
 function createId(prefix: string): string {
-	return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+	return `${prefix}-${Date.now().toString(36)}-${crypto.randomUUID().replace(/-/g, '').slice(0, 8)}`;
 }
 
 function isProviderId(value: unknown): value is SparkAgentProviderId {
@@ -558,15 +559,18 @@ class SparkAgentBridgeService {
 	endSession(sessionId: string, reason = 'requested'): SparkAgentSession {
 		const session = this.requireSession(sessionId);
 		if (session.status === 'ended') {
-			return session;
+			throw new Error(`Session ${sessionId} is already ended`);
 		}
 
 		const workerState = this.workerSessions.get(sessionId);
 		if (workerState?.status === 'running') {
 			try {
 				workerState.process?.kill('SIGTERM');
-			} catch {
-				// noop
+			} catch (error) {
+				console.error(
+					'[spark-agent-bridge] Worker termination failed:',
+					error instanceof Error ? error.name : 'UnknownError'
+				);
 			}
 		}
 
@@ -575,6 +579,12 @@ class SparkAgentBridgeService {
 		session.updatedAt = session.endedAt;
 		this.emitEvent(sessionId, 'spark_agent.session.ended', { reason });
 		return session;
+	}
+
+	private endSessionIfActive(sessionId: string, reason: string): void {
+		if (this.sessions.get(sessionId)?.status === 'active') {
+			this.endSession(sessionId, reason);
+		}
 	}
 
 	getSession(sessionId: string): SparkAgentSession | null {
@@ -587,22 +597,42 @@ class SparkAgentBridgeService {
 
 	getLatestCanvasSnapshot(since?: string, sessionId?: string): SparkAgentCanvasSnapshot | null {
 		const sinceTs = since ? Date.parse(since) : Number.NaN;
-		const sessions = [...this.sessions.values()].filter((session) => {
-			if (sessionId && session.id !== sessionId) return false;
-			return session.events.some((event) => event.type === 'spark_agent.canvas.updated');
-		});
-		if (sessions.length === 0) return null;
+		const updatedMs = (value: string | null | undefined): number => {
+			const parsed = Date.parse(value || '');
+			return Number.isFinite(parsed) ? parsed : 0;
+		};
+		const candidates = [...this.sessions.values()]
+			.filter((session) => !sessionId || session.id === sessionId)
+			.map((session) => {
+				const latestCanvasEvent = session.events
+					.filter((event) => event.type === 'spark_agent.canvas.updated')
+					.reduce<SparkAgentBridgeEvent | null>((latest, event) => {
+						if (!latest || updatedMs(event.timestamp) > updatedMs(latest.timestamp)) return event;
+						return latest;
+					}, null);
+				return latestCanvasEvent
+					? { session, canvasUpdatedAt: latestCanvasEvent.timestamp, canvasUpdatedMs: updatedMs(latestCanvasEvent.timestamp) }
+					: null;
+			})
+			.filter(
+				(candidate): candidate is {
+					session: SparkAgentSession;
+					canvasUpdatedAt: string;
+					canvasUpdatedMs: number;
+				} => candidate !== null
+			);
+		if (candidates.length === 0) return null;
 
-		sessions.sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
-		const latest = sessions[0];
-		const latestTs = Date.parse(latest.updatedAt);
+		candidates.sort((a, b) => b.canvasUpdatedMs - a.canvasUpdatedMs);
+		const latest = candidates[0].session;
+		const latestTs = candidates[0].canvasUpdatedMs;
 		if (!Number.isNaN(sinceTs) && !Number.isNaN(latestTs) && latestTs <= sinceTs) {
 			return null;
 		}
 
 		return {
 			sessionId: latest.id,
-			updatedAt: latest.updatedAt,
+			updatedAt: candidates[0].canvasUpdatedAt,
 			pipelineId: latest.canvas.pipelineId,
 			pipelineName: latest.canvas.pipelineName,
 			nodes: latest.canvas.nodes.map((node) => ({ ...node, position: { ...node.position } })),
@@ -728,7 +758,7 @@ class SparkAgentBridgeService {
 					error: { message: blockedReason, providerId },
 					response: result.response || ''
 				});
-				this.endSession(sparkAgentSessionId, 'failed');
+				this.endSessionIfActive(sparkAgentSessionId, 'failed');
 				return {
 					success: false,
 					sparkAgentSessionId,
@@ -747,7 +777,7 @@ class SparkAgentBridgeService {
 					message: `${providerId} worker completed`,
 					response: result.response || ''
 				});
-				this.endSession(sparkAgentSessionId, 'completed');
+				this.endSessionIfActive(sparkAgentSessionId, 'completed');
 				return {
 					success: true,
 					sparkAgentSessionId,
@@ -769,7 +799,7 @@ class SparkAgentBridgeService {
 				},
 				response: result.response || ''
 			});
-			this.endSession(sparkAgentSessionId, 'failed');
+			this.endSessionIfActive(sparkAgentSessionId, 'failed');
 			return {
 				success: false,
 				sparkAgentSessionId,
@@ -787,7 +817,7 @@ class SparkAgentBridgeService {
 					message,
 					error: { message, providerId }
 				});
-				this.endSession(sparkAgentSessionId, 'failed');
+				this.endSessionIfActive(sparkAgentSessionId, 'failed');
 			}
 			return {
 				success: false,
@@ -915,7 +945,11 @@ class SparkAgentBridgeService {
 	private requireSession(sessionId: string): SparkAgentSession {
 		const session = this.sessions.get(sessionId);
 		if (!session) {
-			throw new Error(`Unknown session: ${sessionId}`);
+			const known = Array.from(this.sessions.keys()).sort();
+			const knownList = known.length > 0 ? known.join(', ') : '(none)';
+			throw new Error(
+				`Unknown session: ${sessionId}. Active session ids: ${knownList}.`,
+			);
 		}
 		return session;
 	}
@@ -957,7 +991,16 @@ class SparkAgentBridgeService {
 		}
 
 		const scoped = this.subscribers.get(sessionId);
-		scoped?.forEach((callback) => callback(event));
+		scoped?.forEach((callback) => {
+			try {
+				callback(event);
+			} catch (error) {
+				console.error(
+					'[spark-agent-bridge] Subscriber callback failed:',
+					error instanceof Error ? error.name : 'UnknownError'
+				);
+			}
+		});
 	}
 
 	private async dispatchCommand(
@@ -1484,8 +1527,8 @@ class SparkAgentBridgeService {
 		}
 
 		return await new Promise((resolve) => {
-			let stdout = '';
-			let stderr = '';
+			const stdout = new BoundedProcessOutput('OUTPUT');
+			const stderr = new BoundedProcessOutput('STDERR');
 			let finished = false;
 			let progressMarks = 0;
 			let timeout: ReturnType<typeof setTimeout> | null = null;
@@ -1511,10 +1554,15 @@ class SparkAgentBridgeService {
 				workerState.process = child;
 			}
 
+			let releaseAbortListener: (() => void) | null = null;
 			const finalize = (result: { success: boolean; response?: string; error?: string }) => {
 				if (finished) return;
 				finished = true;
 				if (timeout) clearTimeout(timeout);
+				if (releaseAbortListener) {
+					releaseAbortListener();
+					releaseAbortListener = null;
+				}
 				resolve(result);
 			};
 
@@ -1538,28 +1586,30 @@ class SparkAgentBridgeService {
 			}, providerTimeoutMs);
 
 			if (context.signal) {
+				const signal = context.signal;
 				const onAbort = () => {
 					if (timeout) clearTimeout(timeout);
 					clearKillTimeout();
 					terminateProcessTree(child, 'SIGTERM');
 					finalize({ success: false, error: CANCELLED_ERROR });
 				};
-				if (context.signal.aborted) {
+				if (signal.aborted) {
 					onAbort();
 					return;
 				}
-				context.signal.addEventListener('abort', onAbort, { once: true });
+				signal.addEventListener('abort', onAbort, { once: true });
+				releaseAbortListener = () => signal.removeEventListener('abort', onAbort);
 			}
 
 			child.stdout?.on('data', (chunk: Buffer) => {
 				const text = chunk.toString();
-				stdout += text;
+				stdout.append(text);
 				progressMarks += 1;
 				context.emitProgress(Math.min(90, progressMarks * 10), `${context.providerId} processing...`);
 			});
 
 			child.stderr?.on('data', (chunk: Buffer) => {
-				stderr += chunk.toString();
+				stderr.append(chunk.toString());
 			});
 
 			child.on('error', (err) => {
@@ -1568,12 +1618,14 @@ class SparkAgentBridgeService {
 
 			child.on('close', (code) => {
 				clearKillTimeout();
-				const trimmed = stdout.trim();
+				const stdoutText = stdout.toString();
+				const stderrText = stderr.toString();
+				const trimmed = stdoutText.trim();
 				if (code === 0) {
 					finalize({ success: true, response: trimmed });
 					return;
 				}
-				finalize({ success: false, error: providerProcessFailureMessage(code, stdout, stderr) });
+				finalize({ success: false, error: providerProcessFailureMessage(code, stdoutText, stderrText) });
 			});
 
 			if (child.stdin) {

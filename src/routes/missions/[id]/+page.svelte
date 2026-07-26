@@ -90,6 +90,9 @@
 	let missionControl = $state<MissionControlSnapshot | null>(null);
 	let missionTrace = $state<MissionTraceSnapshot | null>(null);
 	let missionControlPoller: ReturnType<typeof setInterval> | null = null;
+	let missionControlActionLoading = $state(false);
+	let missionControlActionMessage = $state<string | null>(null);
+	let copyResetTimer: ReturnType<typeof setTimeout> | null = null;
 
 	$effect(() => {
 		const unsub = page.subscribe((p) => {
@@ -157,6 +160,7 @@
 	onDestroy(() => {
 		stopLogPolling();
 		stopMissionControlPolling();
+		if (copyResetTimer) clearTimeout(copyResetTimer);
 	});
 
 	// Reload when missionId changes
@@ -218,12 +222,14 @@
 
 	function formatTime(dateStr: string): string {
 		const date = new Date(dateStr);
-		return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+		if (Number.isNaN(date.getTime())) return dateStr;
+		return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 	}
 
 	function formatDate(dateStr: string): string {
 		const date = new Date(dateStr);
-		return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+		if (Number.isNaN(date.getTime())) return dateStr;
+		return date.toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 	}
 
 	function copyPrompt() {
@@ -231,7 +237,11 @@
 		const prompt = generateClaudeCodePrompt(currentState.currentMission);
 		navigator.clipboard.writeText(prompt);
 		copiedPrompt = true;
-		setTimeout(() => copiedPrompt = false, 2000);
+		if (copyResetTimer) clearTimeout(copyResetTimer);
+		copyResetTimer = setTimeout(() => {
+			copyResetTimer = null;
+			copiedPrompt = false;
+		}, 2000);
 	}
 
 	const mission = $derived(currentState.currentMission);

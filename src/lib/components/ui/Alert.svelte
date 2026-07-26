@@ -44,9 +44,9 @@
 {#if visible}
 	<div
 		class="flex items-start gap-3 p-4 border {variantClasses[variant]} {className}"
-		role="alert"
+		role={variant === 'error' || variant === 'warning' ? 'alert' : 'status'}
 	>
-		<svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+		<svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
 			<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d={iconPaths[variant]} />
 		</svg>
 

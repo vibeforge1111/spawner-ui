@@ -23,7 +23,7 @@
 				<label class="block">
 					<span class="text-sm font-medium text-text-bright">Workspace ID</span>
 					<input
-						class="mt-2 w-full rounded-md border border-surface-border bg-bg-secondary px-3 py-3 font-mono text-sm text-text-primary outline-none transition focus:border-accent-primary focus:ring-2 focus:ring-accent-primary/30"
+						class="mt-2 w-full rounded-md border border-surface-border bg-bg-secondary px-3 py-3 font-mono text-base text-text-primary outline-none transition focus:border-accent-primary focus:ring-2 focus:ring-accent-primary/30"
 						name="workspaceId"
 						type="text"
 						autocomplete="username"
@@ -39,7 +39,7 @@
 			<label class="block">
 				<span class="text-sm font-medium text-text-bright">Access key</span>
 				<input
-					class="mt-2 w-full rounded-md border border-surface-border bg-bg-secondary px-3 py-3 font-mono text-sm text-text-primary outline-none transition focus:border-accent-primary focus:ring-2 focus:ring-accent-primary/30"
+					class="mt-2 w-full rounded-md border border-surface-border bg-bg-secondary px-3 py-3 font-mono text-base text-text-primary outline-none transition focus:border-accent-primary focus:ring-2 focus:ring-accent-primary/30"
 					name="uiKey"
 					type="password"
 					autocomplete="current-password"

@@ -355,9 +355,16 @@
 	<div class="mt-3 border border-accent-primary/30 rounded-lg overflow-hidden">
 		<div
 			onclick={() => (copyPromptCollapsed = !copyPromptCollapsed)}
-			onkeydown={(event) => event.key === 'Enter' && (copyPromptCollapsed = !copyPromptCollapsed)}
+			onkeydown={(event) => {
+				if (event.key === 'Enter' || event.key === ' ') {
+					event.preventDefault();
+					copyPromptCollapsed = !copyPromptCollapsed;
+				}
+			}}
 			role="button"
 			tabindex="0"
+			aria-expanded={!copyPromptCollapsed}
+			aria-label="Toggle single-LLM prompt panel"
 			class="w-full flex items-center justify-between px-3 py-2 bg-accent-primary/10 hover:bg-accent-primary/15 transition-colors cursor-pointer"
 		>
 			<div class="flex items-center gap-2">

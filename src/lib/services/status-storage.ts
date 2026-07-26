@@ -36,6 +36,11 @@ const KEYS = {
 const MAX_HEALTH_HISTORY = 100;
 const MAX_INCIDENTS_PER_SERVICE = 50;
 
+function safeTimeMs(value: Date): number {
+	const ms = value.getTime();
+	return Number.isFinite(ms) ? ms : 0;
+}
+
 // ============================================
 // Services
 // ============================================
@@ -135,7 +140,7 @@ export function addHealthCheck(check: HealthCheck): boolean {
 		// Keep only most recent entries per service
 		const trimmed: HealthCheck[] = [];
 		for (const [, checks] of byService) {
-			checks.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+			checks.sort((a, b) => safeTimeMs(b.timestamp) - safeTimeMs(a.timestamp));
 			trimmed.push(...checks.slice(0, MAX_HEALTH_HISTORY));
 		}
 
@@ -199,7 +204,7 @@ export function addIncident(incident: Incident): boolean {
 
 		const trimmed: Incident[] = [];
 		for (const [, incs] of byService) {
-			incs.sort((a, b) => b.startTime.getTime() - a.startTime.getTime());
+			incs.sort((a, b) => safeTimeMs(b.startTime) - safeTimeMs(a.startTime));
 			trimmed.push(...incs.slice(0, MAX_INCIDENTS_PER_SERVICE));
 		}
 

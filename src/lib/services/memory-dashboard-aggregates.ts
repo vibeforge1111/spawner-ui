@@ -165,9 +165,14 @@ export function selectActionableInsights(
 		.sort((a, b) => {
 			const byPriority = priority[a.status] - priority[b.status];
 			if (byPriority !== 0) return byPriority;
-			return new Date(a.lastTouchedAt).getTime() - new Date(b.lastTouchedAt).getTime();
+			return touchedMs(a.lastTouchedAt) - touchedMs(b.lastTouchedAt);
 		})
 		.slice(0, limit);
+}
+
+function touchedMs(value: string): number {
+	const ms = new Date(value).getTime();
+	return Number.isFinite(ms) ? ms : Number.POSITIVE_INFINITY;
 }
 
 export function isStaleOrRisky(memory: MemoryDashboardRecord, now = new Date('2026-04-30T08:00:00.000Z')): boolean {

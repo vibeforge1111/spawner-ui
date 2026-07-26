@@ -1,15 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import path from 'path';
-import { existsSync } from 'fs';
+import { existsSync, realpathSync } from 'fs';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { POST } from './+server';
 import { providerRuntime } from '$lib/server/provider-runtime';
 import { getMissionControlRelaySnapshot } from '$lib/server/mission-control-relay';
 import {
-	buildClientGovernorDecisionAuthority,
-	buildClientTurnIntentVNextAuthority
-} from '$lib/services/harness-authority-client';
+	buildServerGovernorDecisionAuthority,
+	buildServerTurnIntentVNextAuthority
+} from '$lib/server/harness-authority';
+import { createWrittenDeterministicArtifactProof } from '$lib/server/prd-deterministic-artifact-proof';
 
 vi.mock('$lib/server/provider-runtime', () => ({
 	providerRuntime: {
@@ -39,9 +40,18 @@ const TEST_API_KEY = 'prd-load-to-canvas-test-secret';
 const originalBridgeApiKey = process.env.SPARK_BRIDGE_API_KEY;
 const originalEventsApiKey = process.env.EVENTS_API_KEY;
 const originalMcpApiKey = process.env.MCP_API_KEY;
+const originalSpawnerStateDir = process.env.SPAWNER_STATE_DIR;
+const originalSparkWorkspaceRoot = process.env.SPARK_WORKSPACE_ROOT;
+const originalSpawnerWorkspaceRoot = process.env.SPAWNER_WORKSPACE_ROOT;
+const originalAllowExternalProjectPaths = process.env.SPARK_ALLOW_EXTERNAL_PROJECT_PATHS;
+
+function restoreEnv(name: string, value: string | undefined): void {
+	if (value === undefined) delete process.env[name];
+	else process.env[name] = value;
+}
 
 function dispatchAuthority(requestId: string, missionId: string) {
-	return buildClientGovernorDecisionAuthority({
+	return buildServerGovernorDecisionAuthority({
 		source: 'prd-load-authority-test',
 		reason: 'Focused PRD load auto-dispatch authority regression.',
 		toolName: 'spawner.dispatch',
@@ -52,7 +62,7 @@ function dispatchAuthority(requestId: string, missionId: string) {
 }
 
 function dispatchVNextAuthority(requestId: string, missionId: string) {
-	return buildClientTurnIntentVNextAuthority({
+	return buildServerTurnIntentVNextAuthority({
 		source: 'prd-load-authority-test',
 		reason: 'Focused PRD load auto-dispatch authority regression.',
 		toolName: 'spawner.dispatch',
@@ -63,13 +73,16 @@ function dispatchVNextAuthority(requestId: string, missionId: string) {
 }
 
 async function resetTestSpawnerDir() {
-	delete process.env.SPAWNER_STATE_DIR;
+	restoreEnv('SPAWNER_STATE_DIR', originalSpawnerStateDir);
 	if (originalBridgeApiKey === undefined) delete process.env.SPARK_BRIDGE_API_KEY;
 	else process.env.SPARK_BRIDGE_API_KEY = originalBridgeApiKey;
 	if (originalEventsApiKey === undefined) delete process.env.EVENTS_API_KEY;
 	else process.env.EVENTS_API_KEY = originalEventsApiKey;
 	if (originalMcpApiKey === undefined) delete process.env.MCP_API_KEY;
 	else process.env.MCP_API_KEY = originalMcpApiKey;
+	restoreEnv('SPARK_WORKSPACE_ROOT', originalSparkWorkspaceRoot);
+	restoreEnv('SPAWNER_WORKSPACE_ROOT', originalSpawnerWorkspaceRoot);
+	restoreEnv('SPARK_ALLOW_EXTERNAL_PROJECT_PATHS', originalAllowExternalProjectPaths);
 	if (testSpawnerDir && existsSync(testSpawnerDir)) {
 		await rm(testSpawnerDir, { recursive: true, force: true });
 	}
@@ -376,13 +389,37 @@ describe('/api/prd-bridge/load-to-canvas integration', () => {
 	});
 
 	it('does not auto-dispatch deterministic static proof results over existing artifacts', async () => {
+		const dispatch = vi.mocked(providerRuntime.dispatch);
+		dispatch.mockClear();
 		const requestId = 'tg-static-proof-load-test';
 		const targetFolder = path.join(testSpawnerDir, 'spark-static-proof-load-test');
 		const marker = 'SPARK_OS_STATIC_LOAD_TEST';
 		const sentence = 'Static load proof stays deterministic';
+		const prdContent = `Create exactly index.html and README.md with ${marker} and "${sentence}".`;
 		await mkdir(targetFolder, { recursive: true });
 		await writeFile(path.join(targetFolder, 'index.html'), `<p>${marker}</p><p>${sentence}</p>`, 'utf-8');
 		await writeFile(path.join(targetFolder, 'README.md'), `${marker}\n\n${sentence}\n`, 'utf-8');
+		await writeFile(path.join(testSpawnerDir, 'pending-prd.md'), prdContent, 'utf-8');
+		await writeFile(
+			path.join(testSpawnerDir, 'pending-request.json'),
+			JSON.stringify({
+				requestId,
+				projectPathEvidence: {
+					requestedProjectPath: targetFolder,
+					usedProjectPath: targetFolder,
+					evidenceOnly: false,
+					rejectedReason: null
+				}
+			}),
+			'utf-8'
+		);
+		const deterministicArtifactProof = createWrittenDeterministicArtifactProof({
+			requestId,
+			prdContent,
+			targetRoot: targetFolder,
+			expectedRelativeFiles: ['index.html', 'README.md'],
+			allowedRoots: [testSpawnerDir]
+		});
 		await writeFile(
 			path.join(testSpawnerDir, 'results', `${requestId}.json`),
 			JSON.stringify({
@@ -391,6 +428,7 @@ describe('/api/prd-bridge/load-to-canvas integration', () => {
 				projectName: 'Spark Static Proof Load Test',
 				projectType: 'static-exact-file-proof',
 				instructionTextRedacted: true,
+				metadata: { deterministicArtifactProof },
 				tasks: [
 					{
 						id: 'task-1-static-proof',
@@ -424,8 +462,164 @@ describe('/api/prd-bridge/load-to-canvas integration', () => {
 		});
 		const pending = JSON.parse(await readFile(path.join(testSpawnerDir, 'pending-load.json'), 'utf-8'));
 		expect(pending.autoRun).toBe(false);
+		expect(dispatch).not.toHaveBeenCalled();
 		expect(await readFile(path.join(targetFolder, 'index.html'), 'utf-8')).toContain(marker);
 		expect(await readFile(path.join(targetFolder, 'README.md'), 'utf-8')).toContain(sentence);
+	});
+
+	it('fails closed into governed dispatch for legacy unbound proof and caller-owned workspace targets', async () => {
+		const dispatch = vi.mocked(providerRuntime.dispatch);
+		dispatch.mockClear();
+		const requestId = 'tg-static-unbound-proof-load-test';
+		const missionId = 'mission-tg-static-unbound-proof-load-test';
+		const workspaceRoot = path.join(testSpawnerDir, 'workspaces');
+		const targetFolder = path.join(workspaceRoot, 'caller-owned-target');
+		const prdContent = 'Create exactly index.html and README.md, then verify the governed build.';
+		await mkdir(targetFolder, { recursive: true });
+		await writeFile(path.join(targetFolder, 'index.html'), '<p>Legacy unbound artifact</p>', 'utf-8');
+		await writeFile(path.join(targetFolder, 'README.md'), '# Legacy unbound artifact\n', 'utf-8');
+		process.env.SPARK_WORKSPACE_ROOT = workspaceRoot;
+		process.env.SPAWNER_WORKSPACE_ROOT = workspaceRoot;
+		delete process.env.SPARK_ALLOW_EXTERNAL_PROJECT_PATHS;
+		await writeFile(path.join(testSpawnerDir, 'pending-prd.md'), prdContent, 'utf-8');
+		await writeFile(
+			path.join(testSpawnerDir, 'pending-request.json'),
+			JSON.stringify({ requestId }),
+			'utf-8'
+		);
+		await writeFile(
+			path.join(testSpawnerDir, 'results', `${requestId}.json`),
+			JSON.stringify({
+				requestId,
+				success: true,
+				projectName: 'Legacy Unbound Static Proof',
+				projectType: 'static-exact-file-proof',
+				executionPrompt: `Build this at ${targetFolder} as a standalone project.`,
+				metadata: {
+					deterministicArtifactProof: {
+						status: 'written',
+						fileCount: 2,
+						reason: 'artifacts_written'
+					}
+				},
+				tasks: [
+					{
+						id: 'task-1-static-proof',
+						title: 'Create caller-declared static files',
+						summary: 'Rebuild and verify the files through the governed provider lane.',
+						skills: ['frontend-engineer'],
+						workspaceTargets: [targetFolder]
+					}
+				]
+			}),
+			'utf-8'
+		);
+
+		const response = await POST({
+			request: new Request('http://localhost/api/prd-bridge/load-to-canvas', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json', 'x-api-key': TEST_API_KEY },
+				body: JSON.stringify({
+					requestId,
+					autoRun: true,
+					executionAuthority: dispatchAuthority(requestId, missionId)
+				})
+			})
+		} as never);
+
+		const body = await response.json();
+		expect(response.status).toBe(200);
+		expect(body.autoDispatch).toMatchObject({ started: true, missionId });
+		expect(dispatch).toHaveBeenCalledTimes(1);
+		expect(dispatch.mock.calls[0]?.[0]).toMatchObject({
+			workingDirectory: realpathSync(targetFolder)
+		});
+		const pending = JSON.parse(await readFile(path.join(testSpawnerDir, 'pending-load.json'), 'utf-8'));
+		expect(pending.autoRun).toBe(true);
+	});
+
+	it('auto-dispatches an evidence-only non-chat static plan from a generated workspace when no artifacts were written', async () => {
+		const dispatch = vi.mocked(providerRuntime.dispatch);
+		dispatch.mockClear();
+		const requestId = 'cli-static-evidence-fallback';
+		const missionId = 'mission-cli-static-evidence-fallback';
+		const workspaceRoot = path.join(testSpawnerDir, 'workspaces');
+		await mkdir(workspaceRoot, { recursive: true });
+		process.env.SPARK_WORKSPACE_ROOT = workspaceRoot;
+		process.env.SPAWNER_WORKSPACE_ROOT = workspaceRoot;
+		delete process.env.SPARK_ALLOW_EXTERNAL_PROJECT_PATHS;
+		const foreignPath = process.platform === 'win32'
+			? '/tmp/non-chat-static-proof'
+			: 'C:\\Users\\USER\\Desktop\\non-chat-static-proof';
+		const projectPathEvidence = {
+			requestedProjectPath: foreignPath,
+			usedProjectPath: null,
+			evidenceOnly: true,
+			rejectedReason: 'foreign_operating_system_path'
+		};
+		await writeFile(
+			path.join(testSpawnerDir, 'results', `${requestId}.json`),
+			JSON.stringify({
+				requestId,
+				success: true,
+				projectName: 'Non Chat Static Proof',
+				projectType: 'static-exact-file-proof',
+				metadata: {
+					deterministicArtifactProof: {
+						status: 'not_written',
+						fileCount: 0,
+						reason: 'safe_exact_artifact_target_unavailable'
+					}
+				},
+				tasks: [
+					{
+						id: 'task-1-static-proof',
+						title: 'Create the contained static proof',
+						summary: 'Create index.html and README.md in the governed workspace.',
+						skills: [],
+						workspaceTargets: []
+					}
+				]
+			}),
+			'utf-8'
+		);
+		await writeFile(
+			path.join(testSpawnerDir, 'pending-request.json'),
+			JSON.stringify({
+				requestId,
+				buildMode: 'direct',
+				buildModeReason: 'Contained fallback required.',
+				tier: 'base',
+				projectLineage: { projectPath: foreignPath },
+				projectPathEvidence
+			}),
+			'utf-8'
+		);
+
+		const response = await POST({
+			request: new Request('http://localhost/api/prd-bridge/load-to-canvas', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json', 'x-api-key': TEST_API_KEY },
+				body: JSON.stringify({
+					requestId,
+					autoRun: true,
+					executionAuthority: dispatchAuthority(requestId, missionId)
+				})
+			})
+		} as never);
+
+		const body = await response.json();
+		expect(response.status).toBe(200);
+		expect(body.autoDispatch).toMatchObject({ started: true, missionId });
+		expect(dispatch).toHaveBeenCalledTimes(1);
+		const dispatchInput = dispatch.mock.calls[0]?.[0] as { workingDirectory: string };
+		expect(dispatchInput.workingDirectory).toContain(realpathSync(workspaceRoot));
+		expect(dispatchInput.workingDirectory).not.toContain(foreignPath);
+		const pending = JSON.parse(await readFile(path.join(testSpawnerDir, 'pending-load.json'), 'utf-8'));
+		expect(pending.autoRun).toBe(true);
+		expect(pending.relay.projectPathEvidence).toEqual(projectPathEvidence);
+		expect(pending.relay.projectLineage).toBeUndefined();
+		expect(pending.relay.goal).toBeUndefined();
 	});
 
 	it('demotes auto-run to preview-only without inbound dispatch authority', async () => {
@@ -1059,5 +1253,45 @@ describe('/api/prd-bridge/load-to-canvas integration', () => {
 		expect(pending.tier).toBe('pro');
 		expect(pending.relay.tier).toBe('pro');
 		expect(pending.nodes[0].skill.skillChain).toEqual(['frontend-engineer', 'threejs-3d-graphics']);
+	});
+
+	it('does not echo key-shaped request ids when analysis results are missing', async () => {
+		const requestId = 'OPENAI_API_KEY=sk-placeholder-load-canvas-token-123456';
+
+		const response = await POST({
+			request: new Request('http://localhost/api/prd-bridge/load-to-canvas', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json', 'x-api-key': TEST_API_KEY },
+				body: JSON.stringify({ requestId, autoRun: false })
+			})
+		} as never);
+
+		expect(response.status).toBe(404);
+		const body = await response.json();
+		expect(body.error).toBe('No analysis result found for that request.');
+		expect(JSON.stringify(body)).not.toContain('sk-placeholder-load-canvas-token-123456');
+	});
+
+	it('does not echo malformed result contents in load-to-canvas failures', async () => {
+		const requestId = 'tg-malformed-result-redaction-test';
+		await writeFile(
+			path.join(testSpawnerDir, 'results', `${requestId}.json`),
+			'OPENAI_API_KEY=sk-placeholder-load-canvas-token-123456',
+			'utf-8'
+		);
+
+		const response = await POST({
+			request: new Request('http://localhost/api/prd-bridge/load-to-canvas', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json', 'x-api-key': TEST_API_KEY },
+				body: JSON.stringify({ requestId, autoRun: false })
+			})
+		} as never);
+
+		expect(response.status).toBe(500);
+		const body = await response.json();
+		expect(body.error).toBe('Failed to load PRD result into canvas.');
+		expect(JSON.stringify(body)).not.toContain('OPENAI_API_KEY');
+		expect(JSON.stringify(body)).not.toContain('sk-placeholder-load-canvas-token-123456');
 	});
 });

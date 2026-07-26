@@ -306,6 +306,10 @@
     @apply inline-flex items-center justify-center gap-2 font-medium transition-all duration-fast rounded-lg;
   }
 
+  .btn:disabled {
+    @apply opacity-50 cursor-not-allowed;
+  }
+
   .btn-primary {
     @apply btn bg-accent-primary text-bg-primary hover:bg-accent-primary-hover active:scale-[0.98];
   }
@@ -556,5 +560,21 @@
   }
   75% {
     transform: rotate(10deg);
+  }
+}
+
+/* Respect the OS-level reduced-motion preference (WCAG 2.3.3).
+   Users who set `prefers-reduced-motion: reduce` in their OS — common for
+   vestibular disorders, migraine sufferers, and motion-sickness — get
+   near-instant animations instead of the long infinite loops used across
+   the canvas, mission live view, skill cloud, and toast slide-ins. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

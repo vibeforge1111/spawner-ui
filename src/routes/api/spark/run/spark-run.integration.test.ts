@@ -19,7 +19,10 @@ vi.mock('$lib/server/provider-runtime', () => ({
 import { GET, POST } from './+server';
 import { providerRuntime } from '$lib/server/provider-runtime';
 import { getMissionControlPersistPath } from '$lib/server/mission-control-relay';
-import { buildClientGovernorDecisionAuthority } from '$lib/services/harness-authority-client';
+import {
+	assertNativeGovernorHarnessAuthority,
+	buildServerGovernorDecisionAuthority
+} from '$lib/server/harness-authority';
 
 const originalSpawnerStateDir = process.env.SPAWNER_STATE_DIR;
 const originalMcpApiKey = process.env.MCP_API_KEY;
@@ -110,7 +113,7 @@ function vnextAuthority(options: { executable?: boolean; capabilityId?: string; 
 function governorAuthority(options: { executable?: boolean; withLedger?: boolean } = {}) {
 	const executable = options.executable !== false;
 	if (executable) {
-		return buildClientGovernorDecisionAuthority({
+		return buildServerGovernorDecisionAuthority({
 			source: 'spark-run.integration.test',
 			reason: 'Focused Spark run authority regression.',
 			toolName: 'spawner.run',
@@ -263,6 +266,8 @@ describe('/api/spark/run integration', () => {
 
 	it('returns local-only Mission Control access for Telegram callers by default', async () => {
 		expect(getMissionControlPersistPath()).toContain('spawner-spark-run-test-');
+		const dispatch = vi.mocked(providerRuntime.dispatch);
+		dispatch.mockClear();
 
 		const response = await POST(routeEvent({
 			goal: 'Build a tiny Telegram smoke app.',
@@ -284,6 +289,15 @@ describe('/api/spark/run integration', () => {
 				mobileReachable: false
 			}
 		});
+		expect(dispatch).toHaveBeenCalledTimes(1);
+		const dispatchAuthority = dispatch.mock.calls[0]?.[0]?.executionAuthority;
+		expect(() => assertNativeGovernorHarnessAuthority({
+			authority: dispatchAuthority,
+			toolName: 'spawner.dispatch',
+			ownerSystem: 'spawner-ui',
+			mutationClass: 'launches_mission',
+			requestId: 'tg-spark-run-local'
+		})).not.toThrow();
 	});
 
 	it('exposes a non-dispatching route health probe', async () => {

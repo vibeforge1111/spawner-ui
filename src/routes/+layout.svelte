@@ -9,6 +9,24 @@
 	import ToastContainer from '$lib/components/ToastContainer.svelte';
 
 	let { children } = $props();
+	let isOffline = $state(false);
+
+	function handleOffline(): void {
+		isOffline = true;
+	}
+
+	function handleOnline(): void {
+		isOffline = false;
+	}
+
+	function skipToMain(event: MouseEvent) {
+		event.preventDefault();
+		const main = document.querySelector('main');
+		if (!main) return;
+		if (!main.hasAttribute('tabindex')) main.setAttribute('tabindex', '-1');
+		main.focus({ preventScroll: false });
+		main.scrollIntoView({ block: 'start' });
+	}
 
 	// Initialize app state and optional local sync on app load
 	onMount(async () => {
@@ -27,6 +45,10 @@
 		if (syncWsUrl) {
 			tryConnectSync(syncWsUrl);
 		}
+
+		isOffline = !navigator.onLine;
+		window.addEventListener('online', handleOnline);
+		window.addEventListener('offline', handleOffline);
 	});
 
 	// Try to connect WebSocket for real-time sync
@@ -44,6 +66,8 @@
 	onDestroy(() => {
 		if (browser) {
 			syncClient.disconnect();
+			window.removeEventListener('online', handleOnline);
+			window.removeEventListener('offline', handleOffline);
 		}
 	});
 </script>
@@ -57,5 +81,27 @@
 	<meta name="description" content="Build AI workflows visually. Connect skills, validate with sharp edges, deploy anywhere." />
 </svelte:head>
 
+<a class="skip-link" href="#main-content" onclick={skipToMain}>Skip to main content</a>
+
+{#if isOffline}
+	<div
+		role="status"
+		aria-live="polite"
+		class="sticky top-0 z-[60] w-full border-b border-status-warning/40 bg-status-warning-bg px-4 py-2 text-center font-mono text-xs text-status-warning"
+	>
+		You're offline. Local views remain available; live sync and polling will retry when the network returns.
+	</div>
+{/if}
+
 {@render children()}
 <ToastContainer />
+
+<style>
+	.skip-link {
+		position: absolute; top: -100px; left: 0; z-index: 100;
+		padding: 12px 16px; background: var(--accent, #2fca94);
+		color: var(--accent-fg, #0a3820); font: 600 14px/1 ui-sans-serif, system-ui, sans-serif;
+		text-decoration: none; border-radius: 0 0 6px 0;
+	}
+	.skip-link:focus { top: 0; outline: 2px solid var(--text-bright, #fff); outline-offset: 2px; }
+</style>

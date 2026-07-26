@@ -14,16 +14,17 @@ vi.mock('$lib/services/mcp/client', async (importOriginal) => {
 	const actual = await importOriginal<typeof import('$lib/services/mcp/client')>();
 	return {
 		...actual,
-		connectMCP: vi.fn()
+		connectMCP: vi.fn(),
+		disconnectMCP: vi.fn()
 	};
 });
 
-import { POST } from './+server';
-import { connectMCP } from '$lib/services/mcp/client';
+import { DELETE, POST } from './+server';
+import { connectMCP, disconnectMCP } from '$lib/services/mcp/client';
 import {
-	buildClientGovernorDecisionAuthority,
-	buildClientTurnIntentVNextAuthority
-} from '$lib/services/harness-authority-client';
+	buildServerGovernorDecisionAuthority,
+	buildServerTurnIntentVNextAuthority
+} from '$lib/server/harness-authority';
 
 function event(body: unknown) {
 	return {
@@ -37,8 +38,27 @@ function event(body: unknown) {
 	};
 }
 
+function rawEvent(
+	body: string,
+	method: 'POST' | 'DELETE' = 'POST',
+	authenticated = true
+) {
+	return {
+		request: new Request('http://127.0.0.1/api/mcp', {
+			method,
+			headers: {
+				'content-type': 'application/json',
+				...(authenticated ? { 'x-api-key': 'mcp-test-secret' } : {})
+			},
+			body
+		}),
+		url: new URL('http://127.0.0.1/api/mcp'),
+		getClientAddress: () => '127.0.0.1'
+	};
+}
+
 function connectAuthority() {
-	return buildClientGovernorDecisionAuthority({
+	return buildServerGovernorDecisionAuthority({
 		source: 'mcp.integration.test',
 		reason: 'Focused MCP connect authority regression.',
 		toolName: 'spawner.mcp.connect',
@@ -53,6 +73,7 @@ describe('/api/mcp', () => {
 		PRIVATE_ENV.MCP_API_KEY = 'mcp-test-secret';
 		PRIVATE_ENV.MCP_ALLOW_CUSTOM_CONFIG = '';
 		vi.mocked(connectMCP).mockReset();
+		vi.mocked(disconnectMCP).mockReset();
 		vi.mocked(connectMCP).mockResolvedValue({
 			client: {} as never,
 			transport: {} as never,
@@ -132,7 +153,7 @@ describe('/api/mcp', () => {
 		const response = await POST(event({
 			instanceId: 'filesystem',
 			mcpId: 'filesystem',
-			executionAuthority: buildClientTurnIntentVNextAuthority({
+			executionAuthority: buildServerTurnIntentVNextAuthority({
 				source: 'mcp.integration.test',
 				reason: 'Focused MCP connect bare-VNext regression.',
 				toolName: 'spawner.mcp.connect',
@@ -148,5 +169,88 @@ describe('/api/mcp', () => {
 		expect(body.authority.source).toBe('turn_intent_vnext');
 		expect(body.authority.reasonCodes).toContain('native_governor_required');
 		expect(connectMCP).not.toHaveBeenCalled();
+	});
+
+	it('bounds connection failures without returning or logging local paths', async () => {
+		const localPath = '/Users/alice/private/mcp-connect-cache.json';
+		const errorMessages: string[] = [];
+		const originalError = console.error;
+		console.error = (...args: unknown[]) => {
+			errorMessages.push(args.map(String).join(' '));
+		};
+
+		try {
+			vi.mocked(connectMCP).mockRejectedValueOnce(new Error(`connect failed while reading ${localPath}`));
+
+			const response = await POST(event({
+				instanceId: 'filesystem',
+				mcpId: 'filesystem',
+				executionAuthority: connectAuthority()
+			}) as never);
+
+			expect(response.status).toBe(500);
+			await expect(response.json()).resolves.toEqual({ error: 'MCP connection failed' });
+		} finally {
+			console.error = originalError;
+		}
+
+		expect(errorMessages.join('\n')).toContain('<local-path>');
+		expect(errorMessages.join('\n')).not.toContain(localPath);
+	});
+
+	it.each([
+		['empty', ''],
+		['malformed', '{not valid json'],
+		['null', 'null'],
+		['array', '[]']
+	])('returns 400 for a rejected %s POST body without leaking parser details', async (_kind, body) => {
+		const response = await POST(rawEvent(body) as never);
+
+		expect(response.status).toBe(400);
+		expect(await response.json()).toEqual({ error: 'Malformed JSON body' });
+		expect(connectMCP).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		['empty', ''],
+		['malformed', '{not valid json'],
+		['null', 'null'],
+		['array', '[]']
+	])('returns 400 for a rejected %s DELETE body without leaking parser details', async (_kind, body) => {
+		const response = await DELETE(rawEvent(body, 'DELETE') as never);
+
+		expect(response.status).toBe(400);
+		expect(await response.json()).toEqual({ error: 'Malformed JSON body' });
+		expect(disconnectMCP).not.toHaveBeenCalled();
+	});
+
+	it('keeps authentication ahead of malformed-body handling for POST', async () => {
+		const response = await POST(rawEvent('{not valid json', 'POST', false) as never);
+
+		expect(response.status).toBe(401);
+		expect(connectMCP).not.toHaveBeenCalled();
+	});
+
+	it('keeps authentication ahead of malformed-body handling for DELETE', async () => {
+		const response = await DELETE(rawEvent('{not valid json', 'DELETE', false) as never);
+
+		expect(response.status).toBe(401);
+		expect(disconnectMCP).not.toHaveBeenCalled();
+	});
+
+	it('keeps field-specific validation for an empty POST object', async () => {
+		const response = await POST(rawEvent('{}') as never);
+
+		expect(response.status).toBe(400);
+		expect(await response.json()).toEqual({ error: 'instanceId is required' });
+		expect(connectMCP).not.toHaveBeenCalled();
+	});
+
+	it('keeps field-specific validation for an empty DELETE object', async () => {
+		const response = await DELETE(rawEvent('{}', 'DELETE') as never);
+
+		expect(response.status).toBe(400);
+		expect(await response.json()).toEqual({ error: 'instanceId is required' });
+		expect(disconnectMCP).not.toHaveBeenCalled();
 	});
 });

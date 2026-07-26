@@ -16,10 +16,21 @@ const events: MemoryRecallEvent[] = [
 ];
 
 describe('memory quality aggregates', () => {
-	it('groups accuracy buckets by local day and outcome', () => {
+	it('groups accuracy buckets by UTC day and outcome', () => {
 		const buckets = buildAccuracyBuckets(events);
 		expect(buckets).toHaveLength(2);
 		expect(buckets[1]).toMatchObject({ day: '2026-04-28', hit: 1, miss: 1, drift: 0, unsure: 0 });
+	});
+
+	it('uses the timestamp UTC day regardless of its explicit offset', () => {
+		const offsetEvent: MemoryRecallEvent = {
+			...events[0],
+			id: 'offset',
+			timestamp: '2026-04-28T23:30:00-02:00'
+		};
+		expect(buildAccuracyBuckets([offsetEvent])).toEqual([
+			expect.objectContaining({ day: '2026-04-29', hit: 1, total: 1 })
+		]);
 	});
 
 	it('counts every failure mode with zeros for absent modes', () => {
@@ -38,12 +49,27 @@ describe('memory quality aggregates', () => {
 		});
 	});
 
+	it('keeps the first event when the slowest latency is tied', () => {
+		const tied = [
+			{ ...events[0], id: 'first-slowest', latencyMs: 1200 },
+			{ ...events[1], id: 'second-slowest', latencyMs: 1200 }
+		];
+
+		expect(summarizeLatency(tied).slowest?.id).toBe('first-slowest');
+	});
+
 	it('sorts recent events newest first with table-ready fields', () => {
 		const recent = recentRecallEvents(events, 2);
 		expect(recent).toEqual([
 			expect.objectContaining({ query: 'b', source: 'domain-chip-memory', outcome: 'miss', latencyMs: 500, notes: 'b' }),
 			expect.objectContaining({ query: 'a' })
 		]);
+	});
+
+	it('places malformed recall timestamps after finite timestamps', () => {
+		const malformed = { ...events[0], id: 'malformed', timestamp: 'not-a-date', query: 'bad timestamp' };
+		const recent = recentRecallEvents([malformed, events[1]], 2);
+		expect(recent.map((event) => event.query)).toEqual(['b', 'bad timestamp']);
 	});
 
 	it('rolls source health for all monitored sources', () => {

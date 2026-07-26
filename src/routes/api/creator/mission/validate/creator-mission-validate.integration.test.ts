@@ -10,7 +10,7 @@ import {
 	type CreatorIntentPacket
 } from '$lib/server/creator-mission';
 import { getMissionControlRelaySnapshot } from '$lib/server/mission-control-relay';
-import { buildClientGovernorDecisionAuthority, buildClientTurnIntentVNextAuthority } from '$lib/services/harness-authority-client';
+import { buildServerGovernorDecisionAuthority, buildServerTurnIntentVNextAuthority } from '$lib/server/harness-authority';
 
 const { PRIVATE_ENV, TEST_API_KEY } = vi.hoisted(() => ({
 	TEST_API_KEY: 'creator-mission-validate-route-test-secret',
@@ -72,7 +72,7 @@ function packet(): CreatorIntentPacket {
 }
 
 function validationGovernorAuthority(target = 'mission-creator-validate-api') {
-	return buildClientGovernorDecisionAuthority({
+	return buildServerGovernorDecisionAuthority({
 		source: 'creator-validation-route-test',
 		reason: 'User requested creator artifact validation from Spark.',
 		toolName: 'spawner.creator.validate',
@@ -82,7 +82,7 @@ function validationGovernorAuthority(target = 'mission-creator-validate-api') {
 }
 
 function validationVNextAuthority(target = 'mission-creator-validate-api') {
-	return buildClientTurnIntentVNextAuthority({
+	return buildServerTurnIntentVNextAuthority({
 		source: 'creator-validation-route-test',
 		reason: 'User requested creator artifact validation from Spark.',
 		toolName: 'spawner.creator.validate',

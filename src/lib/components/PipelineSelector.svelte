@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
 	import {
 		pipelines,
 		activePipeline,
@@ -33,6 +33,16 @@
 	let dropdownEl = $state<HTMLDivElement>();
 	let renameInputEl = $state<HTMLInputElement>();
 	let fileInputEl = $state<HTMLInputElement>();
+	let renameOpenTimer: ReturnType<typeof setTimeout> | null = null;
+	let renameFocusTimer: ReturnType<typeof setTimeout> | null = null;
+	let nowTick = $state(Date.now());
+
+	// Keep relative timestamps fresh while the dropdown is open
+	$effect(() => {
+		if (!isOpen) return;
+		const id = setInterval(() => { nowTick = Date.now(); }, 60_000);
+		return () => clearInterval(id);
+	});
 
 	// Get current values from stores
 	let currentPipelines = $state<PipelineMetadata[]>([]);
@@ -108,7 +118,9 @@
 			// User can rename manually
 		} else {
 			// Start renaming the new pipeline
-			setTimeout(() => {
+			if (renameOpenTimer) clearTimeout(renameOpenTimer);
+			renameOpenTimer = setTimeout(() => {
+				renameOpenTimer = null;
 				isOpen = true;
 				startRename(newPipeline);
 			}, 100);
@@ -118,14 +130,26 @@
 	function startRename(pipeline: PipelineMetadata) {
 		isRenaming = pipeline.id;
 		renameValue = pipeline.name;
-		setTimeout(() => renameInputEl?.focus(), 50);
+		if (renameFocusTimer) clearTimeout(renameFocusTimer);
+		renameFocusTimer = setTimeout(() => {
+			renameFocusTimer = null;
+			renameInputEl?.focus();
+		}, 50);
 	}
 
+	onDestroy(() => {
+		if (renameOpenTimer) clearTimeout(renameOpenTimer);
+		if (renameFocusTimer) clearTimeout(renameFocusTimer);
+	});
+
 	function commitRename() {
-		if (isRenaming && renameValue.trim()) {
+		if (!isRenaming) return;
+		if (renameValue.trim()) {
 			renamePipeline(isRenaming, renameValue.trim());
+			isRenaming = null;
+		} else {
+			setTimeout(() => renameInputEl?.focus(), 0);
 		}
-		isRenaming = null;
 	}
 
 	function handleRenameKeydown(e: KeyboardEvent) {
@@ -163,10 +187,10 @@
 		}
 	}
 
-	function formatDate(dateStr: string): string {
+	function formatDate(dateStr: string, ref: number = nowTick): string {
 		const date = new Date(dateStr);
-		const now = new Date();
-		const diffMs = now.getTime() - date.getTime();
+		if (Number.isNaN(date.getTime())) return dateStr;
+		const diffMs = ref - date.getTime();
 		const diffMins = Math.floor(diffMs / 60000);
 		const diffHours = Math.floor(diffMs / 3600000);
 		const diffDays = Math.floor(diffMs / 86400000);
@@ -279,12 +303,13 @@
 										{pipeline.nodeCount} nodes
 									</span>
 									<span class="text-text-quaternary">|</span>
-									<span>{formatDate(pipeline.updatedAt)}</span>
+									<span>{formatDate(pipeline.updatedAt, nowTick)}</span>
 								</div>
 							</div>
 
 							<!-- Actions -->
-							<div class="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+							<!-- On hover-capable pointers the row is quiet until hover; touch devices keep the actions visible since there is no hover state. -->
+							<div class="flex items-center gap-0.5 transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100">
 								<button
 									class="p-1.5 text-text-tertiary hover:text-text-primary hover:bg-bg-primary/50 rounded transition-colors"
 									onclick={(e) => { e.stopPropagation(); startRename(pipeline); }}

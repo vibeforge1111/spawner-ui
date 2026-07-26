@@ -97,8 +97,10 @@ export const isLoading = derived(pipelinesState, $state => $state.isLoading);
  * Generate a unique pipeline ID
  */
 function generateId(): string {
-	return `pipe-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+	return `pipe-${Date.now().toString(36)}-${crypto.randomUUID().replace(/-/g, '').slice(0, 8)}`;
 }
+
+export const _generatePipelineIdForTests = generateId;
 
 /**
  * Get storage key for a pipeline's data

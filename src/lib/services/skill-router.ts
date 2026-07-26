@@ -110,6 +110,21 @@ export async function findMostSpecificSkill(
 /**
  * Detect which domain packs should be loaded based on PRD content
  */
+const SCRIPTING_TASK_RE =
+	/(?:\b(?:python|script|scripting|bash|shell|node\.?js|ruby|golang|rust|java)\b|\.py\b|c\+\+|hello world)/i;
+const UI_TASK_RE =
+	/\b(?:ui|interface|button|form|page|screen|component|react|vue|svelte|html|css)\b/i;
+
+export function adjustScriptingDomains(domains: string[], prdContent: string): string[] {
+	const adjusted = [...domains];
+	if (!SCRIPTING_TASK_RE.test(prdContent)) return adjusted;
+	if (!adjusted.includes('backend')) adjusted.push('backend');
+	if (!UI_TASK_RE.test(prdContent)) {
+		return adjusted.filter((domain) => domain !== 'frontend');
+	}
+	return adjusted;
+}
+
 export async function detectDomains(prdContent: string): Promise<string[]> {
 	const index = await loadCollaborationIndex();
 	const lowerContent = prdContent.toLowerCase();
@@ -123,7 +138,7 @@ export async function detectDomains(prdContent: string): Promise<string[]> {
 		}
 	}
 
-	return detectedDomains;
+	return adjustScriptingDomains(detectedDomains, prdContent);
 }
 
 /**

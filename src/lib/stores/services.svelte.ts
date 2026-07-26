@@ -67,7 +67,7 @@ function persist(): void {
  */
 export function addService(name: string, url: string, description?: string, tags?: string[]): Service {
 	const service: Service = {
-		id: `service-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+		id: `service-${Date.now()}-${crypto.randomUUID().replace(/-/g, '').slice(0, 8)}`,
 		name,
 		url,
 		description,

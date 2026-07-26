@@ -71,6 +71,7 @@
 	};
 	let relay = $state<RelayEntry[]>([]);
 	let relayTimer: ReturnType<typeof setInterval> | null = null;
+	let refreshPulseTimer: ReturnType<typeof setTimeout> | null = null;
 	let lastRefresh = $state<number>(0);
 	let refreshPulse = $state(false);
 
@@ -97,7 +98,7 @@
 	let newGoal = $state('');
 	let newChip = $state('domain-chip-spark-ops-critic');
 	let newRounds = $state(1);
-	let newChatId = $state('8319079055');
+	let newChatId = $state('');
 	let creating = $state(false);
 
 	async function fetchSchedules() {
@@ -326,7 +327,11 @@
 			relay = flat;
 			lastRefresh = Date.now();
 			refreshPulse = true;
-			setTimeout(() => { refreshPulse = false; }, 600);
+			if (refreshPulseTimer) clearTimeout(refreshPulseTimer);
+			refreshPulseTimer = setTimeout(() => {
+				refreshPulseTimer = null;
+				refreshPulse = false;
+			}, 600);
 		} catch {
 			/* relay endpoint not critical */
 		}
@@ -471,7 +476,9 @@
 			loading = s.loading;
 			error = s.error;
 		});
-		loadMissions({ limit: 200 }).catch(() => {});
+		loadMissions({ limit: 200 }).catch((error) => {
+			console.error('[MissionBoard] Failed to load missions:', error);
+		});
 		fetchRelay();
 		applyMissionUrlParams();
 		applyImproveUrlParams();
@@ -481,11 +488,13 @@
 
 	onDestroy(() => {
 		if (relayTimer) clearInterval(relayTimer);
+		if (refreshPulseTimer) clearTimeout(refreshPulseTimer);
 	});
 
 	function formatDate(iso: string | null): string {
 		if (!iso) return '';
 		const d = new Date(iso);
+		if (Number.isNaN(d.getTime())) return iso;
 		const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' };
 		return d.toLocaleString(undefined, opts);
 	}
@@ -982,7 +991,10 @@
 										bind:value={quickAddFeedback}
 										onkeydown={(e) => {
 											if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') handleQuickAdd();
-											if (e.key === 'Escape') resetQuickAdd();
+											if (e.key === 'Escape') {
+												if (quickAddFeedback.trim() && !confirm('Discard iteration brief?')) return;
+												resetQuickAdd();
+											}
 										}}
 										class="w-full resize-none rounded-md border border-surface-border bg-bg-primary px-3 py-2 font-mono text-sm leading-6 text-text-primary placeholder:text-text-tertiary focus:border-accent-primary focus:outline-none"
 									></textarea>
@@ -1077,7 +1089,7 @@
 		{#if !mcpConnected && !loading && cards().length === 0}
 			<div class="border border-surface-border rounded-lg bg-bg-secondary px-5 py-10 text-center">
 				<p class="font-mono text-xs text-text-tertiary">
-					No missions yet. Create one from the canvas or fire <code class="font-mono text-accent-primary">POST /api/spark/run</code>.
+					No missions yet. Start a mission from the Canvas, or type your goal in the New Mission box above.
 				</p>
 			</div>
 		{:else if error && cards().length === 0}
@@ -1092,7 +1104,7 @@
 					{ title: 'Completed', items: done, empty: 'No history yet' }
 				] as col}
 					<section class="flex flex-col min-h-[320px]">
-						<div class="sticky top-0 z-10 flex items-center justify-between gap-2 px-1 py-4 mb-1 bg-bg-primary/90 backdrop-blur-sm border-b border-surface-border">
+						<div class="sticky top-[52px] z-10 flex items-center justify-between gap-2 px-1 py-4 mb-1 bg-bg-primary/90 backdrop-blur-sm border-b border-surface-border">
 							<div class="flex items-center gap-2.5">
 								<span class="w-2 h-2 rounded-full {columnDot(col.title)}"></span>
 								<span class="font-mono text-xs font-semibold text-text-bright tracking-widest uppercase">{col.title}</span>

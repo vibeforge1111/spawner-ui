@@ -5,7 +5,7 @@ export interface ProviderResult {
 	success: boolean;
 	response?: string;
 	error?: string;
-	tokenUsage?: { prompt: number; completion: number; total: number };
+	tokenUsage?: { prompt: number; completion: number; total: number; cachedPrompt?: number };
 	durationMs?: number;
 }
 

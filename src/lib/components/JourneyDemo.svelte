@@ -245,13 +245,17 @@
 			<button
 				type="button"
 				aria-label="Show example {i + 1}"
-				class="h-1 rounded-full transition-all duration-300"
-				class:bg-accent-primary={(cycle % EXAMPLES.length) === i}
-				class:bg-surface-border={(cycle % EXAMPLES.length) !== i}
-				class:w-8={(cycle % EXAMPLES.length) === i}
-				class:w-3={(cycle % EXAMPLES.length) !== i}
+				class="relative flex items-center justify-center w-11 h-11 -mx-2 group/dot"
 				onclick={() => { cycle = i; step = 0; }}
-			></button>
+			>
+				<span
+					class="block h-1 rounded-full transition-all duration-300 pointer-events-none"
+					class:bg-accent-primary={(cycle % EXAMPLES.length) === i}
+					class:bg-surface-border={(cycle % EXAMPLES.length) !== i}
+					class:w-8={(cycle % EXAMPLES.length) === i}
+					class:w-3={(cycle % EXAMPLES.length) !== i}
+				></span>
+			</button>
 		{/each}
 	</div>
 </div>

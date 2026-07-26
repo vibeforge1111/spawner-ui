@@ -17,7 +17,7 @@ import { tmpdir } from 'os';
 import path from 'path';
 import { POST as writePrd } from './write/+server';
 import { GET as getResult, POST as postResult } from './result/+server';
-import { buildClientGovernorDecisionAuthority } from '$lib/services/harness-authority-client';
+import { buildServerGovernorDecisionAuthority } from '$lib/server/harness-authority';
 
 const TEST_API_KEY = 'prd-bridge-concurrency-test-secret';
 const originalMcpApiKey = process.env.MCP_API_KEY;
@@ -33,7 +33,7 @@ function restoreEnv(name: string, value: string | undefined) {
 }
 
 function writeAuthority(requestId: string) {
-	return buildClientGovernorDecisionAuthority({
+	return buildServerGovernorDecisionAuthority({
 		source: 'prd-bridge-concurrency-test',
 		reason: 'Two-request PRD bridge concurrency regression.',
 		toolName: 'spawner.prd.write',

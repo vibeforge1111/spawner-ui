@@ -1,3 +1,5 @@
+export declare const HARNESS_CORE_WIRE_CONTRACT_VERSION = 1;
+export declare const HARNESS_CORE_MIN_WIRE_CONTRACT_VERSION = 1;
 export type HarnessCoreSchemaVersion = 'turn-intent-envelope-vnext';
 export type HarnessCoreAuthorizationSchemaVersion = 'authorization-decision-v1';
 export type HarnessCoreToolLedgerSchemaVersion = 'tool-call-ledger-v1';
@@ -86,6 +88,7 @@ export interface TurnIntentEnvelopeVNext {
 }
 export interface AuthorizationDecisionV1 {
     schema_version: HarnessCoreAuthorizationSchemaVersion;
+    wire_contract_version: number;
     decision_id: string;
     created_at: string;
     turn_id: string;
@@ -113,6 +116,7 @@ export interface AuthorizationDecisionV1 {
 }
 export interface ToolCallLedgerV1 {
     schema_version: HarnessCoreToolLedgerSchemaVersion;
+    wire_contract_version: number;
     ledger_id: string;
     created_at: string;
     turn_id: string;
@@ -151,6 +155,7 @@ export interface GovernorDecisionSignatureV1 {
 }
 export interface GovernorDecisionV1 {
     schema_version: HarnessCoreGovernorSchemaVersion;
+    wire_contract_version: number;
     decision_id: string;
     created_at: string;
     surface: HarnessCoreSurface;
@@ -189,6 +194,17 @@ export declare function signHarnessCoreGovernorDecision<T extends GovernorDecisi
     nonce?: string;
     created_at?: string;
 }): T;
+export interface HarnessCoreWireContractNegotiation {
+    allowed: boolean;
+    agreed_version: number | null;
+    reason_codes: string[];
+}
+export declare function negotiateHarnessCoreWireContract(input: {
+    producer_version: number;
+    producer_min_version?: number | null;
+    consumer_version?: number | null;
+    consumer_min_version?: number | null;
+}): HarnessCoreWireContractNegotiation;
 export declare function harnessCoreGovernorDecisionSignatureReasonCodes(input: {
     governor_decision?: GovernorDecisionV1 | null;
     key?: string | null;
@@ -573,6 +589,7 @@ export declare function createHarnessCoreActionEnvelopeVNext(input: {
     mutationClass: HarnessCoreActionMutationClass;
     source: string;
     reason: string;
+    turnId?: string | null;
     requestId?: string | null;
     actorKind?: 'human' | 'agent' | 'system';
     actorIdRef?: string | null;
@@ -637,6 +654,8 @@ export declare function createHarnessCoreAuthorizedGovernorDecision(input: {
     reply_style?: GovernorDecisionV1['reply_contract']['style'];
     reply_instruction?: string;
     now?: string;
+    idempotency_key?: string;
+    ttl_seconds?: number | null;
 }): GovernorDecisionV1;
 export declare function finalizeHarnessCoreToolCallLedger(input: {
     ledger: ToolCallLedgerV1;
@@ -647,7 +666,56 @@ export declare function finalizeHarnessCoreToolCallLedger(input: {
     error_ref?: HarnessCoreArtifactRef;
     rollback_ref?: HarnessCoreArtifactRef;
     now?: string;
+    idempotency_key?: string;
 }): ToolCallLedgerV1;
+export type HarnessCoreGovernedTurn = {
+    governor_decision: GovernorDecisionV1;
+    verification: HarnessCoreGovernorConsumerVerification;
+    ledger: ToolCallLedgerV1;
+    finalized_ledger: ToolCallLedgerV1 | null;
+    finalize: (input: {
+        status: ToolCallLedgerV1['result']['status'];
+        summary: string;
+        output_ref?: HarnessCoreArtifactRef;
+        output_path_or_uri?: string;
+        error_ref?: HarnessCoreArtifactRef;
+        rollback_ref?: HarnessCoreArtifactRef;
+        now?: string;
+        idempotency_key?: string;
+    }) => ToolCallLedgerV1;
+};
+export declare function withGovernedTurn<T>(input: {
+    governor_decision?: GovernorDecisionV1 | null;
+    tool_name: string;
+    action_type: HarnessCoreActionType;
+    owner_system?: string;
+    expected_capability_id?: string;
+    action_id?: string;
+    allow_read_only?: boolean;
+    require_pre_execution_ledger?: boolean;
+    governor_hmac_key?: string | null;
+    governor_hmac_key_id?: string | null;
+    require_signature?: boolean;
+    now?: string | Date | null;
+    success_summary?: string;
+    failure_summary?: string;
+    success_output_path_or_uri?: string;
+    failure_output_path_or_uri?: string;
+    failure_error_ref?: HarnessCoreArtifactRef;
+    on_finalize?: (ledger: ToolCallLedgerV1) => void;
+}, execute: (turn: HarnessCoreGovernedTurn) => T | Promise<T>): Promise<T>;
+export declare function repairHarnessCoreStrandedToolCallLedger(input: {
+    ledger: ToolCallLedgerV1;
+    now?: string;
+    stranded_after_seconds?: number;
+    output_path_or_uri?: string;
+    summary?: string;
+}): ToolCallLedgerV1 | null;
+export declare function repairHarnessCoreStrandedToolCallLedgers(input: {
+    ledgers: ToolCallLedgerV1[];
+    now?: string;
+    stranded_after_seconds?: number;
+}): ToolCallLedgerV1[];
 export declare function createHarnessCoreReadinessScore(input: {
     id: string;
     target_kind: ReadinessScoreV1['target']['kind'];

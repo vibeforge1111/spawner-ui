@@ -46,6 +46,7 @@ afterEach(async () => {
 		await rm(testSpawnerDir, { recursive: true, force: true });
 	}
 	testSpawnerDir = null;
+	vi.restoreAllMocks();
 });
 
 function createEvent(url: string, init?: RequestInit, clientAddress = '203.0.113.1') {
@@ -85,13 +86,39 @@ function emitPrivateBridgeEvent(): BridgeEvent {
 }
 
 describe('/api/events auth', () => {
-	it('accepts configured API key through query param for SSE clients', async () => {
+	it('unsubscribes the Event Bridge when enqueue fails after the reader disconnects', async () => {
+		let subscriber: ((event: BridgeEvent) => void) | undefined;
+		const unsubscribe = vi.fn();
+		vi.spyOn(eventBridge, 'subscribe').mockImplementation((callback) => {
+			subscriber = callback;
+			return unsubscribe;
+		});
+		const response = await GET(
+			createEvent('https://example.com/api/events', {
+				method: 'GET',
+				headers: { 'x-api-key': 'events-secret' }
+			})
+		);
+		const reader = response.body!.getReader();
+		await reader.read();
+		await reader.cancel();
+
+		subscriber?.({
+			type: 'task_completed',
+			timestamp: new Date().toISOString(),
+			source: 'packet-204'
+		});
+
+		expect(unsubscribe).toHaveBeenCalledOnce();
+	});
+
+	it('rejects API keys in query parameters without persisting them in cookies', async () => {
 		const response = await GET(
 			createEvent('https://example.com/api/events?apiKey=events-secret', { method: 'GET' })
 		);
 
-		expect(response.status).toBe(200);
-		expect(response.headers.get('set-cookie')).toContain('spawner_events_api_key=');
+		expect(response.status).toBe(401);
+		expect(response.headers.get('set-cookie')).toBeNull();
 	});
 
 	it('rejects query API keys in hosted deployments', async () => {
@@ -117,6 +144,19 @@ describe('/api/events auth', () => {
 
 		expect(response.status).toBe(200);
 		expect(response.headers.get('set-cookie')).toContain('spawner_events_api_key=');
+	});
+
+	it('does not persist an API key cookie over insecure HTTP', async () => {
+		const response = await GET(
+			createEvent('http://example.com/api/events', {
+				method: 'GET',
+				headers: { 'x-api-key': 'events-secret' }
+			})
+		);
+
+		expect(response.status).toBe(200);
+		expect(response.headers.get('set-cookie')).toBeNull();
+		await response.body?.cancel();
 	});
 
 	it('rejects non-local requests without API key when one is configured', async () => {
@@ -274,6 +314,27 @@ describe('/api/events auth', () => {
 
 		expect(response.status).toBe(200);
 		expect(response.headers.get('set-cookie')).toContain('spawner_events_api_key=');
+	});
+
+	it('generates unpredictable event IDs on the real POST path', async () => {
+		const random = vi.spyOn(Math, 'random');
+		const uuid = vi.spyOn(crypto, 'randomUUID').mockReturnValue('deadbeef-1234-4123-8123-123456789abc');
+		const response = await POST(
+			createEvent('https://example.com/api/events', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					'x-api-key': 'events-secret'
+				},
+				body: JSON.stringify({ type: 'task_progress', source: 'crypto-test' })
+			})
+		);
+		const body = await response.json();
+
+		expect(response.status).toBe(200);
+		expect(body.eventId).toMatch(/^evt-\d+-deadbeef$/);
+		expect(uuid).toHaveBeenCalledOnce();
+		expect(random).not.toHaveBeenCalled();
 	});
 
 	it('rejects unauthenticated local event posts before relaying mission state', async () => {
@@ -563,6 +624,14 @@ describe('/api/events auth', () => {
 							techStack: { framework: 'Existing Spawner UI', language: 'TypeScript' },
 							tasks: [{ id: 'TAS-1', title: 'Store result consistently', skills: [], dependencies: [] }],
 							skills: [],
+							metadata: {
+								deterministicArtifactProof: {
+									status: 'written',
+									source: 'spawner_prd_deterministic_writer',
+									proofHmacSha256: '0'.repeat(64)
+								},
+								providerMetric: 'retained'
+							},
 							executionPrompt: 'Store result consistently.'
 						}
 					}
@@ -578,6 +647,8 @@ describe('/api/events auth', () => {
 		expect(storedJson.metadata.traceRef).toBe(traceRef);
 		expect(stored).not.toContain('executionPrompt');
 		expect(stored).not.toContain('Store result consistently.');
+		expect(stored).not.toContain('deterministicArtifactProof');
+		expect(stored).toContain('providerMetric');
 
 		const pending = JSON.parse(await readFile(path.join(testSpawnerDir, 'pending-request.json'), 'utf-8'));
 		expect(pending).toMatchObject({

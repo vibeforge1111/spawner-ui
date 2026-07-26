@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { existsSync } from 'fs';
-import { mkdtemp, readFile, rm } from 'fs/promises';
+import { existsSync, realpathSync, rmSync, symlinkSync } from 'fs';
+import { mkdir, mkdtemp, readFile, rm, symlink } from 'fs/promises';
 import { tmpdir } from 'os';
 import path from 'path';
 import {
 	_createScopedH70AccessForLoad,
+	_resolvedProjectRelay,
 	autoDispatchPrdCanvasLoad,
 	buildAutoDispatchTaskSkillMap,
 	canvasLoadToMissionGraph,
@@ -20,6 +21,15 @@ import {
 } from './harness-authority';
 import { verifyH70SkillAccessToken } from './h70-skill-access-token';
 import { getTierSkills } from './skill-tiers';
+import { eventBridge } from '$lib/services/event-bridge';
+import { providerRuntime } from './provider-runtime';
+
+const { originalSpawnerStateDir } = vi.hoisted(() => {
+	const originalSpawnerStateDir = process.env.SPAWNER_STATE_DIR;
+	process.env.SPAWNER_STATE_DIR = `${process.cwd()}/.svelte-kit/test-state/prd-auto-dispatch-${process.pid}`;
+	return { originalSpawnerStateDir };
+});
+vi.mock('$env/dynamic/private', () => ({ env: process.env }));
 
 const load: PrdCanvasLoadForAutoDispatch = {
 	requestId: 'tg-build-1',
@@ -58,17 +68,25 @@ const load: PrdCanvasLoadForAutoDispatch = {
 };
 
 let testSpawnerDir: string | null = null;
+const originalSparkWorkspaceRoot = process.env.SPARK_WORKSPACE_ROOT;
+const originalSpawnerWorkspaceRoot = process.env.SPAWNER_WORKSPACE_ROOT;
+const originalAllowExternalProjectPaths = process.env.SPARK_ALLOW_EXTERNAL_PROJECT_PATHS;
 
-function governorAuthority() {
+function restoreEnv(name: string, value: string | undefined): void {
+	if (value === undefined) delete process.env[name];
+	else process.env[name] = value;
+}
+
+function governorAuthority(authorityLoad: PrdCanvasLoadForAutoDispatch = load) {
 	return buildServerGovernorDecisionAuthority({
 		source: 'prd-auto-dispatch-test',
 		reason: 'Focused PRD auto-dispatch authority regression.',
 		toolName: 'spawner.dispatch',
 		mutationClass: 'launches_mission',
-		requestId: load.requestId,
+		requestId: authorityLoad.requestId,
 		actorKind: 'system',
 		actorIdRef: 'spawner-ui.test',
-		target: load.missionId
+		target: authorityLoad.missionId
 	});
 }
 
@@ -93,7 +111,10 @@ describe('PRD auto-dispatch helpers', () => {
 
 	afterEach(async () => {
 		vi.unstubAllGlobals();
-		delete process.env.SPAWNER_STATE_DIR;
+		restoreEnv('SPAWNER_STATE_DIR', originalSpawnerStateDir);
+		restoreEnv('SPARK_WORKSPACE_ROOT', originalSparkWorkspaceRoot);
+		restoreEnv('SPAWNER_WORKSPACE_ROOT', originalSpawnerWorkspaceRoot);
+		restoreEnv('SPARK_ALLOW_EXTERNAL_PROJECT_PATHS', originalAllowExternalProjectPaths);
 		if (testSpawnerDir && existsSync(testSpawnerDir)) {
 			await rm(testSpawnerDir, { recursive: true, force: true });
 		}
@@ -190,6 +211,23 @@ describe('PRD auto-dispatch helpers', () => {
 		expect(projectPath).toMatch(/[\\/]data[\\/]workspaces[\\/]mission-1-spark-test$/);
 	});
 
+	it('uses SPARK_WORKSPACE_ROOT as the one generated-project root when both workspace variables differ', () => {
+		const projectPath = inferProjectPathFromPrdLoad(
+			{
+				...load,
+				executionPrompt: 'Build a tiny static landing page for a cafe.',
+				nodes: [{ skill: { name: 'task-1: Build page', description: 'Create the page.' } }]
+			},
+			{
+				SPARK_WORKSPACE_ROOT: '/data/spark-workspaces',
+				SPAWNER_WORKSPACE_ROOT: '/data/legacy-spawner-workspaces'
+			}
+		);
+
+		expect(projectPath).toMatch(/[\\/]data[\\/]spark-workspaces[\\/]mission-1-spark-test$/);
+		expect(projectPath).not.toContain('legacy-spawner-workspaces');
+	});
+
 	it('does not treat relative workspace target files as the executor workspace', () => {
 		const projectPath = inferProjectPathFromPrdLoad(
 			{
@@ -262,19 +300,152 @@ describe('PRD auto-dispatch helpers', () => {
 		expect(projectPath).not.toContain('source');
 	});
 
-	it('uses the Spawner state root for generated projects without a hosted workspace', () => {
+	it('uses the Spark workspace instead of Spawner state for generated projects', () => {
+		const sparkHome = path.join(testSpawnerDir!, 'spark-home');
 		const projectPath = inferProjectPathFromPrdLoad(
 			{
 				...load,
 				executionPrompt: 'Build a tiny static landing page for a cafe.',
 				nodes: [{ skill: { name: 'task-1: Build page', description: 'Create the page.' } }]
 			},
-			{ SPAWNER_STATE_DIR: 'C:\\tmp\\spawner-state' }
+			{ SPARK_HOME: sparkHome, SPAWNER_STATE_DIR: path.join(testSpawnerDir!, 'spawner-state') }
 		);
 
-		expect(projectPath).toMatch(
-			/^C:\\tmp\\spawner-state[\\/]generated-projects[\\/]mission-1-spark-test$/
-		);
+		expect(projectPath).toBe(path.resolve(sparkHome, 'workspaces', 'generated-projects', 'mission-1-spark-test'));
+		expect(projectPath).not.toContain('spawner-state');
+	});
+
+	it('fails closed before mkdir or provider dispatch for unsafe final lineage and explicit PRD paths', async () => {
+		const originalCwd = process.cwd();
+		const workspaceRoot = path.join(testSpawnerDir!, 'workspaces');
+		const externalRoot = path.join(testSpawnerDir!, 'external');
+		await mkdir(workspaceRoot, { recursive: true });
+		await mkdir(externalRoot, { recursive: true });
+		process.env.SPARK_WORKSPACE_ROOT = workspaceRoot;
+		delete process.env.SPAWNER_WORKSPACE_ROOT;
+		delete process.env.SPARK_ALLOW_EXTERNAL_PROJECT_PATHS;
+		const linkedOut = path.join(workspaceRoot, 'linked-out');
+		await symlink(externalRoot, linkedOut, process.platform === 'win32' ? 'junction' : 'dir');
+		const foreignPath = process.platform === 'win32'
+			? '/tmp/spark-foreign-auto-dispatch'
+			: 'C:\\Users\\USER\\Desktop\\spark-foreign-auto-dispatch';
+		const cases = [
+			{
+				label: 'lineage traversal escape',
+				path: path.resolve(workspaceRoot, '..', 'traversal-escape'),
+				source: 'lineage'
+			},
+			{
+				label: 'explicit root-prefix collision',
+				path: path.join(`${workspaceRoot}-evil`, 'project'),
+				source: 'explicit'
+			},
+			{
+				label: 'lineage symlink escape',
+				path: path.join(linkedOut, 'project'),
+				source: 'lineage'
+			},
+			{ label: 'explicit foreign-OS path', path: foreignPath, source: 'explicit' },
+			{ label: 'lineage caret metacharacter', path: path.join(workspaceRoot, 'unsafe^project'), source: 'lineage' },
+			{ label: 'explicit percent metacharacter', path: path.join(workspaceRoot, 'unsafe%TEMP%project'), source: 'explicit' },
+			{ label: 'lineage bang metacharacter', path: path.join(workspaceRoot, 'unsafe!VAR!project'), source: 'lineage' }
+		] as const;
+		const fetchMock = vi.fn(async () => ({
+			ok: true,
+			status: 200,
+			text: async () => 'ok',
+			json: async () => ({ ok: true })
+		}));
+		vi.stubGlobal('fetch', fetchMock);
+
+		try {
+			process.chdir(testSpawnerDir!);
+			const results = [];
+			for (const [index, testCase] of cases.entries()) {
+				const candidate: PrdCanvasLoadForAutoDispatch = {
+					...load,
+					requestId: `tg-path-authority-${index}`,
+					missionId: `mission-path-authority-${index}`,
+					executionPrompt: testCase.source === 'explicit'
+						? `Build this at ${testCase.path}`
+						: 'Build a compact local API service.',
+					relay: testCase.source === 'lineage'
+						? { projectLineage: { projectPath: testCase.path } }
+						: {}
+				};
+				candidate.executionAuthority = governorAuthority(candidate);
+				results.push({ testCase, result: await autoDispatchPrdCanvasLoad(candidate) });
+			}
+
+			for (const { testCase, result } of results) {
+				expect(result.started, testCase.label).toBe(false);
+				expect(result.error, testCase.label).toMatch(/workspace root|Spark-controlled root|foreign operating-system|unsafe.*metacharacter/i);
+				expect(existsSync(testCase.path), testCase.label).toBe(false);
+			}
+			expect(fetchMock).not.toHaveBeenCalled();
+		} finally {
+			process.chdir(originalCwd);
+		}
+	});
+
+	it('keeps a foreign path as evidence only and dispatches from a generated Spark workspace', async () => {
+		const workspaceRoot = path.join(testSpawnerDir!, 'workspaces');
+		await mkdir(workspaceRoot, { recursive: true });
+		process.env.SPARK_WORKSPACE_ROOT = workspaceRoot;
+		delete process.env.SPAWNER_WORKSPACE_ROOT;
+		delete process.env.SPARK_ALLOW_EXTERNAL_PROJECT_PATHS;
+		const foreignPath = process.platform === 'win32'
+			? '/tmp/evidence-only-project'
+			: 'C:\\Users\\USER\\Desktop\\evidence-only-project';
+		vi.stubGlobal('fetch', vi.fn(async () => ({
+			ok: true,
+			status: 200,
+			text: async () => 'ok',
+			json: async () => ({ ok: true })
+		})));
+		const candidate: PrdCanvasLoadForAutoDispatch = {
+			...load,
+			requestId: 'tg-path-evidence-only',
+			missionId: 'mission-path-evidence-only',
+			executionPrompt: `Build a compact local API service with tests at ${foreignPath}.`,
+			relay: {
+				goal: `Build the compact service at ${foreignPath}.`,
+				projectLineage: {
+					projectPath: foreignPath,
+					projectId: 'project-foreign-path',
+					previewUrl: 'http://127.0.0.1:3333/preview/foreign/index.html',
+					parentMissionId: 'mission-parent-safe'
+				},
+				projectPathEvidence: {
+					requestedProjectPath: foreignPath,
+					usedProjectPath: null,
+					evidenceOnly: true,
+					rejectedReason: 'foreign_operating_system_path'
+				}
+			}
+		};
+		candidate.executionAuthority = governorAuthority(candidate);
+
+		const result = await autoDispatchPrdCanvasLoad(candidate);
+
+		expect(result.started, JSON.stringify(result)).toBe(true);
+		expect(result.projectPath).toBe(path.join(realpathSync(workspaceRoot), 'mission-path-evidence-only-spark-test'));
+		expect(result.projectPath).not.toContain(foreignPath);
+		expect(candidate.relay?.projectPathEvidence).toMatchObject({
+			requestedProjectPath: foreignPath,
+			evidenceOnly: true
+		});
+		const resolvedRelay = _resolvedProjectRelay(candidate, result.projectPath!);
+		expect(resolvedRelay.projectLineage).toEqual({
+			parentMissionId: 'mission-parent-safe',
+			projectPath: result.projectPath
+		});
+		expect(resolvedRelay.goal).toBeUndefined();
+		expect(JSON.stringify(resolvedRelay.projectLineage)).not.toContain(foreignPath);
+		expect(resolvedRelay.projectPathEvidence).toMatchObject({
+			requestedProjectPath: foreignPath,
+			evidenceOnly: true
+		});
 	});
 
 	it('allows auto-dispatch only when the PRD load is runnable', () => {
@@ -319,19 +490,74 @@ describe('PRD auto-dispatch helpers', () => {
 	});
 
 	it('accepts native Governor authority for PRD auto-dispatch', async () => {
+		const workspaceRoot = path.join(testSpawnerDir!, 'workspaces');
+		const projectPath = path.join(workspaceRoot, 'native-governor-project');
+		await mkdir(workspaceRoot, { recursive: true });
+		process.env.SPARK_WORKSPACE_ROOT = workspaceRoot;
+		delete process.env.SPAWNER_WORKSPACE_ROOT;
+		delete process.env.SPARK_ALLOW_EXTERNAL_PROJECT_PATHS;
 		vi.stubGlobal('fetch', vi.fn(async () => ({
 			ok: true,
 			status: 200,
 			text: async () => 'ok',
 			json: async () => ({ ok: true })
 		})));
-		const result = await autoDispatchPrdCanvasLoad({
+		const candidate: PrdCanvasLoadForAutoDispatch = {
 			...load,
-			executionAuthority: governorAuthority()
-		});
+			executionPrompt: 'Build a compact local API service.',
+			relay: { projectLineage: { projectPath } }
+		};
+		candidate.executionAuthority = governorAuthority(candidate);
+		const result = await autoDispatchPrdCanvasLoad(candidate);
 
 		expect(result.started).toBe(true);
+		expect(result.projectPath).toBe(path.join(realpathSync(workspaceRoot), 'native-governor-project'));
 		expect(result.authority?.source).toBe('governor_decision');
+	});
+
+	it('rechecks the project directory and rejects a symlink swap before provider dispatch', async () => {
+		const workspaceRoot = path.join(testSpawnerDir!, 'workspaces');
+		const projectPath = path.join(workspaceRoot, 'pre-dispatch-project');
+		const externalRoot = path.join(testSpawnerDir!, 'external-project');
+		await mkdir(workspaceRoot, { recursive: true });
+		await mkdir(externalRoot, { recursive: true });
+		process.env.SPARK_WORKSPACE_ROOT = workspaceRoot;
+		delete process.env.SPAWNER_WORKSPACE_ROOT;
+		delete process.env.SPARK_ALLOW_EXTERNAL_PROJECT_PATHS;
+		const candidate: PrdCanvasLoadForAutoDispatch = {
+			...load,
+			requestId: 'tg-pre-dispatch-symlink-swap',
+			missionId: 'mission-pre-dispatch-symlink-swap',
+			executionPrompt: 'Build a compact local API service.',
+			relay: { projectLineage: { projectPath } }
+		};
+		candidate.executionAuthority = governorAuthority(candidate);
+		const dispatchSpy = vi.spyOn(providerRuntime, 'dispatch').mockImplementation(async () => {
+			throw new Error('provider dispatch must not run after a project-path swap');
+		});
+		const missionStartedEvents: unknown[] = [];
+		const unsubscribe = eventBridge.subscribe((event) => {
+			if (event.type === 'mission_started' && event.missionId === candidate.missionId) {
+				missionStartedEvents.push(event);
+			}
+		});
+
+		try {
+			const result = await autoDispatchPrdCanvasLoad(candidate, {
+				beforeFinalProjectPathCheck: () => {
+					rmSync(projectPath, { recursive: true, force: true });
+					symlinkSync(externalRoot, projectPath, process.platform === 'win32' ? 'junction' : 'dir');
+				}
+			});
+
+			expect(result.started).toBe(false);
+			expect(result.error).toMatch(/must stay inside Spark workspace root|Spark-controlled root/i);
+			expect(dispatchSpy).not.toHaveBeenCalled();
+			expect(missionStartedEvents).toHaveLength(0);
+		} finally {
+			unsubscribe?.();
+			dispatchSpy.mockRestore();
+		}
 	});
 
 	it('passes configured provider API keys into auto-dispatch runtime', () => {

@@ -158,5 +158,15 @@ describe('/api/analyze authority contract', () => {
 		expect(body.source).toBe('claude');
 		expect(body.analysis.summary).toBe('Build a governed Spark app analyzer.');
 		expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+		const request = vi.mocked(globalThis.fetch).mock.calls[0][1];
+		const claudeBody = JSON.parse(String(request?.body)) as {
+			system: Array<{ type: string; text: string; cache_control: { type: string } }>;
+			messages: Array<{ role: string; content: string }>;
+		};
+		expect(claudeBody.system[0].cache_control).toEqual({ type: 'ephemeral' });
+		expect(claudeBody.system[0].text).toContain('Available Skills');
+		expect(claudeBody.messages).toEqual([
+			{ role: 'user', content: '## Project Description\nAnalyze this startup app.' }
+		]);
 	});
 });

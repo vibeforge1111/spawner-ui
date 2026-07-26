@@ -351,30 +351,37 @@ let pollingTimer: ReturnType<typeof setInterval> | null = null;
 export function startLogPolling(missionId: string, intervalMs: number = 2000): void {
 	stopLogPolling();
 
-	// Initial load
-	loadMissionLogs(missionId);
+	// Initial load (rejection here would otherwise become an unhandled rejection)
+	loadMissionLogs(missionId).catch((err) => {
+		console.warn('[MissionLogPolling] initial load failed:', err);
+	});
 
 	// Poll for new logs
 	pollingTimer = setInterval(async () => {
-		const state = get(missionsState);
-		const lastLog = state.logs[state.logs.length - 1];
-		const since = lastLog?.created_at;
+		try {
+			const state = get(missionsState);
+			const lastLog = state.logs[state.logs.length - 1];
+			const since = lastLog?.created_at;
 
-		await loadMissionLogs(missionId, since);
+			await loadMissionLogs(missionId, since);
 
-		// Also refresh mission status
-		const result = await mcpClient.getMission(missionId);
-		if (result.success && result.data) {
-			missionsState.update((s) => ({
-				...s,
-				currentMission: result.data!.mission,
-				missions: s.missions.map((m) => (m.id === result.data!.mission.id ? result.data!.mission : m))
-			}));
+			// Also refresh mission status
+			const result = await mcpClient.getMission(missionId);
+			if (result.success && result.data) {
+				missionsState.update((s) => ({
+					...s,
+					currentMission: result.data!.mission,
+					missions: s.missions.map((m) => (m.id === result.data!.mission.id ? result.data!.mission : m))
+				}));
 
-			// Stop polling if mission is complete or failed
-			if (['completed', 'failed'].includes(result.data.mission.status)) {
-				stopLogPolling();
+				// Stop polling if mission is complete or failed
+				if (['completed', 'failed'].includes(result.data.mission.status)) {
+					stopLogPolling();
+				}
 			}
+		} catch (err) {
+			// Keep polling alive across transient failures (MCP disconnect, network blip).
+			console.warn('[MissionLogPolling] tick failed:', err);
 		}
 	}, intervalMs);
 }

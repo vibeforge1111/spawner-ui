@@ -39,7 +39,7 @@ function buildBridgeEvent(missionId: string, type: string, source: string) {
 		missionId,
 		source,
 		timestamp: new Date().toISOString(),
-		id: `mc-cmd-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+		id: `mc-cmd-${Date.now()}-${crypto.randomUUID().replace(/-/g, "").slice(0, 8)}`
 	};
 }
 

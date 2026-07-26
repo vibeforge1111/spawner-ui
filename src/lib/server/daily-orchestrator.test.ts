@@ -41,6 +41,16 @@ describe('daily-orchestrator', () => {
 		expect(items.length).toBe(3);
 	});
 
+	it('orders equal-priority missions by stable id', () => {
+		const items = buildDailyTopMissions([
+			mission({ id: 'mission-c', status: 'ready' }),
+			mission({ id: 'mission-a', status: 'ready' }),
+			mission({ id: 'mission-b', status: 'ready' })
+		]);
+
+		expect(items.map((item) => item.id)).toEqual(['mission-a', 'mission-b', 'mission-c']);
+	});
+
 	it('runs regression sequence and marks pass on known resume snapshot blocker', async () => {
 		const calls: MissionControlAction[] = [];
 		const result = await runMissionControlRegression({

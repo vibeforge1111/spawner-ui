@@ -5,6 +5,7 @@
  * Minimax, OpenAI, Kimi, OpenRouter, Ollama, etc.
  */
 
+import { randomUUID } from 'node:crypto';
 import type { ProviderResult, ProviderClientOptions, ChatMessage } from './types';
 import { createBridgeEvent } from './types';
 import { parseRetryAfterMs } from './retry-after';
@@ -22,7 +23,12 @@ interface StreamChunkChoice {
 interface StreamChunk {
 	id?: string;
 	choices?: StreamChunkChoice[];
-	usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
+	usage?: {
+		prompt_tokens?: number;
+		completion_tokens?: number;
+		total_tokens?: number;
+		prompt_tokens_details?: { cached_tokens?: number };
+	};
 }
 
 const MAX_RETRIES = 3;
@@ -45,6 +51,7 @@ export async function executeOpenAICompatRequest(
 	);
 
 	let lastError: string | undefined;
+	const idempotencyKey = randomUUID();
 
 	for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
 		if (signal?.aborted) {
@@ -52,17 +59,31 @@ export async function executeOpenAICompatRequest(
 		}
 
 		try {
+			const reasoningEffort = (
+				process.env.SPARK_OPENAI_REASONING_EFFORT ||
+				process.env.OPENAI_REASONING_EFFORT ||
+				''
+			).trim();
+			const serviceTier = (
+				process.env.SPARK_OPENAI_SERVICE_TIER ||
+				process.env.OPENAI_SERVICE_TIER ||
+				''
+			).trim();
 			const response = await fetch(`${baseUrl}/chat/completions`, {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json',
-					...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {})
+					...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+					'Idempotency-Key': idempotencyKey
 				},
 				body: JSON.stringify({
 					model: provider.model,
 					messages,
 					stream: streaming,
-					max_tokens: 16384
+					max_tokens: 16384,
+					...(streaming ? { stream_options: { include_usage: true } } : {}),
+					...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
+					...(serviceTier ? { service_tier: serviceTier } : {})
 				}),
 				signal
 			});
@@ -77,6 +98,11 @@ export async function executeOpenAICompatRequest(
 						progress: 0
 					})
 				);
+				// Release the previous attempt's response body so the underlying
+				// socket can be returned to the connection pool before we sleep
+				// and retry. Without cancel(), the body stays buffered until GC,
+				// pinning a file descriptor per retried attempt.
+				try { await response.body?.cancel(); } catch { /* already drained */ }
 				await sleep(delay, signal);
 				continue;
 			}
@@ -161,10 +187,12 @@ async function handleStreamingResponse(
 						fullContent += content;
 					}
 					if (chunk.usage) {
+						const cachedPrompt = chunk.usage.prompt_tokens_details?.cached_tokens;
 						tokenUsage = {
 							prompt: chunk.usage.prompt_tokens || 0,
 							completion: chunk.usage.completion_tokens || 0,
-							total: chunk.usage.total_tokens || 0
+							total: chunk.usage.total_tokens || 0,
+							...(typeof cachedPrompt === 'number' ? { cachedPrompt } : {})
 						};
 					}
 				} catch {
@@ -186,10 +214,25 @@ async function handleStreamingResponse(
 			}
 		}
 	} catch (err) {
+		// Release the underlying HTTP connection on the abort / parse-throw path.
+		// Without an explicit reader.cancel() the upstream socket and decoder
+		// state remain pinned until GC, which on long-lived workers shows up as
+		// a slow file-descriptor / memory leak under repeated mission cancels.
+		// We swallow cancel errors because the response body may already be in
+		// an errored state (that's the very reason we're in the catch block).
+		await reader.cancel().catch(() => {});
 		if (options.signal?.aborted) {
 			return { success: false, error: 'Cancelled', durationMs: Date.now() - startTime };
 		}
 		throw err;
+	} finally {
+		// releaseLock() lets the response body be GC'd promptly even on the
+		// happy path; the reader stays exclusive otherwise.
+		try {
+			reader.releaseLock();
+		} catch {
+			// Already released (e.g. via cancel() above) — safe to ignore.
+		}
 	}
 
 	onEvent(
@@ -198,7 +241,6 @@ async function handleStreamingResponse(
 			data: {
 				success: true,
 				responseLength: fullContent.length,
-				response: fullContent,
 				provider: provider.id,
 				providerLabel: provider.label
 			}
@@ -219,15 +261,36 @@ async function handleNonStreamingResponse(
 	startTime: number
 ): Promise<ProviderResult> {
 	const { provider, onEvent } = options;
-	const data = await response.json();
+	const rawBody = await response.text().catch(() => '');
+	let data: {
+		choices?: Array<{ message?: { content?: string } }>;
+		usage?: {
+			prompt_tokens?: number;
+			completion_tokens?: number;
+			total_tokens?: number;
+			prompt_tokens_details?: { cached_tokens?: number };
+		};
+	} | null = null;
+	try {
+		data = rawBody ? JSON.parse(rawBody) : null;
+	} catch {
+		return {
+			success: false,
+			error: `${provider.label} returned HTTP ${response.status} OK but the body was not JSON: ${rawBody.slice(0, 300)}`,
+			durationMs: Date.now() - startTime
+		};
+	}
+	if (!data) data = {};
 
 	const content = data.choices?.[0]?.message?.content || '';
 	const usage = data.usage;
+	const cachedPrompt = usage?.prompt_tokens_details?.cached_tokens;
 	const tokenUsage = usage
 		? {
 				prompt: usage.prompt_tokens || 0,
 				completion: usage.completion_tokens || 0,
-				total: usage.total_tokens || 0
+				total: usage.total_tokens || 0,
+				...(typeof cachedPrompt === 'number' ? { cachedPrompt } : {})
 			}
 		: undefined;
 

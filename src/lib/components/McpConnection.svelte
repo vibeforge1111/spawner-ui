@@ -53,7 +53,7 @@
 <div class="rounded-lg border border-gray-700 bg-gray-800/50 p-4">
 	<div class="flex items-center justify-between mb-3">
 		<div class="flex items-center gap-2">
-			<div class="w-2.5 h-2.5 rounded-full {statusColor}"></div>
+			<div class="w-2.5 h-2.5 rounded-full {statusColor}" role="img" aria-label={`MCP connection status: ${statusText}`}></div>
 			<span class="text-sm font-medium text-gray-200">MCP Server</span>
 			<span class="text-xs text-gray-400">({statusText})</span>
 		</div>
@@ -96,6 +96,8 @@
 			</button>
 			<button
 				onclick={() => showAdvanced = !showAdvanced}
+				aria-expanded={showAdvanced}
+				aria-controls="mcp-advanced-panel"
 				class="px-3 py-2 text-sm rounded bg-gray-700 hover:bg-gray-600 text-gray-300 transition-colors"
 			>
 				{showAdvanced ? 'Hide' : 'Advanced'}
@@ -128,6 +130,8 @@
 
 		<button
 			onclick={() => showAdvanced = !showAdvanced}
+			aria-expanded={showAdvanced}
+			aria-controls="mcp-advanced-panel"
 			class="w-full px-3 py-1.5 text-xs rounded bg-gray-700 hover:bg-gray-600 text-gray-400 transition-colors"
 		>
 			{showAdvanced ? 'Hide Advanced' : 'Show Advanced'}
@@ -135,15 +139,20 @@
 	{/if}
 
 	{#if showAdvanced}
-		<div class="mt-3 pt-3 border-t border-gray-700">
+		<div id="mcp-advanced-panel" class="mt-3 pt-3 border-t border-gray-700">
 			<label for="custom-mcp-url" class="block text-xs text-gray-400 mb-1">Custom MCP URL</label>
 			<div class="flex gap-2">
 				<input
 					id="custom-mcp-url"
-					type="text"
+					type="url"
+					inputmode="url"
+					spellcheck="false"
+					autocapitalize="off"
+					autocomplete="off"
 					bind:value={customUrl}
 					placeholder="Set PUBLIC_MCP_URL or enter a bridge URL"
-					class="flex-1 px-2 py-1.5 text-sm rounded bg-gray-900 border border-gray-700 text-gray-200 focus:border-blue-500 focus:outline-none"
+					onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleCustomUrl(); void handleConnect(); } }}
+					class="flex-1 px-2 py-1.5 text-base rounded bg-gray-900 border border-gray-700 text-gray-200 focus:border-blue-500 focus:outline-none"
 				/>
 				<button
 					onclick={() => { handleCustomUrl(); handleConnect(); }}

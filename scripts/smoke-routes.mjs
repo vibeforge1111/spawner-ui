@@ -5,7 +5,7 @@ const baseUrl = (process.env.SPAWNER_SMOKE_BASE_URL || 'http://127.0.0.1:3333').
 const checks = [
 	{ path: '/', kind: 'html' },
 	{ path: '/kanban', kind: 'html' },
-	{ path: '/missions/mission-smoke-route', kind: 'html', finalPath: '/missions/mission-smoke-route' },
+	{ path: '/missions/mission-smoke-route', kind: 'html', finalPath: '/kanban' },
 	{ path: '/canvas', kind: 'html' },
 	{ path: '/trace', kind: 'html' },
 	{ path: '/api/mission-control/board', kind: 'json', okKey: 'ok' },

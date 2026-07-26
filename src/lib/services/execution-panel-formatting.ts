@@ -2,6 +2,18 @@ import type { MissionLog } from './mcp-client';
 import type { AgentRuntimeStatus, ExecutionStatus, TaskTransitionEvent } from './mission-executor';
 import type { TaskRowStatus } from './execution-task-rows';
 
+export function splitExecutionGoals(text: string): string[] {
+	return text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+}
+
+export function sortAgentRuntimeByFreshness(agents: AgentRuntimeStatus[]): AgentRuntimeStatus[] {
+	const updatedMs = (value: string | null | undefined): number => {
+		const parsed = Date.parse(value || '');
+		return Number.isFinite(parsed) ? parsed : 0;
+	};
+	return agents.slice().sort((a, b) => updatedMs(b.updatedAt) - updatedMs(a.updatedAt));
+}
+
 export function getLogColor(type: MissionLog['type']): string {
 	switch (type) {
 		case 'complete':

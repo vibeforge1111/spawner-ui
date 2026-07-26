@@ -36,6 +36,71 @@ function streamResponse(chunks: string[]): Response {
 }
 
 describe('anthropic-client', () => {
+	it('reuses one idempotency key across retry attempts', async () => {
+		const retryResponse = new Response('retry', { status: 500, headers: { 'retry-after': '0' } });
+		const cancel = vi.spyOn(retryResponse.body!, 'cancel');
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce(retryResponse)
+			.mockResolvedValueOnce(
+				streamResponse([
+					'data: {"type":"message_start","message":{"usage":{"input_tokens":1,"output_tokens":0}}}\n\n',
+					'data: {"type":"content_block_delta","delta":{"text":"done"}}\n\n'
+				])
+			);
+		vi.stubGlobal('fetch', fetchMock);
+
+		const result = await executeAnthropicRequest(
+			{
+				provider,
+				apiKey: 'test-api-key',
+				missionId: 'mission-anthropic-retry',
+				onEvent: () => undefined
+			},
+			'Retry safely'
+		);
+
+		const firstHeaders = fetchMock.mock.calls[0][1]?.headers as Record<string, string>;
+		const secondHeaders = fetchMock.mock.calls[1][1]?.headers as Record<string, string>;
+		expect(result.success).toBe(true);
+		expect(firstHeaders['Idempotency-Key']).toBeTruthy();
+		expect(secondHeaders['Idempotency-Key']).toBe(firstHeaders['Idempotency-Key']);
+		expect(cancel).toHaveBeenCalledOnce();
+	});
+
+	it('emits a structured task failure when retries are exhausted', async () => {
+		const events: BridgeEvent[] = [];
+		const fetchMock = vi.fn(async () =>
+			new Response('temporarily unavailable', {
+				status: 503,
+				headers: { 'retry-after': '0' }
+			})
+		);
+		vi.stubGlobal('fetch', fetchMock);
+
+		const result = await executeAnthropicRequest(
+			{
+				provider,
+				apiKey: 'test-api-key',
+				missionId: 'mission-anthropic-exhausted',
+				onEvent: (event) => events.push(event)
+			},
+			'Retry until exhausted'
+		);
+
+		expect(result.success).toBe(false);
+		expect(fetchMock).toHaveBeenCalledTimes(3);
+		expect(events.at(-1)).toMatchObject({
+			type: 'task_failed',
+			data: {
+				success: false,
+				provider: 'anthropic',
+				providerLabel: 'Anthropic'
+			}
+		});
+		expect(events.at(-1)?.data?.error).toContain('HTTP 503');
+	});
+
 	it('preserves prompt tokens when message_delta only reports output tokens', async () => {
 		const events: BridgeEvent[] = [];
 		vi.stubGlobal(

@@ -28,6 +28,22 @@ import {
 import { requireMcpAuth } from '$lib/server/mcp-auth';
 import { HarnessAuthorityError, assertNativeGovernorHarnessAuthority, resolveExecutionAuthority } from '$lib/server/harness-authority';
 
+const LOCAL_PATH_PATTERN =
+	/\b[A-Z]:\\[^\s`'"]+|(?<![\w.])\/(?:Users|home|tmp|var|private|Volumes|workspace|mnt|root)\/[^\s`'"]+/gi;
+
+function safeMcpLogDetail(error: unknown): string {
+	const message = error instanceof Error ? error.message : String(error || 'MCP operation failed');
+	return message.replace(LOCAL_PATH_PATTERN, '<local-path>').trim() || 'MCP operation failed';
+}
+
+async function readJsonObject(request: Request): Promise<Record<string, unknown> | null> {
+	const body: unknown = await request.json().catch(() => null);
+	if (!body || typeof body !== 'object' || Array.isArray(body)) {
+		return null;
+	}
+	return body as Record<string, unknown>;
+}
+
 /**
  * POST - Connect to an MCP server
  */
@@ -39,7 +55,11 @@ export const POST: RequestHandler = async (event) => {
 
 	try {
 		const { request } = event;
-		const body = await request.json();
+		const parsedBody = await readJsonObject(request);
+		if (!parsedBody) {
+			return json({ error: 'Malformed JSON body' }, { status: 400 });
+		}
+		const body = parsedBody;
 		const { instanceId, mcpId, config, npmPackage, defaultArgs, envVars, command, args } = body as {
 			instanceId: string;
 			mcpId?: string;
@@ -129,10 +149,10 @@ export const POST: RequestHandler = async (event) => {
 				{ status: error.status }
 			);
 		}
-		console.error('[API] MCP connection error:', error);
+		console.error('[API] MCP connection error:', safeMcpLogDetail(error));
 		return json(
 			{
-				error: error instanceof Error ? error.message : 'Connection failed',
+				error: 'MCP connection failed',
 			},
 			{ status: 500 }
 		);
@@ -150,7 +170,11 @@ export const DELETE: RequestHandler = async (event) => {
 
 	try {
 		const { request } = event;
-		const body = await request.json();
+		const parsedBody = await readJsonObject(request);
+		if (!parsedBody) {
+			return json({ error: 'Malformed JSON body' }, { status: 400 });
+		}
+		const body = parsedBody;
 		const { instanceId } = body as { instanceId: string };
 
 		if (!instanceId) {
@@ -189,10 +213,10 @@ export const DELETE: RequestHandler = async (event) => {
 				{ status: error.status }
 			);
 		}
-		console.error('[API] MCP disconnect error:', error);
+		console.error('[API] MCP disconnect error:', safeMcpLogDetail(error));
 		return json(
 			{
-				error: error instanceof Error ? error.message : 'Disconnect failed',
+				error: 'MCP disconnect failed',
 			},
 			{ status: 500 }
 		);

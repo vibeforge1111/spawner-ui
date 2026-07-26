@@ -1,11 +1,3 @@
 {
-  "mcpServers": {
-    "spawner-h70": {
-      "command": "node",
-      "args": ["mcp-h70/index.js"],
-      "env": {
-        "H70_SKILL_LAB": "<path-to-h70-skill-lab>"
-      }
-    }
-  }
+  "mcpServers": {}
 }

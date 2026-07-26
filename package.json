@@ -4,6 +4,16 @@
 	"version": "0.0.1",
 	"type": "module",
 	"license": "MIT",
+	"files": [
+		"build",
+		"static",
+		"vendor/harness-core",
+		"scripts/health-spark.mjs",
+		"npm-shrinkwrap.json",
+		".env.example",
+		"README.md",
+		"LICENSE"
+	],
 	"scripts": {
 		"dev": "vite dev --host 127.0.0.1 --port 3333",
 		"build": "vite build",
@@ -12,6 +22,7 @@
 		"preview": "vite preview",
 		"preview:app": "vite dev --host 127.0.0.1 --port 5555",
 		"preview:projects": "tsx scripts/project-preview-server.ts",
+		"prepack": "npm run build",
 		"prepare": "svelte-kit sync || echo ''",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
@@ -24,6 +35,8 @@
 		"smoke:routes": "node scripts/smoke-routes.mjs",
 		"smoke:mission-surfaces": "node scripts/smoke-mission-surfaces.mjs",
 		"smoke:fastdirect-completion": "node scripts/smoke-fastdirect-completion.mjs",
+		"trace:redact:prd": "tsx scripts/redact-prd-trace.ts",
+		"trace:repair:prd-proof": "tsx scripts/repair-prd-trace-proof.ts",
 		"sync:runtime": "node scripts/sync-runtime.cjs --check",
 		"sync:watch": "node scripts/sync-runtime.cjs --check",
 		"sync:check": "node scripts/sync-runtime.cjs --check",
@@ -42,20 +55,21 @@
 		"cors": "^2.8.5",
 		"express": "^5.2.1",
 		"jsdom": "^27.4.0",
-		"postcss": "^8.5.10",
+		"postcss": "^8.5.23",
 		"svelte": "^5.45.6",
 		"svelte-check": "^4.3.4",
 		"tailwindcss": "^3.4.17",
 		"tsx": "^4.21.0",
 		"typescript": "^5.9.3",
 		"vite": "^7.2.6",
-		"vitest": "^4.0.16",
+		"vitest": "^4.1.10",
 		"ws": "^8.19.0",
 		"yaml": "^2.8.2"
 	},
 	"dependencies": {
-		"@spark/harness-core": "file:vendor/harness-core",
+		"@hono/node-server": "2.0.11",
 		"@modelcontextprotocol/sdk": "^1.25.2",
+		"@spark/harness-core": "file:vendor/harness-core",
 		"@types/three": "^0.182.0",
 		"croner": "^10.0.1",
 		"dompurify": "^3.3.1",
@@ -63,6 +77,8 @@
 		"zod": "^3.25.76"
 	},
 	"overrides": {
+		"@hono/node-server": "2.0.11",
+		"cookie": "0.7.2",
 		"devalue": ">=5.8.1"
 	}
 }

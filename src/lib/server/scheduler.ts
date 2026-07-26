@@ -68,6 +68,7 @@ let _store: StoreShape | null = null;
 let _tickTimer: NodeJS.Timeout | null = null;
 let _starting = false;
 const _firingIds = new Set<string>();
+let _tickInFlight = false;
 
 function _id(): string {
   return 'sched-' + randomBytes(4).toString('hex');
@@ -111,7 +112,11 @@ async function _save(): Promise<void> {
   if (!_store) return;
   const file = schedulesFile();
   await fs.mkdir(path.dirname(file), { recursive: true });
-  const tmp = file + '.tmp';
+  // Unique tmp name (pid + monotonic counter + random suffix) so concurrent _save calls -
+  // e.g. createSchedule and deleteSchedule firing back-to-back, or a tick firing while a
+  // delete persists - cannot stomp on each other's `.tmp` file. Sister precedent #281
+  // applied the same hardening to mission-control-relay persistState.
+  const tmp = `${file}.${process.pid}.${Date.now()}.${randomBytes(4).toString('hex')}.tmp`;
   await fs.writeFile(tmp, JSON.stringify(_store, null, 2), 'utf-8');
   try {
     await fs.rename(tmp, file);
@@ -171,7 +176,16 @@ export async function createSchedule(input: {
   timezone?: string | null;
 }): Promise<ScheduleRecord> {
   const store = await _load();
+  // Distinguish "no timezone provided" (null/empty - legacy server-tz behavior)
+  // from "a non-empty string that failed IANA validation" (typo such as
+  // "America/NewYork"). Silently dropping the latter to null made the
+  // schedule fire in server TZ while the operator believed it was using
+  // their zone; reject it with a clear message instead.
+  const timezoneProvided = typeof input.timezone === 'string' && input.timezone.trim().length > 0;
   const timezone = _validTimezone(input.timezone);
+  if (timezoneProvided && !timezone) {
+    throw new Error(`Invalid IANA timezone: ${String(input.timezone).trim()}`);
+  }
   const nextFireAt = _computeNext(input.cron, timezone);
   if (!nextFireAt) {
     throw new Error(`Invalid cron expression: ${input.cron}`);
@@ -253,7 +267,7 @@ async function _relayToTelegram(record: ScheduleRecord, result: { ok: boolean; s
     logger.info('[scheduler] relay skipped: no TELEGRAM_BOT_TOKEN or BOT_TOKEN in env');
     return;
   }
-  const text = `[sched ${record.id}] ${record.action} ${result.ok ? 'ok' : 'fail'}\n${result.summary}`;
+  const text = _composeScheduleRelayText(record, result);
   try {
     const resp = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: 'POST',
@@ -267,46 +281,78 @@ async function _relayToTelegram(record: ScheduleRecord, result: { ok: boolean; s
       logger.warn('[scheduler] relay', record.id, 'failed HTTP', resp.status, 'body', bodyText.slice(0, 200));
     }
   } catch (err: unknown) {
-    logger.info('[scheduler] relay fetch error on', record.id, errorMessage(err, String(err)));
+    logger.warn('[scheduler] relay fetch error on', record.id, errorMessage(err, String(err)));
   }
 }
 
-async function _tick(): Promise<void> {
-  const store = await _load();
-  const now = new Date();
-  let dirty = false;
-  for (const rec of store.schedules) {
-    if (!rec.enabled) continue;
-    if (!rec.nextFireAt) {
-      rec.nextFireAt = _computeNext(rec.cron, rec.timezone);
-      dirty = true;
-      continue;
-    }
-    if (new Date(rec.nextFireAt) > now) continue;
-    if (_firingIds.has(rec.id)) {
-      // Previous fire for this schedule is still in flight (e.g. long subprocess).
-      // Skip so we do not relaunch the mission or emit a duplicate relay message.
-      continue;
-    }
-    const nextFireAt = _computeNext(rec.cron, rec.timezone);
-    _firingIds.add(rec.id);
-    try {
-      const result = await _fire(rec);
-      rec.lastFiredAt = new Date().toISOString();
-      rec.fireCount += 1;
-      rec.lastStatus = (result.ok ? 'ok: ' : 'fail: ') + result.summary.slice(0, 200);
-      await _relayToTelegram(rec, result);
-    } catch (err: unknown) {
-      rec.lastFiredAt = new Date().toISOString();
-      rec.fireCount += 1;
-      rec.lastStatus = 'crash: ' + errorMessage(err);
-    } finally {
-      _firingIds.delete(rec.id);
-    }
-    rec.nextFireAt = nextFireAt;
-    dirty = true;
+export function _composeScheduleRelayText(
+  record: Pick<ScheduleRecord, 'action'>,
+  result: { ok: boolean; summary: string }
+): string {
+  const subject = record.action === 'loop' ? 'loop' : 'mission';
+  if (result.summary.includes('requires fresh Governor authority')) {
+    return `This scheduled ${subject} is due, but it still needs fresh approval before I can run it.`;
   }
-  if (dirty) await _save();
+  if (result.ok) {
+    return `The scheduled ${subject} finished. You can inspect Spawner if you want the run details.`;
+  }
+  return `The scheduled ${subject} didn’t make it through. Spawner has the exact failure if you want to inspect it.`;
+}
+
+async function _tick(): Promise<void> {
+  if (_tickInFlight) return;
+  _tickInFlight = true;
+  try {
+    const store = await _load();
+    const now = new Date();
+    let dirty = false;
+    for (const rec of store.schedules) {
+      if (!rec.enabled) continue;
+      if (!rec.nextFireAt) {
+        rec.nextFireAt = _computeNext(rec.cron, rec.timezone);
+        dirty = true;
+        continue;
+      }
+      const nextFireMs = Date.parse(rec.nextFireAt);
+      if (!Number.isFinite(nextFireMs)) {
+        // Stored nextFireAt is non-empty but unparseable (state-file drift /
+        // hand edit / older format). Recompute from the cron expression
+        // instead of falling through, which would make `new Date(<invalid>)
+        // > now` evaluate false (because Invalid Date comparisons always
+        // return false) and re-fire the schedule every TICK_MS (~30s)
+        // instead of on its cron cadence.
+        rec.nextFireAt = _computeNext(rec.cron, rec.timezone);
+        dirty = true;
+        continue;
+      }
+      if (nextFireMs > now.getTime()) continue;
+      if (_firingIds.has(rec.id)) {
+        // Previous fire for this schedule is still in flight (e.g. long subprocess).
+        // Skip so we do not relaunch the mission or emit a duplicate relay message.
+        continue;
+      }
+      const nextFireAt = _computeNext(rec.cron, rec.timezone);
+      rec.nextFireAt = nextFireAt;
+      _firingIds.add(rec.id);
+      try {
+        const result = await _fire(rec);
+        rec.lastFiredAt = new Date().toISOString();
+        rec.fireCount += 1;
+        rec.lastStatus = (result.ok ? 'ok: ' : 'fail: ') + result.summary.slice(0, 200);
+        await _relayToTelegram(rec, result);
+      } catch (err: unknown) {
+        rec.lastFiredAt = new Date().toISOString();
+        rec.fireCount += 1;
+        rec.lastStatus = 'crash: ' + errorMessage(err);
+      } finally {
+        _firingIds.delete(rec.id);
+      }
+      dirty = true;
+    }
+    if (dirty) await _save();
+  } finally {
+    _tickInFlight = false;
+  }
 }
 
 export function startScheduler(): void {
@@ -337,6 +383,8 @@ export function resetSchedulerForTests(): void {
   stopScheduler();
   _store = null;
   _starting = false;
+  _tickInFlight = false;
+  _firingIds.clear();
 }
 
 export async function runSchedulerTickForTests(): Promise<void> {
@@ -345,10 +393,13 @@ export async function runSchedulerTickForTests(): Promise<void> {
 
 export const _schedulerInternalsForTests = {
   fire: _fire,
+  relayToTelegram: _relayToTelegram,
   load: _load,
   tick: _tick,
   reset(): void {
     _store = null;
+    _tickInFlight = false;
+    _firingIds.clear();
     stopScheduler();
   },
 };

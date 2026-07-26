@@ -18,10 +18,13 @@ import {
 } from '../high-agency-workers';
 import { spawnerStateDir } from '../spawner-state';
 import { prepareProviderWorkingDirectory } from '$lib/services/spark-agent-bridge';
+import { BoundedProcessOutput } from '../bounded-process-output';
 
 export interface CodexCliOptions extends ProviderClientOptions {
 	workingDirectory?: string;
 }
+
+const CODEX_TERMINATION_GRACE_MS = 5000;
 
 export interface CodexCliCommand {
 	binary: 'codex' | string;
@@ -30,6 +33,33 @@ export interface CodexCliCommand {
 
 export interface ParseCodexCliCommandOptions {
 	allowHighAgency?: boolean;
+}
+
+interface PromptPersistence {
+	exists: (path: string) => boolean;
+	mkdir: (path: string) => void;
+	write: (path: string, value: string) => void;
+}
+
+const promptPersistence: PromptPersistence = {
+	exists: existsSync,
+	mkdir: (path) => mkdirSync(path, { recursive: true }),
+	write: (path, value) => writeFileSync(path, value, 'utf-8')
+};
+
+export function persistCodexPrompt(
+	promptsDir: string,
+	promptFile: string,
+	prompt: string,
+	persistence: PromptPersistence = promptPersistence
+): boolean {
+	try {
+		if (!persistence.exists(promptsDir)) persistence.mkdir(promptsDir);
+		persistence.write(promptFile, prompt);
+		return true;
+	} catch {
+		return false;
+	}
 }
 
 function isSafeCommandToken(value: string): boolean {
@@ -135,11 +165,17 @@ export async function executeCodexCliRequest(
 
 	// Write prompt to file for reference
 	const promptsDir = join(spawnerStateDir(), 'prompts');
-	if (!existsSync(promptsDir)) {
-		mkdirSync(promptsDir, { recursive: true });
-	}
 	const promptFile = join(promptsDir, `${missionId}-${provider.id}.md`);
-	writeFileSync(promptFile, prompt, 'utf-8');
+	if (!persistCodexPrompt(promptsDir, promptFile, prompt)) {
+		const error = 'Unable to persist Codex prompt';
+		onEvent(
+			createBridgeEvent('error', options, {
+				message: error,
+				data: { error }
+			})
+		);
+		return { success: false, error, durationMs: Date.now() - startTime };
+	}
 
 	return new Promise<ProviderResult>((resolve) => {
 		let cwd: string;
@@ -151,10 +187,11 @@ export async function executeCodexCliRequest(
 			return;
 		}
 
-		let stdout = '';
-		let stderr = '';
+		const stdout = new BoundedProcessOutput('OUTPUT');
+		const stderr = new BoundedProcessOutput('STDERR');
 		let lastProgressEmit = Date.now();
 		let killed = false;
+		let killTimeout: ReturnType<typeof setTimeout> | null = null;
 
 		const child = spawnHidden(resolvedBinary, command.args, {
 			cwd,
@@ -168,27 +205,43 @@ export async function executeCodexCliRequest(
 			child.stdin.end();
 		}
 
-		// Handle abort signal
+		// Handle abort signal. Detach the listener once the child exits so the
+		// AbortController does not pin the dead-process closure when the signal
+		// is reused across many missions.
+		let abortHandler: (() => void) | null = null;
+		const releaseAbortListener = () => {
+			if (signal && abortHandler) {
+				signal.removeEventListener('abort', abortHandler);
+				abortHandler = null;
+			}
+		};
 		if (signal) {
-			const abortHandler = () => {
+			abortHandler = () => {
 				killed = true;
 				try {
 					child.kill('SIGTERM');
 				} catch {
 					// Process may have already exited
 				}
+				killTimeout = setTimeout(() => {
+					try {
+						child.kill('SIGKILL');
+					} catch {
+						// Process may have already exited after SIGTERM.
+					}
+				}, CODEX_TERMINATION_GRACE_MS);
 			};
 			signal.addEventListener('abort', abortHandler, { once: true });
 		}
 
 		child.stdout?.on('data', (data: Buffer) => {
 			const chunk = data.toString();
-			stdout += chunk;
+			stdout.append(chunk);
 
 			// Emit progress periodically
 			const now = Date.now();
 			if (now - lastProgressEmit > 3000) {
-				const lines = stdout.split('\n').filter(Boolean);
+				const lines = stdout.toString().split('\n').filter(Boolean);
 				onEvent(
 					createBridgeEvent('task_progress', options, {
 						progress: Math.min(80, Math.floor(lines.length * 5)),
@@ -200,14 +253,24 @@ export async function executeCodexCliRequest(
 		});
 
 		child.stderr?.on('data', (data: Buffer) => {
-			stderr += data.toString();
+			stderr.append(data.toString());
 		});
 
 		child.on('error', (err) => {
+			releaseAbortListener();
+			if (killTimeout) {
+				clearTimeout(killTimeout);
+				killTimeout = null;
+			}
 			onEvent(
-				createBridgeEvent('error', options, {
+				createBridgeEvent('task_failed', options, {
 					message: `${provider.label} process error: ${err.message}`,
-					data: { error: err.message }
+					data: {
+						success: false,
+						error: err.message,
+						provider: provider.id,
+						providerLabel: provider.label
+					}
 				})
 			);
 			resolve({
@@ -218,6 +281,11 @@ export async function executeCodexCliRequest(
 		});
 
 		child.on('close', (code) => {
+			releaseAbortListener();
+			if (killTimeout) {
+				clearTimeout(killTimeout);
+				killTimeout = null;
+			}
 			if (killed) {
 				resolve({
 					success: false,
@@ -228,7 +296,8 @@ export async function executeCodexCliRequest(
 			}
 
 			const success = code === 0;
-			const response = stdout.trim();
+			const response = stdout.toString().trim();
+			const stderrText = stderr.toString();
 
 			if (success) {
 				onEvent(
@@ -239,9 +308,16 @@ export async function executeCodexCliRequest(
 				);
 			} else {
 				onEvent(
-					createBridgeEvent('error', options, {
-						message: `${provider.label} exited with code ${code}: ${stderr.slice(0, 500)}`,
-						data: { exitCode: code, stderr: stderr.slice(0, 500) }
+					createBridgeEvent('task_failed', options, {
+						message: `${provider.label} exited with code ${code}: ${stderrText.slice(0, 500)}`,
+						data: {
+							success: false,
+							error: `Exit code ${code}: ${stderrText.slice(0, 500)}`,
+							exitCode: code,
+							stderr: stderrText.slice(0, 500),
+							provider: provider.id,
+							providerLabel: provider.label
+						}
 					})
 				);
 			}
@@ -249,7 +325,7 @@ export async function executeCodexCliRequest(
 			resolve({
 				success,
 				response,
-				error: success ? undefined : `Exit code ${code}: ${stderr.slice(0, 500)}`,
+				error: success ? undefined : `Exit code ${code}: ${stderrText.slice(0, 500)}`,
 				durationMs: Date.now() - startTime
 			});
 		});

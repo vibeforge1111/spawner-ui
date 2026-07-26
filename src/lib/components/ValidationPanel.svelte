@@ -14,6 +14,12 @@
 
 	let { onClose }: Props = $props();
 
+	function handleKeydown(event: KeyboardEvent) {
+		if (event.key === 'Escape') {
+			onClose();
+		}
+	}
+
 	let currentNodes = $state<CanvasNode[]>([]);
 	let currentConnections = $state<Connection[]>([]);
 	let result = $state<ValidationResult | null>(null);
@@ -123,10 +129,11 @@
 	}
 </script>
 
-<div class="fixed inset-0 flex items-center justify-center z-50" role="dialog" aria-modal="true" aria-label="Workflow validation">
+<svelte:window onkeydown={handleKeydown} />
+<div class="fixed inset-0 flex items-center justify-center z-50 p-4 overflow-y-auto overscroll-contain" role="dialog" aria-modal="true" aria-label="Workflow validation">
 	<button class="absolute inset-0 bg-black/50" onclick={onClose} aria-label="Close validation panel"></button>
 	<div
-		class="relative bg-bg-secondary border border-surface-border w-full max-w-lg max-h-[80vh] flex flex-col"
+		class="relative bg-bg-secondary border border-surface-border w-full max-w-lg max-h-[80dvh] flex flex-col my-auto"
 	>
 		<!-- Header -->
 		<div class="flex items-center justify-between p-4 border-b border-surface-border">
@@ -159,7 +166,7 @@
 					<button
 						onclick={runMcpValidation}
 						disabled={loadingMcp}
-						class="mt-3 w-full px-3 py-2 text-xs font-mono border border-accent-primary/50 text-accent-primary hover:bg-accent-primary/10 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+						class="mt-3 w-full px-3 py-2 text-xs font-mono border border-accent-primary/50 text-accent-primary hover:bg-accent-primary/10 transition-all disabled:opacity-50 disabled:cursor-wait flex items-center justify-center gap-2"
 					>
 						{#if loadingMcp}
 							<div class="w-3 h-3 border-2 border-accent-primary border-t-transparent rounded-full animate-spin"></div>

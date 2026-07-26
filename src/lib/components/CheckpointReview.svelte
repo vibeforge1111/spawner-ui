@@ -95,9 +95,16 @@
 	}
 
 	function handleReject() {
-		if (rejectReason.trim()) {
-			onReject?.(rejectReason);
-		}
+		const reason = rejectReason.trim();
+		if (!reason) return;
+		onReject?.(reason);
+		rejectReason = '';
+		showRejectForm = false;
+	}
+
+	function cancelReject() {
+		rejectReason = '';
+		showRejectForm = false;
 	}
 </script>
 
@@ -357,7 +364,16 @@
 					<input
 						type="text"
 						bind:value={rejectReason}
+						aria-label="Checkpoint rejection reason"
 						placeholder="What needs to be fixed?"
+						onkeydown={(e) => {
+							if (e.key === 'Enter') {
+								e.preventDefault();
+								handleReject();
+							} else if (e.key === 'Escape') {
+								cancelReject();
+							}
+						}}
 						class="min-w-0 flex-1 border border-surface-border bg-bg-primary px-3 py-2 font-mono"
 					/>
 					<button
@@ -369,7 +385,7 @@
 					</button>
 					<button
 						class="btn-ghost px-4 py-2"
-						onclick={() => showRejectForm = false}
+						onclick={cancelReject}
 					>
 						Cancel
 					</button>

@@ -3,17 +3,11 @@
 	import SkillSearchPalette from '../SkillSearchPalette.svelte';
 	import { filters, setFilter } from '$lib/stores/skills.svelte';
 	import type { SkillCategory } from '$lib/stores/skills.svelte';
-
-	interface CategoryDef {
-		id: SkillCategory | string;
-		label: string;
-	}
-
-	interface CategoryGroupDef {
-		name: string;
-		icon: string;
-		categories: CategoryDef[];
-	}
+	import {
+		buildExtraCategoryGroup,
+		type CategoryDef,
+		type CategoryGroupDef
+	} from './category-browser-groups';
 
 	let { categoryCounts = {} }: { categoryCounts: Record<string, number> } = $props();
 
@@ -140,12 +134,21 @@
 		return categories.reduce((sum, cat) => sum + getCount(cat.id), 0);
 	}
 
-	// Filter out groups with no skills (reactive)
-	const visibleGroups = $derived(
-		categoryGroupDefs.filter(group =>
-			group.categories.some(cat => getCount(cat.id) > 0)
-		)
+	// Categories the curated taxonomy already covers
+	const knownCategoryIds = new Set(
+		categoryGroupDefs.flatMap((group) => group.categories.map((cat) => cat.id))
 	);
+
+	// Filter out groups with no skills, and append a derived group for
+	// categories present in the data but missing from the taxonomy so no
+	// skill is unreachable through Browse by Category (reactive)
+	const visibleGroups = $derived.by(() => {
+		const groups = categoryGroupDefs.filter(group =>
+			group.categories.some(cat => getCount(cat.id) > 0)
+		);
+		const extraGroup = buildExtraCategoryGroup(categoryCounts, knownCategoryIds);
+		return extraGroup ? [...groups, extraGroup] : groups;
+	});
 </script>
 
 <div class="space-y-4 mb-6">

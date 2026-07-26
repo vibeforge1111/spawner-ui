@@ -105,6 +105,9 @@
 			<input
 				id="url"
 				type="url"
+				inputmode="url"
+				spellcheck="false"
+				autocapitalize="off"
 				bind:value={url}
 				placeholder="https://api.example.com/health"
 				class="flex-1 px-3 py-2 bg-bg-primary border border-surface-border text-text-primary text-sm font-mono focus:border-accent-primary focus:outline-none"
@@ -120,8 +123,11 @@
 			</button>
 		</div>
 		{#if testResult}
-			<p class="mt-1 text-xs {testResult.success ? 'text-green-400' : 'text-red-400'}">
-				{testResult.message}
+			<p
+				class="mt-1 text-xs {testResult.success ? 'text-green-400' : 'text-red-400'}"
+				role={testResult.success ? 'status' : 'alert'}
+			>
+				<span aria-hidden="true">{testResult.success ? '✓ ' : '✗ '}</span>{testResult.message}
 			</p>
 		{/if}
 	</div>

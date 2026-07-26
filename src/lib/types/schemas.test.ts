@@ -259,18 +259,18 @@ describe('StoredSkillSchema', () => {
 // =============================================================================
 
 describe('BridgeEventSchema', () => {
-	it('validates mission_start event', () => {
+	it('validates mission_started event', () => {
 		const event = {
-			type: 'mission_start',
+			type: 'mission_started',
 			data: { missionId: 'mission-1' },
-			timestamp: Date.now()
+			timestamp: new Date().toISOString()
 		};
 		const result = BridgeEventSchema.safeParse(event);
 		expect(result.success).toBe(true);
 	});
 
 	it('validates event without optional fields', () => {
-		const event = { type: 'task_complete' };
+		const event = { type: 'task_completed' };
 		const result = BridgeEventSchema.safeParse(event);
 		expect(result.success).toBe(true);
 	});

@@ -141,12 +141,13 @@ function matchSkillsLocal(goal: AnalyzedGoal, maxResults: number): MatchedSkill[
 		});
 	}
 
-	// Sort by score
+	// Sort by score, then category priority, then skillId for full determinism
 	matched.sort((a, b) => {
 		if (b.score !== a.score) return b.score - a.score;
 		const priorityA = CATEGORY_PRIORITY[a.category] || 99;
 		const priorityB = CATEGORY_PRIORITY[b.category] || 99;
-		return priorityA - priorityB;
+		if (priorityA !== priorityB) return priorityA - priorityB;
+		return a.skillId.localeCompare(b.skillId);
 	});
 
 	return matched.slice(0, maxResults);
@@ -182,7 +183,7 @@ export async function matchSkills(
 			source = 'claude';
 			logger.info(`[SkillMatcher] Claude selected ${skills.length} skills with reasoning`);
 		} else {
-			logger.info('[SkillMatcher] Claude API unavailable, falling back to local');
+			logger.warn('[SkillMatcher] Claude API unavailable, falling back to local');
 		}
 	}
 
@@ -244,6 +245,17 @@ function getDefaultSkills(domains: string[], maxResults: number): MatchedSkill[]
 			matchReason: 'game project detected',
 			tier: 2,
 			tags: ['game', 'design']
+		});
+	} else if (domains.includes('file-task')) {
+		defaults.push({
+			skillId: 'general-development',
+			name: 'General Development',
+			description: 'Basic file operations and scripting',
+			category: 'development',
+			score: 0.6,
+			matchReason: 'simple file task detected',
+			tier: 1,
+			tags: ['general', 'files', 'scripting']
 		});
 	} else if (domains.includes('ai') || domains.includes('ml')) {
 		defaults.push({

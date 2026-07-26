@@ -8,6 +8,7 @@ import {
 	_buildFallbackAnalysisResult,
 	_demoteProvisionalPrdDraftResult,
 	_extractPrdBridgeProjectLineage,
+	_parsePositiveIntegerEnvForTests,
 	_provisionalPrdDraftDelayMs,
 	_shouldUseDeterministicPrdFallback
 } from './+server';
@@ -15,6 +16,13 @@ import {
 let testSpawnerDir = '';
 
 describe('PRD bridge fallback analysis', () => {
+	it('rejects unit-suffixed and non-positive auto-analysis timeouts', () => {
+		for (const value of ['30s', '5m', '0', '-1', 'Infinity', '']) {
+			expect(_parsePositiveIntegerEnvForTests(value, 420_000)).toBe(420_000);
+		}
+		expect(_parsePositiveIntegerEnvForTests(' 180000 ', 420_000)).toBe(180_000);
+	});
+
 	beforeEach(async () => {
 		testSpawnerDir = await mkdtemp(path.join(tmpdir(), 'spawner-prd-write-'));
 		await mkdir(path.join(testSpawnerDir, 'results'), { recursive: true });
@@ -94,8 +102,9 @@ describe('PRD bridge fallback analysis', () => {
 		expect(tasks[0].summary).toContain('index.html');
 		expect(tasks[1].dependencies).toContain(tasks[0].id);
 		expect(tasks[3].dependencies).toEqual(expect.arrayContaining([tasks[1].id, tasks[2].id]));
-		expect(tasks.every((task) => task.workspaceTargets.includes('C:\\Users\\USER\\Desktop\\spark-telegram-unit-smoke'))).toBe(true);
-		expect(tasks.flatMap((task) => task.verificationCommands).join('\n')).toContain('node --check');
+		expect(tasks.every((task) => task.workspaceTargets.length === 0)).toBe(true);
+		expect(JSON.stringify(tasks)).not.toContain('C:\\Users\\USER\\Desktop\\spark-telegram-unit-smoke');
+		expect(tasks.flatMap((task) => task.verificationCommands).join('\n')).toContain('project interaction smoke test');
 	});
 
 	it('does not use deterministic fallback for fast direct app builds', () => {
@@ -527,5 +536,24 @@ describe('PRD bridge fallback analysis', () => {
 				{ SPAWNER_PRD_PROVISIONAL_DRAFTS: '0' } as NodeJS.ProcessEnv
 			)
 		).toBeNull();
+	});
+
+	it('rejects suffixed SPAWNER_PRD_PROVISIONAL_*_MS forms and falls back to the documented default (suffix-trap)', () => {
+		// The prior Number.parseInt + Number.isFinite + >= 0 gate silently
+		// accepted '5s' as 5 and '30m' as 30 because parseInt strips the
+		// suffix. The regex-gated helper now falls back to the documented
+		// 10_000 / 45_000 defaults on any non-clean-integer form.
+		const direct = { buildMode: 'direct' as const, buildLane: 'direct' as const };
+		const enabledDirectEnv = (value: string) => ({
+			SPAWNER_PRD_DIRECT_PROVISIONAL_DRAFTS: '1',
+			SPAWNER_PRD_PROVISIONAL_DIRECT_MS: value
+		}) as NodeJS.ProcessEnv;
+		expect(_provisionalPrdDraftDelayMs(direct, enabledDirectEnv('5s'))).toBe(10_000);
+		expect(_provisionalPrdDraftDelayMs(direct, enabledDirectEnv('30m'))).toBe(10_000);
+		expect(_provisionalPrdDraftDelayMs(direct, enabledDirectEnv('1.5'))).toBe(10_000);
+		expect(_provisionalPrdDraftDelayMs(direct, enabledDirectEnv('1e3'))).toBe(10_000);
+		expect(_provisionalPrdDraftDelayMs(direct, enabledDirectEnv('-100'))).toBe(10_000);
+		expect(_provisionalPrdDraftDelayMs(direct, enabledDirectEnv('  2500  '))).toBe(2500);
+		expect(_provisionalPrdDraftDelayMs(direct, enabledDirectEnv('0'))).toBe(0);
 	});
 });

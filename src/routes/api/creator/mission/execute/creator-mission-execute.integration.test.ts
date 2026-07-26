@@ -9,9 +9,9 @@ import {
 	type CreatorIntentPacket
 } from '$lib/server/creator-mission';
 import {
-	buildClientGovernorDecisionAuthority,
-	buildClientTurnIntentVNextAuthority
-} from '$lib/services/harness-authority-client';
+	buildServerGovernorDecisionAuthority,
+	buildServerTurnIntentVNextAuthority
+} from '$lib/server/harness-authority';
 
 const { PRIVATE_ENV, TEST_API_KEY } = vi.hoisted(() => ({
 	TEST_API_KEY: 'creator-mission-execute-route-test-secret',
@@ -53,7 +53,7 @@ function machineAuthority() {
 }
 
 function dispatchVNextAuthority(target: string) {
-	return buildClientTurnIntentVNextAuthority({
+	return buildServerTurnIntentVNextAuthority({
 		source: 'creator-execute-route-test',
 		reason: 'User started creator mission execution from Spark.',
 		toolName: 'spawner.dispatch',
@@ -63,7 +63,7 @@ function dispatchVNextAuthority(target: string) {
 }
 
 function dispatchGovernorAuthority(target: string, requestId = target) {
-	return buildClientGovernorDecisionAuthority({
+	return buildServerGovernorDecisionAuthority({
 		source: 'creator-execute-route-test',
 		reason: 'User started creator mission execution from Spark.',
 		toolName: 'spawner.dispatch',

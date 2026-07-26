@@ -10,7 +10,7 @@
 
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { readFile, writeFile, mkdir, appendFile } from 'fs/promises';
+import { readFile, writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
 import { assertSafeId, PathSafetyError, resolveWithinBaseDir } from '$lib/server/path-safety';
@@ -22,6 +22,8 @@ import { extractTraceRef } from '$lib/server/trace-ref';
 import { requireControlAuth } from '$lib/server/mcp-auth';
 import { logger } from '$lib/utils/logger';
 import { parseJsonOrThrow } from '$lib/utils/safe-json';
+import { appendPrdTraceWithContinuity } from '$lib/server/prd-trace-proof-continuity';
+import { stripProviderDeterministicArtifactProof } from '$lib/server/prd-deterministic-artifact-proof';
 
 const log = logger.scope('PRDBridge');
 
@@ -42,16 +44,7 @@ function missionIdForPendingRequest(pending: Record<string, unknown>, requestId:
 
 async function appendPrdTrace(requestId: string, event: string, details: Record<string, unknown> = {}): Promise<void> {
 	try {
-		await appendFile(
-			join(spawnerStateDir(), 'prd-auto-trace.jsonl'),
-			`${JSON.stringify({
-				ts: new Date().toISOString(),
-				requestId,
-				event,
-				...details
-			})}\n`,
-			'utf-8'
-		);
+		await appendPrdTraceWithContinuity({ stateDir: spawnerStateDir(), requestId, event, details });
 	} catch {
 		// Trace failures are non-fatal.
 	}
@@ -153,16 +146,21 @@ export const POST: RequestHandler = async (event) => {
 		const resultRecord = result && typeof result === 'object' && !Array.isArray(result)
 			? (result as Record<string, unknown>)
 			: {};
+		const {
+			deterministicArtifactProof: _untrustedTopLevelProof,
+			...safeResultRecord
+		} = resultRecord;
 		const metadataRecord = resultRecord.metadata && typeof resultRecord.metadata === 'object' && !Array.isArray(resultRecord.metadata)
 			? (resultRecord.metadata as Record<string, unknown>)
 			: {};
+		const safeProviderMetadata = stripProviderDeterministicArtifactProof(metadataRecord);
 		const storedResult = await projectStoredPrdAnalysisResultForTier(
 			requestId,
 			{
-				...resultRecord,
+				...safeResultRecord,
 				...(traceRef ? { traceRef } : {}),
 				metadata: {
-					...metadataRecord,
+					...safeProviderMetadata,
 					...(traceRef ? { traceRef } : {}),
 					canonical: true,
 					provisional: false,

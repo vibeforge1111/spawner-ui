@@ -42,6 +42,7 @@ import { get } from 'svelte/store';
 	import { workflowTemplates } from '$lib/data/templates';
 	import type { SparkAgentCanvasSnapshot } from '$lib/services/spark-agent-bridge';
 	import type { MissionControlBoardEntry } from '$lib/types/mission-control';
+	import { createCanvasConnectionId, createCanvasNodeId } from '$lib/utils/runtime-id';
 
 	let showExecution = $state(false);
 	let executionMinimized = $state(false);
@@ -207,7 +208,7 @@ import { get } from 'svelte/store';
 			// Create nodes with proper IDs, keeping track of skill-to-node mapping
 			const skillToNodeId = new Map<string, string>();
 			const canvasNodes = pipeline.nodes.map(node => {
-				const nodeId = `node-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+				const nodeId = createCanvasNodeId();
 				skillToNodeId.set(node.skillId, nodeId);
 				return {
 					id: nodeId,
@@ -225,7 +226,7 @@ import { get } from 'svelte/store';
 					const targetNodeId = skillToNodeId.get(conn.targetId);
 					if (!sourceNodeId || !targetNodeId) return null;
 					return {
-						id: `conn-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+						id: createCanvasConnectionId(),
 						sourceNodeId,
 						sourcePortId: conn.sourcePort,
 						targetNodeId,
@@ -1081,6 +1082,7 @@ import { get } from 'svelte/store';
 	let currentGridSize = $state(24);
 	let isCutting = $state(false);
 	let isSelecting = $state(false);
+	let isReceivingSkillDrop = $state(false);
 	let currentCanUndo = $state(false);
 	let currentCanRedo = $state(false);
 	let toolbarExecutionAction = $derived.by(() =>
@@ -1218,6 +1220,15 @@ import { get } from 'svelte/store';
 	});
 
 	function handleKeydown(e: KeyboardEvent) {
+		// Escape closes open modals first, even when typing in their inputs.
+		// Without this, focus inside the mission-name field swallows Escape entirely
+		// and the operator's only dismiss path is hunting for the small X.
+		if (e.key === 'Escape') {
+			if (showMissionExport) { closeMissionExport(); return; }
+			if (showClearConfirm) { cancelClear(); return; }
+			if (showSearch) { toggleSearch(); return; }
+		}
+
 		// Don't handle shortcuts if typing in an input
 		if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
 			return;
@@ -1295,6 +1306,7 @@ import { get } from 'svelte/store';
 
 	function handleDrop(e: DragEvent) {
 		e.preventDefault();
+		isReceivingSkillDrop = false;
 		if (!e.dataTransfer) return;
 		const skillJson = e.dataTransfer.getData('application/json');
 		if (!skillJson) return;
@@ -1324,9 +1336,23 @@ import { get } from 'svelte/store';
 		const rawY = (e.clientY - rect.top - pan.y) / zoom;
 		const snapped = snapPosition(rawX, rawY);
 		addNode(normalizedSkill, snapped);
+		isReceivingSkillDrop = false;
 	}
 
-	function handleDragOver(e: DragEvent) { e.preventDefault(); if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'; }
+	function handleDragOver(e: DragEvent) {
+		e.preventDefault();
+		if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+		if (!isReceivingSkillDrop) isReceivingSkillDrop = true;
+	}
+
+	function handleDragLeave(e: DragEvent) {
+		// Only clear when leaving the canvas element entirely, not when crossing onto child nodes
+		if (e.currentTarget instanceof HTMLElement && e.relatedTarget instanceof Node
+			&& e.currentTarget.contains(e.relatedTarget)) {
+			return;
+		}
+		isReceivingSkillDrop = false;
+	}
 
 	// Handle click on handoff port - spawn the recommended skill and auto-connect
 	function handleHandoffClick(skillId: string, sourceNodeId: string, sourcePortId: string) {
@@ -1622,7 +1648,7 @@ import { get } from 'svelte/store';
 		</header>
 		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 		<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-		<div bind:this={canvasEl} class="canvas-area flex-1 relative overflow-hidden bg-bg-primary" class:panning={isPanning} class:cutting={isCutting} class:selecting={isSelecting} ondrop={handleDrop} ondragover={handleDragOver} onclick={handleCanvasClick} oncontextmenu={handleCanvasContextMenu} onmousedown={handleMouseDown} onmousemove={handleMouseMove} onmouseup={handleMouseUp} onmouseleave={handleMouseUp} onkeydown={handleCanvasAreaKeydown} role="application" tabindex="0">
+		<div bind:this={canvasEl} class="canvas-area flex-1 relative overflow-hidden bg-bg-primary" class:panning={isPanning} class:cutting={isCutting} class:selecting={isSelecting} class:receiving-skill-drop={isReceivingSkillDrop} ondrop={handleDrop} ondragover={handleDragOver} ondragleave={handleDragLeave} onclick={handleCanvasClick} oncontextmenu={handleCanvasContextMenu} onmousedown={handleMouseDown} onmousemove={handleMouseMove} onmouseup={handleMouseUp} onmouseleave={handleMouseUp} onkeydown={handleCanvasAreaKeydown} role="application" tabindex="0">
 			<div class="canvas-grid absolute inset-0 pointer-events-none" style="background-size: {40 * zoom}px {40 * zoom}px; background-position: {pan.x}px {pan.y}px;"></div>
 			<div class="absolute pointer-events-none" style="transform: translate({pan.x}px, {pan.y}px);"><div class="pointer-events-none" style="transform: scale({zoom}); transform-origin: 0 0;">
 				<svg class="absolute inset-0 pointer-events-none overflow-visible" style="z-index: 1;"><defs><marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#00C49A" /></marker></defs>{#each currentConnections as connection}{@const sourceNode = currentNodes.find((node) => node.id === connection.sourceNodeId)}{@const targetNode = currentNodes.find((node) => node.id === connection.targetNodeId)}<ConnectionLine {connection} nodes={currentNodes} selected={currentSelectedConnectionId === connection.id} isActive={sourceNode?.status === 'running' || targetNode?.status === 'running'} isCompleted={sourceNode?.status === 'success' && targetNode?.status === 'success'} hasError={sourceNode?.status === 'error' || targetNode?.status === 'error'} />{/each}{#if currentDraggingConnection}<path d={getTempConnectionPath(currentDraggingConnection)} fill="none" stroke="#00C49A" stroke-width="2" stroke-dasharray="4 4" class="temp-connection" />{/if}{#if currentCuttingLine}<line x1={currentCuttingLine.startX} y1={currentCuttingLine.startY} x2={currentCuttingLine.currentX} y2={currentCuttingLine.currentY} stroke="#ef4444" stroke-width="2" stroke-dasharray="6 3" class="cutting-line" /><circle cx={currentCuttingLine.startX} cy={currentCuttingLine.startY} r="4" fill="#ef4444" /><circle cx={currentCuttingLine.currentX} cy={currentCuttingLine.currentY} r="4" fill="#ef4444" />{/if}{#if currentSelectionBox}{@const x = Math.min(currentSelectionBox.startX, currentSelectionBox.currentX)}{@const y = Math.min(currentSelectionBox.startY, currentSelectionBox.currentY)}{@const w = Math.abs(currentSelectionBox.currentX - currentSelectionBox.startX)}{@const h = Math.abs(currentSelectionBox.currentY - currentSelectionBox.startY)}<rect {x} {y} width={w} height={h} fill="rgba(0, 196, 154, 0.1)" stroke="#00C49A" stroke-width="1" stroke-dasharray="4 2" class="selection-box" />{/if}</svg>
@@ -1752,7 +1778,7 @@ import { get } from 'svelte/store';
 
 <!-- Node Details Panel - absolute positioned overlay with slide animation -->
 {#if showNodeDetails && currentSelectedNode}
-	<div class="fixed top-0 right-0 h-screen z-50 shadow-xl slide-in">
+	<div class="fixed top-0 right-0 h-screen h-[100dvh] z-50 shadow-xl slide-in">
 		<NodeConfigPanel
 			node={currentSelectedNode}
 			onClose={() => (showNodeDetails = false)}
@@ -1785,7 +1811,7 @@ import { get } from 'svelte/store';
 		<div class="absolute inset-0 bg-black/60" onclick={closeMissionExport} role="presentation"></div>
 
 		<!-- Modal -->
-		<div class="relative w-full max-w-md bg-bg-secondary border border-surface-border rounded-lg shadow-xl overflow-hidden">
+		<div class="relative w-full max-w-md max-h-[90dvh] overflow-y-auto overscroll-contain bg-bg-secondary border border-surface-border rounded-lg shadow-xl">
 			<div class="p-4 border-b border-surface-border flex items-center justify-between">
 				<h2 class="text-lg font-medium text-text-primary">Export to Mission</h2>
 				<button onclick={closeMissionExport} class="text-text-tertiary hover:text-text-secondary" aria-label="Close export dialog">
@@ -1914,6 +1940,10 @@ import { get } from 'svelte/store';
 	.canvas-area.panning { cursor: grabbing; }
 	.canvas-area.cutting { cursor: crosshair; }
 	.canvas-area.selecting { cursor: crosshair; }
+	.canvas-area.receiving-skill-drop {
+		box-shadow: inset 0 0 0 2px rgb(0 196 154 / 0.55);
+		background-color: rgb(0 196 154 / 0.05);
+	}
 	.selection-box { pointer-events: none; }
 	.temp-connection {
 		opacity: 0.7;

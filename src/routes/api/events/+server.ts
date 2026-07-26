@@ -10,7 +10,7 @@ import type { RequestHandler } from './$types';
 import { env } from '$env/dynamic/private';
 import { eventBridge } from '$lib/services/event-bridge';
 import { assertSafeId, PathSafetyError, resolveWithinBaseDir } from '$lib/server/path-safety';
-import { controlQueryApiKeysAllowed, enforceRateLimit, requireControlAuth } from '$lib/server/mcp-auth';
+import { enforceRateLimit, requireControlAuth } from '$lib/server/mcp-auth';
 import { hostedUiHostIsLoopback } from '$lib/server/hosted-ui-auth';
 import { relayMissionControlEvent, isMissionControlMissionId } from '$lib/server/mission-control-relay';
 import { providerRuntime } from '$lib/server/provider-runtime';
@@ -21,6 +21,7 @@ import { writeFileAtomic } from '$lib/server/atomic-write';
 import { extractTraceRef } from '$lib/server/trace-ref';
 import { logger } from '$lib/utils/logger';
 import { parseJsonOrFallback } from '$lib/utils/safe-json';
+import { stripProviderDeterministicArtifactProof } from '$lib/server/prd-deterministic-artifact-proof';
 
 import { writeFile, mkdir, appendFile, readFile } from 'fs/promises';
 import { join } from 'path';
@@ -112,17 +113,6 @@ function extractApiKeyFromRequest(request: Request): string | null {
 		}
 	}
 
-	if (controlQueryApiKeysAllowed()) {
-		try {
-			const queryKey = new URL(request.url).searchParams.get('apiKey');
-			if (queryKey && queryKey.trim().length > 0) {
-				return queryKey.trim();
-			}
-		} catch {
-			// Ignore malformed URLs.
-		}
-	}
-
 	return null;
 }
 
@@ -133,7 +123,11 @@ function createAuthCookieHeader(request: Request): string | null {
 	}
 
 	const isSecure = request.url.startsWith('https://');
-	return `${EVENTS_AUTH_COOKIE}=${encodeURIComponent(apiKey)}; Path=/; HttpOnly; SameSite=Lax${isSecure ? '; Secure' : ''}`;
+	if (!isSecure) {
+		console.warn('[EventBridge] Refusing to set API key cookie over insecure HTTP connection');
+		return null;
+	}
+	return `${EVENTS_AUTH_COOKIE}=${encodeURIComponent(apiKey)}; Path=/; HttpOnly; Secure; SameSite=Lax`;
 }
 
 function eventStreamAuthPayload(event: Parameters<typeof requireControlAuth>[0]) {
@@ -227,16 +221,21 @@ async function storePRDResult(requestId: string, result: unknown): Promise<void>
 	const resultRecord = result && typeof result === 'object' && !Array.isArray(result)
 		? (result as Record<string, unknown>)
 		: {};
+	const {
+		deterministicArtifactProof: _untrustedTopLevelProof,
+		...safeResultRecord
+	} = resultRecord;
 	const metadataRecord = resultRecord.metadata && typeof resultRecord.metadata === 'object' && !Array.isArray(resultRecord.metadata)
 		? (resultRecord.metadata as Record<string, unknown>)
 		: {};
+	const safeProviderMetadata = stripProviderDeterministicArtifactProof(metadataRecord);
 	const storedResult = await projectStoredPrdAnalysisResultForTier(
 		requestId,
 		{
-			...resultRecord,
+			...safeResultRecord,
 			...(traceRef ? { traceRef } : {}),
 			metadata: {
-				...metadataRecord,
+				...safeProviderMetadata,
 				...(traceRef ? { traceRef } : {}),
 				canonical: true,
 				provisional: false,
@@ -251,7 +250,13 @@ async function storePRDResult(requestId: string, result: unknown): Promise<void>
 		await mkdir(resultsDir, { recursive: true });
 	}
 	const resultFile = resolveWithinBaseDir(resultsDir, `${requestId}.json`);
-	await writeFile(resultFile, JSON.stringify(storedResult, null, 2), 'utf-8');
+	// Atomic so the /api/prd-bridge/result poller (every 2s during the
+	// wait UI) can't read a truncated `${requestId}.json` and bail out
+	// with the JSON.parse 500 path. Sibling result-file writer at
+	// claude-auto-analysis.ts:236 already uses writeFileAtomic; this is
+	// the events-side writer that lands the same file from a different
+	// producer.
+	await writeFileAtomic(resultFile, JSON.stringify(storedResult, null, 2));
 	log.info(`Stored PRD result for polling: ${requestId}`);
 }
 
@@ -461,7 +466,7 @@ export const POST: RequestHandler = async (event) => {
 			...payload,
 			timestamp: payload.timestamp || new Date().toISOString(),
 			source: payload.source || 'claude-code',
-			id: payload.id || `evt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+			id: payload.id || `evt-${Date.now()}-${crypto.randomUUID().replace(/-/g, '').slice(0, 8)}`
 		};
 		if (typeof fullEvent.missionId === 'string') {
 			const relayMeta = await relayMetadataForMission(fullEvent.missionId);
@@ -627,6 +632,12 @@ export const GET: RequestHandler = async (event) => {
 	if (rateLimited) return rateLimited;
 
 	const { request } = event;
+	// Periodic SSE keepalive ping. Intermediary proxies (Nginx default
+	// `proxy_read_timeout` 60s, Cloudflare 100s) drop idle SSE streams
+	// silently when no bytes flow for ~60s. A 30s comment frame keeps the
+	// stream warm so both peers observe connection health and the client
+	// is not forced into the reconnect path on every quiet window.
+	const SSE_KEEPALIVE_MS = 30_000;
 	const stream = new ReadableStream({
 		start(controller) {
 			// Send initial connection message
@@ -636,22 +647,49 @@ export const GET: RequestHandler = async (event) => {
 			controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'connected', timestamp: new Date().toISOString(), source: 'event-bridge' })}\n\n`));
 
 			// Subscribe to events
-			const unsubscribe = eventBridge.subscribe((event) => {
+			let unsubscribe: (() => void) | null = null;
+			unsubscribe = eventBridge.subscribe((event) => {
 				if (isClosed) return;
 				try {
 					const safeEvent = hasControlAuth ? event : sanitizeBridgeEventForLoopback(event as unknown as Record<string, unknown>);
 					const data = `data: ${JSON.stringify(safeEvent)}\n\n`;
 					controller.enqueue(encoder.encode(data));
 				} catch (e) {
-					// Client disconnected
+					// Client disconnected mid-enqueue. Release the subscription
+					// callback from eventBridge.subscribers so the now-dead
+					// closure doesn't accumulate in the broadcast Set and run
+					// on every subsequent emit() until process restart.
 					isClosed = true;
+					unsubscribe?.();
 					logger.info('[EventBridge] Client disconnected');
 				}
 			});
 
+			// Reject excess streams before allocating their keepalive timer.
+			if (!unsubscribe) {
+				isClosed = true;
+				controller.enqueue(encoder.encode(`event: error\ndata: ${JSON.stringify({ type: 'error', message: 'Server at capacity, please retry later' })}\n\n`));
+				controller.close();
+				return;
+			}
+
+			// SSE comment frames (lines starting with `:`) are spec-defined
+			// no-ops on the client side but keep proxy idle-timers from
+			// dropping the stream. EventSource ignores them; no app-level
+			// handler change required.
+			const keepalive = setInterval(() => {
+				if (isClosed) return;
+				try {
+					controller.enqueue(encoder.encode(`: keepalive ${Date.now()}\n\n`));
+				} catch (e) {
+					isClosed = true;
+				}
+			}, SSE_KEEPALIVE_MS);
+
 			// Handle client disconnect
 			request.signal.addEventListener('abort', () => {
-				unsubscribe();
+				clearInterval(keepalive);
+				unsubscribe?.();
 				if (!isClosed) {
 					isClosed = true;
 					try {

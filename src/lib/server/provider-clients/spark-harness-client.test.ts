@@ -24,6 +24,7 @@ const originalCodexSandbox = process.env.SPARK_CODEX_SANDBOX;
 const originalAllowHighAgencyWorkers = process.env.SPARK_ALLOW_HIGH_AGENCY_WORKERS;
 const originalSparkWorkspaceRoot = process.env.SPARK_WORKSPACE_ROOT;
 const originalAllowExternalProjectPaths = process.env.SPARK_ALLOW_EXTERNAL_PROJECT_PATHS;
+const originalSparkHarnessTimeoutMs = process.env.SPAWNER_SPARK_HARNESS_TIMEOUT_MS;
 const cleanupPaths: string[] = [];
 
 function restoreEnv(name: string, value: string | undefined): void {
@@ -46,12 +47,54 @@ afterEach(() => {
 	restoreEnv('SPARK_ALLOW_HIGH_AGENCY_WORKERS', originalAllowHighAgencyWorkers);
 	restoreEnv('SPARK_WORKSPACE_ROOT', originalSparkWorkspaceRoot);
 	restoreEnv('SPARK_ALLOW_EXTERNAL_PROJECT_PATHS', originalAllowExternalProjectPaths);
+	restoreEnv('SPAWNER_SPARK_HARNESS_TIMEOUT_MS', originalSparkHarnessTimeoutMs);
+	vi.useRealTimers();
 	for (const path of cleanupPaths.splice(0)) {
 		rmSync(path, { recursive: true, force: true });
 	}
 });
 
 describe('spark-harness-client', () => {
+	it('emits a structured task failure when a Spark task exceeds the local poll budget', async () => {
+		process.env.SPAWNER_SPARK_HARNESS_TIMEOUT_MS = '1';
+		vi.resetModules();
+		vi.useFakeTimers();
+		const { executeSparkHarnessRequest: executeWithShortTimeout } = await import('./spark-harness-client');
+		const events: BridgeEvent[] = [];
+		const fetchMock = vi.fn(async (url: string | URL) => {
+			const value = String(url);
+			if (value.endsWith('/v1/tasks')) {
+				return new Response(JSON.stringify({ task_id: 'spark-task-timeout' }), { status: 200 });
+			}
+			if (value.endsWith('/v1/tasks/spark-task-timeout')) {
+				return new Response(JSON.stringify({ status: 'running' }), { status: 200 });
+			}
+			return new Response('not found', { status: 404 });
+		});
+		vi.stubGlobal('fetch', fetchMock);
+
+		const pending = executeWithShortTimeout({
+			provider,
+			missionId: 'mission-spark-timeout',
+			prompt: 'Wait for a deliberately slow Spark task.',
+			onEvent: (event) => events.push(event)
+		});
+		await vi.advanceTimersByTimeAsync(1500);
+		const result = await pending;
+
+		expect(result.success).toBe(false);
+		expect(result.error).toContain('timed out');
+		expect(events.at(-1)).toMatchObject({
+			type: 'task_failed',
+			data: {
+				success: false,
+				provider: 'zai',
+				sparkTaskId: 'spark-task-timeout',
+				sparkStatus: 'timed_out'
+			}
+		});
+	});
+
 	it('emits canvas task ids when Spark completes a provider-level task', async () => {
 		const events: BridgeEvent[] = [];
 		const fetchMock = vi.fn(async (url: string | URL) => {

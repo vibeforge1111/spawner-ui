@@ -94,6 +94,15 @@ const DOMAIN_PATTERNS: Record<string, string[]> = {
 	'ai': ['ai', 'ml', 'machine learning', 'llm', 'gpt', 'claude', 'chatbot', 'agent', 'agents', 'neural', 'model']
 };
 
+const SIMPLE_FILE_TASK_PATTERNS = [
+	/^(create|make|write|add|delete|remove|edit|modify|rename)\s+(?:a\s+|the\s+)?file(?:\s+.*)?$/i,
+	/^(create|make|write|add|delete|remove|edit|modify|rename)\s+(?:a\s+|the\s+)?(?:file\s+)?(?:named\s+)?[\w./-]+\.(txt|json|md|yaml|yml|csv|log)(?:\s+.*)?$/i
+];
+
+function isSimpleFileTask(input: string): boolean {
+	return SIMPLE_FILE_TASK_PATTERNS.some((pattern) => pattern.test(input.trim()));
+}
+
 // Vague input patterns that need clarification
 const VAGUE_PATTERNS = [
 	/^(something|anything|stuff|thing|cool|nice|good|great|awesome|amazing)$/i,
@@ -208,7 +217,7 @@ export function extractKeywords(input: string): string[] {
 
 	// Sort by frequency and return unique
 	return [...new Set(words)]
-		.sort((a, b) => (frequency[b] || 0) - (frequency[a] || 0))
+		.sort((a, b) => (frequency[b] || 0) - (frequency[a] || 0) || a.localeCompare(b))
 		.slice(0, 20);
 }
 
@@ -255,6 +264,9 @@ export function detectDomains(input: string): string[] {
 		if (patterns.some(pattern => lowerInput.includes(pattern))) {
 			detected.push(domain);
 		}
+	}
+	if (isSimpleFileTask(input)) {
+		detected.push('file-task');
 	}
 
 	return detected;

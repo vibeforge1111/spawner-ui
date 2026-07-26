@@ -23,7 +23,7 @@ async function sleep(ms: number): Promise<void> {
 export async function writeFileAtomic(filePath: string, content: string): Promise<void> {
 	const tempPath = `${filePath}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`;
 	try {
-		await writeFile(tempPath, content, 'utf-8');
+		await writeFile(tempPath, content, { encoding: 'utf-8', flag: 'wx' });
 		for (let attempt = 0; ; attempt += 1) {
 			try {
 				await rename(tempPath, filePath);

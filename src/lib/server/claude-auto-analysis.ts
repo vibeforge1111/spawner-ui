@@ -24,6 +24,8 @@ import type { SkillTier } from './skill-tiers';
 import { resolveCliBinary } from './cli-resolver';
 import { spawnHidden } from './hidden-process';
 import { claudeAutoAnalysisTimeoutMs } from './timeout-config';
+import { BoundedProcessOutput } from './bounded-process-output';
+import { stripProviderDeterministicArtifactProof } from './prd-deterministic-artifact-proof';
 
 const CLAUDE_TIMEOUT_MS = claudeAutoAnalysisTimeoutMs();
 
@@ -117,18 +119,18 @@ function runClaude(prompt: string): Promise<{ stdout: string; stderr: string; co
 			env: { ...process.env }
 		});
 
-		let stdout = '';
-		let stderr = '';
+		const stdout = new BoundedProcessOutput('OUTPUT');
+		const stderr = new BoundedProcessOutput('STDERR');
 		const timer = setTimeout(() => {
 			child.kill('SIGKILL');
 			reject(new Error(`claude --print timed out after ${CLAUDE_TIMEOUT_MS}ms`));
 		}, CLAUDE_TIMEOUT_MS);
 
 		child.stdout?.on('data', (chunk) => {
-			stdout += chunk.toString('utf-8');
+			stdout.append(chunk.toString('utf-8'));
 		});
 		child.stderr?.on('data', (chunk) => {
-			stderr += chunk.toString('utf-8');
+			stderr.append(chunk.toString('utf-8'));
 		});
 		child.on('error', (err) => {
 			clearTimeout(timer);
@@ -136,7 +138,7 @@ function runClaude(prompt: string): Promise<{ stdout: string; stderr: string; co
 		});
 		child.on('close', (code) => {
 			clearTimeout(timer);
-			resolve({ stdout, stderr, code: code ?? -1 });
+			resolve({ stdout: stdout.toString(), stderr: stderr.toString(), code: code ?? -1 });
 		});
 
 		if (!child.stdin) {
@@ -230,6 +232,8 @@ export async function startClaudeAutoAnalysis(opts: {
 
 			parsed.requestId = requestId;
 			parsed.success = true;
+			delete parsed.deterministicArtifactProof;
+			parsed.metadata = stripProviderDeterministicArtifactProof(parsed.metadata);
 
 			const safe = normalizeRequestId(requestId);
 			const resultPath = join(paths.resultsDir, `${safe}.json`);

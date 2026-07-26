@@ -16,11 +16,12 @@
 	<!-- Main controls row -->
 	<div class="flex flex-col sm:flex-row gap-3">
 		<!-- Tier Tabs -->
-		<div class="flex bg-bg-secondary border border-surface-border p-1">
+		<div class="flex bg-bg-secondary border border-surface-border p-1" role="group" aria-label="Filter by tier">
 			{#each tiers as tier}
 				<button
 					onclick={() => setFilter('tier', tier.value)}
 					class="flex items-center gap-1.5 px-4 py-2 font-mono text-sm transition-all"
+					aria-pressed={$filters.tier === tier.value}
 					class:bg-accent-primary={$filters.tier === tier.value}
 					class:text-bg-primary={$filters.tier === tier.value}
 					class:text-text-secondary={$filters.tier !== tier.value}
@@ -57,10 +58,12 @@
 		{/if}
 
 		<!-- View Toggle -->
-		<div class="flex bg-bg-secondary border border-surface-border p-1">
+		<div class="flex bg-bg-secondary border border-surface-border p-1" role="group" aria-label="View mode">
 			<button
 				onclick={() => onViewChange?.('cards')}
 				class="flex items-center gap-1.5 px-3 py-2 font-mono text-sm transition-all"
+				aria-pressed={viewMode === 'cards'}
+				aria-label="Card view"
 				class:bg-accent-primary={viewMode === 'cards'}
 				class:text-bg-primary={viewMode === 'cards'}
 				class:text-text-tertiary={viewMode !== 'cards'}
@@ -72,6 +75,8 @@
 			<button
 				onclick={() => onViewChange?.('rows')}
 				class="flex items-center gap-1.5 px-3 py-2 font-mono text-sm transition-all"
+				aria-pressed={viewMode === 'rows'}
+				aria-label="List view"
 				class:bg-accent-primary={viewMode === 'rows'}
 				class:text-bg-primary={viewMode === 'rows'}
 				class:text-text-tertiary={viewMode !== 'rows'}
@@ -89,7 +94,7 @@
 			<span class="text-xs font-mono text-text-tertiary">Filtering:</span>
 			<span class="inline-flex items-center gap-1 px-2 py-0.5 bg-accent-primary/10 border border-accent-primary/30 text-accent-primary text-xs font-mono">
 				{$filters.category}
-				<button onclick={() => setFilter('category', 'all')} class="hover:text-accent-primary/70">
+				<button onclick={() => setFilter('category', 'all')} class="hover:text-accent-primary/70" aria-label="Remove {$filters.category} category filter">
 					<Icon name="x" size={10} />
 				</button>
 			</span>

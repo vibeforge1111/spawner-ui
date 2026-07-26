@@ -94,6 +94,16 @@ export function spawnerStateDir(runtimeEnv: HostedUiAuthEnv = env, fallbackCwd =
 	return joinMaybeWindowsPath(baseDir, 'workspaces', workspaceStateSegment(workspaceId));
 }
 
+// Hoisted so the directory-walker below doesn't allocate a 5-element
+// array literal per visited directory entry.
+const SCAN_SKIP_DIRECTORIES = new Set<string>([
+	'node_modules',
+	'.git',
+	'dist',
+	'build',
+	'.svelte-kit'
+]);
+
 export function spawnerStateSourceReferenceAudit(sourceRoot = process.cwd()): SpawnerStateSourceReferenceAudit {
 	const referenceNeedles = ['.spawner', 'SPAWNER_STATE_DIR', 'spawnerStateDir', 'spawner-state'];
 	const scannedRoots = ['src', 'scripts', 'tests'];
@@ -115,7 +125,7 @@ export function spawnerStateSourceReferenceAudit(sourceRoot = process.cwd()): Sp
 		for (const entry of entries) {
 			const fullPath = path.join(dir, entry.name);
 			if (entry.isDirectory()) {
-				if (['node_modules', '.git', 'dist', 'build', '.svelte-kit'].includes(entry.name)) continue;
+				if (SCAN_SKIP_DIRECTORIES.has(entry.name)) continue;
 				scanDirectory(family, fullPath);
 				continue;
 			}

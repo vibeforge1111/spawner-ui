@@ -132,6 +132,24 @@ class McpClient {
 		});
 
 		if (!response.ok) {
+			if (response.status === 404) {
+				throw new Error(
+					`MCP request HTTP 404 (not found) at ${this.config.baseUrl}: ${response.statusText}. ` +
+					`The configured MCP base URL does not expose the JSON-RPC endpoint; check the MCP URL in the node configuration.`
+				);
+			}
+			if (response.status === 401 || response.status === 403) {
+				throw new Error(
+					`MCP request HTTP ${response.status} at ${this.config.baseUrl}: ${response.statusText}. ` +
+					`The MCP server rejected the request; check the X-User-ID header and the MCP server access list.`
+				);
+			}
+			if (response.status === 503) {
+				throw new Error(
+					`MCP request HTTP 503 (service unavailable) at ${this.config.baseUrl}: ${response.statusText}. ` +
+					`The MCP server is reachable but not ready; retry after a short delay.`
+				);
+			}
 			throw new Error(`HTTP ${response.status}: ${response.statusText}`);
 		}
 

@@ -52,7 +52,9 @@
 		formatExecutionDuration,
 		getAgentStatusColor,
 		getStatusColor,
-		getTransitionBadge
+		getTransitionBadge,
+		sortAgentRuntimeByFreshness,
+		splitExecutionGoals
 	} from '$lib/services/execution-panel-formatting';
 	import { canShowMissionBoardProjectActions } from '$lib/services/mission-board-cards';
 	import { polishMissionTitleForDisplay } from '$lib/services/mission-title';
@@ -125,18 +127,19 @@
 	let showMissionSettings = $state(false);
 	let missionName = $state('Spark Intelligence Launch Readiness');
 	let missionDescription = $state('Prepare Spark Intelligence to go live with safety, reliability, docs, and launch comms.');
-	let projectPath = $state('C:/Users/USER/Desktop/vibeship-spark-intelligence');
+	let projectPath = $state('');
 	let projectType = $state('tool');
 	let goalsText = $state(
 		[
 			'All launch gates green (health, security, docs, observability, support readiness)',
 			'Clear launch story + distribution plan',
 			'Rollback plan + incident readiness'
-		].join('\\n')
+		].join('\n')
 	);
 	let defaultsLoaded = $state(false);
 	const defaultMultiLLMOptions = createDefaultMultiLLMOptions();
 	const MULTI_LLM_KEYS_STORAGE = 'spawner-multi-llm-api-keys';
+	const MULTI_LLM_STRATEGY_VALUES = new Set<MultiLLMStrategy>(['single', 'round_robin', 'parallel_consensus', 'lead_reviewer']);
 	let multiLLMEnabled = $state(defaultMultiLLMOptions.enabled);
 	let multiLLMStrategy = $state<MultiLLMStrategy>(defaultMultiLLMOptions.strategy);
 	let multiLLMPrimaryProviderId = $state(defaultMultiLLMOptions.primaryProviderId || 'claude');
@@ -219,9 +222,7 @@
 	let activeMissionId = $derived(executionProgress?.missionId || relay?.missionId || '');
 	let runtimeAgents = $derived.by(() => {
 		if (!executionProgress?.agentRuntime) return [] as AgentRuntimeStatus[];
-		return Array.from(executionProgress.agentRuntime.values()).sort((a, b) =>
-			Date.parse(b.updatedAt) - Date.parse(a.updatedAt)
-		);
+		return sortAgentRuntimeByFreshness(Array.from(executionProgress.agentRuntime.values()));
 	});
 	let recentTaskTransitions = $derived.by(() => {
 		if (!executionProgress?.taskTransitions) return [] as TaskTransitionEvent[];
@@ -628,9 +629,13 @@
 		);
 	}
 
-	function copyToClipboard(text: string, successMessage: string) {
-		navigator.clipboard.writeText(text);
-		toasts.success(successMessage);
+	async function copyToClipboard(text: string, successMessage: string) {
+		try {
+			await navigator.clipboard.writeText(text);
+			toasts.success(successMessage);
+		} catch {
+			toasts.error('Could not copy — clipboard is blocked. Select the text manually.');
+		}
 	}
 
 	// Svelte 5: Use $effect with store subscriptions - run once and cleanup
@@ -743,7 +748,8 @@
 							? parsed.multiLLMEnabled
 							: defaultMultiLLMOptions.enabled,
 					strategy:
-						typeof parsed?.multiLLMStrategy === 'string'
+						typeof parsed?.multiLLMStrategy === 'string' &&
+						MULTI_LLM_STRATEGY_VALUES.has(parsed.multiLLMStrategy as MultiLLMStrategy)
 							? (parsed.multiLLMStrategy as MultiLLMStrategy)
 							: defaultMultiLLMOptions.strategy,
 					primaryProviderId:
@@ -799,10 +805,7 @@
 	}
 
 	function parseGoals(text: string): string[] {
-		return text
-			.split('\\n')
-			.map((l) => l.trim())
-			.filter(Boolean);
+		return splitExecutionGoals(text);
 	}
 
 	function extractTargetWorkspaceFromText(text?: string): string | null {
@@ -1406,7 +1409,7 @@
 						</svg>
 					</button>
 				{/if}
-				<button onclick={handleClose} class="p-2 rounded-md text-text-tertiary hover:text-text-primary hover:bg-surface transition-all" disabled={isRunning} aria-label="Close execution panel">
+				<button onclick={handleClose} class="p-2 rounded-md text-text-tertiary hover:text-text-primary hover:bg-surface transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-text-tertiary disabled:hover:bg-transparent" disabled={isRunning} aria-label="Close execution panel" title={isRunning ? 'Cancel or pause the mission before closing' : 'Close execution panel'}>
 					<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
 					</svg>

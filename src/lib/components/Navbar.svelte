@@ -17,7 +17,7 @@
 	});
 </script>
 
-<nav class="h-[52px] sticky top-0 border-b border-surface-border bg-bg-primary z-50">
+<nav aria-label="Primary" class="h-[52px] sticky top-0 border-b border-surface-border bg-bg-primary z-50">
 	<div class="h-full max-w-6xl mx-auto flex items-center justify-between px-4 sm:px-6">
 		<div class="flex items-center gap-4">
 			<BrandLogo size="sm" />
@@ -35,7 +35,8 @@
 			{:else}
 				<a
 					href="/canvas"
-					class="nav-pop group inline-flex items-center gap-2 px-2 py-2 font-sans text-[15px] font-medium text-text-secondary border border-transparent rounded-md sm:px-3.5"
+					aria-label="Canvas"
+					class="nav-pop group inline-flex items-center justify-center gap-2 min-w-11 min-h-11 px-2.5 py-2 font-sans text-[15px] font-medium text-text-secondary border border-transparent rounded-md sm:min-w-0 sm:min-h-0 sm:px-3.5"
 				>
 					<Icon name="grid" size={14} class="nav-pop-icon" />
 					<span class="nav-pop-label hidden sm:inline">Canvas</span>
@@ -43,7 +44,8 @@
 
 				<a
 					href="/kanban"
-					class="nav-pop group inline-flex items-center gap-2 px-2 py-2 font-sans text-[15px] font-medium text-text-secondary border border-transparent rounded-md sm:px-3.5"
+					aria-label="Kanban"
+					class="nav-pop group inline-flex items-center justify-center gap-2 min-w-11 min-h-11 px-2.5 py-2 font-sans text-[15px] font-medium text-text-secondary border border-transparent rounded-md sm:min-w-0 sm:min-h-0 sm:px-3.5"
 				>
 					<Icon name="clipboard" size={14} class="nav-pop-icon" />
 					<span class="nav-pop-label hidden sm:inline">Kanban</span>
@@ -51,7 +53,8 @@
 
 				<a
 					href="/trace"
-					class="nav-pop group inline-flex items-center gap-2 px-2 py-2 font-sans text-[15px] font-medium text-text-secondary border border-transparent rounded-md sm:px-3.5"
+					aria-label="Trace"
+					class="nav-pop group inline-flex items-center justify-center gap-2 min-w-11 min-h-11 px-2.5 py-2 font-sans text-[15px] font-medium text-text-secondary border border-transparent rounded-md sm:min-w-0 sm:min-h-0 sm:px-3.5"
 				>
 					<Icon name="scan" size={14} class="nav-pop-icon" />
 					<span class="nav-pop-label hidden sm:inline">Trace</span>
@@ -59,7 +62,8 @@
 
 				<a
 					href="/skills"
-					class="nav-pop group inline-flex items-center gap-2 px-2 py-2 font-sans text-[15px] font-medium text-text-secondary border border-transparent rounded-md sm:px-3.5"
+					aria-label="Skills"
+					class="nav-pop group inline-flex items-center justify-center gap-2 min-w-11 min-h-11 px-2.5 py-2 font-sans text-[15px] font-medium text-text-secondary border border-transparent rounded-md sm:min-w-0 sm:min-h-0 sm:px-3.5"
 				>
 					<Icon name="layers" size={14} class="nav-pop-icon" />
 					<span class="nav-pop-label hidden sm:inline">Skills</span>
@@ -67,7 +71,8 @@
 
 				<a
 					href="/settings"
-					class="nav-pop group inline-flex items-center gap-2 px-2 py-2 font-sans text-[15px] font-medium text-text-secondary border border-transparent rounded-md sm:px-3.5"
+					aria-label="Settings"
+					class="nav-pop group inline-flex items-center justify-center gap-2 min-w-11 min-h-11 px-2.5 py-2 font-sans text-[15px] font-medium text-text-secondary border border-transparent rounded-md sm:min-w-0 sm:min-h-0 sm:px-3.5"
 				>
 					<Icon name="settings" size={14} class="nav-pop-icon" />
 					<span class="nav-pop-label hidden sm:inline">Settings</span>

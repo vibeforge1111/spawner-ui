@@ -12,6 +12,10 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { enforceRateLimit, requireControlAuth } from '$lib/server/mcp-auth';
 import { validateProjectPath, runCommand, isToolAvailable } from '$lib/server/command-runner';
+import {
+	parseScannerSelection,
+	type ScannerName
+} from '$lib/server/scanner-selection';
 
 const SCANNER_TIMEOUT_MS = 60_000; // 60 seconds per scanner
 
@@ -42,10 +46,6 @@ export interface ScanResponse {
 	canShip: boolean;
 	duration: number;
 }
-
-type ScannerName = 'gitleaks' | 'trivy' | 'opengrep';
-
-const ALL_SCANNERS: ScannerName[] = ['gitleaks', 'trivy', 'opengrep'];
 
 export const POST: RequestHandler = async (event) => {
 	try {
@@ -81,7 +81,11 @@ export const POST: RequestHandler = async (event) => {
 			return json({ error: validation.error }, { status: 400 });
 		}
 
-		const requestedScanners = scanners && scanners.length > 0 ? scanners : ALL_SCANNERS;
+		const selection = parseScannerSelection(scanners);
+		if (!selection.ok) {
+			return json({ error: selection.error }, { status: 400 });
+		}
+		const requestedScanners = selection.scanners;
 		const scanStart = Date.now();
 
 		// Run all scanners in parallel

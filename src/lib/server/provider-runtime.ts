@@ -10,6 +10,7 @@ import type { BridgeEvent } from '$lib/services/event-bridge';
 import {
 	buildMultiLLMExecutionPack,
 	createDefaultMultiLLMOptions,
+	DEFAULT_MULTI_LLM_PROVIDERS,
 	type MultiLLMExecutionPack,
 	type MultiLLMProviderConfig
 } from '$lib/services/multi-llm-orchestrator';
@@ -88,6 +89,31 @@ const PROVIDER_TASK_ACTIVITY_INTERVAL_MS = 120_000;
 const PROVIDER_TASK_ACTIVITY_MIN_ESTIMATE_MS = 90_000;
 const PROVIDER_TASK_ACTIVITY_MAX_ESTIMATE_MS = 8 * 60_000;
 const PROVIDER_TASK_ACTIVITY_BASE_MS = 55_000;
+const ALLOWED_PROVIDER_API_KEY_ENVS = new Set([
+	'OPENAI_API_KEY',
+	'ANTHROPIC_API_KEY',
+	'GOOGLE_API_KEY',
+	'MISTRAL_API_KEY',
+	'COHERE_API_KEY',
+	'GROQ_API_KEY',
+	'TOGETHER_API_KEY',
+	'FIREWORKS_API_KEY',
+	'DEEPSEEK_API_KEY',
+	...DEFAULT_MULTI_LLM_PROVIDERS.flatMap((provider) => provider.apiKeyEnv ? [provider.apiKeyEnv] : [])
+]);
+
+function readAllowedProviderApiKey(apiKeyEnv: string): string | null {
+	if (!ALLOWED_PROVIDER_API_KEY_ENVS.has(apiKeyEnv)) {
+		console.warn(`[ProviderRuntime] Ignoring disallowed apiKeyEnv: ${apiKeyEnv}`);
+		return null;
+	}
+	const value = process.env[apiKeyEnv]?.trim();
+	return value || null;
+}
+
+export function _isAllowedProviderApiKeyEnvForTests(apiKeyEnv: string): boolean {
+	return ALLOWED_PROVIDER_API_KEY_ENVS.has(apiKeyEnv);
+}
 const PROVIDER_TASK_ACTIVITY_PER_TASK_MS = 35_000;
 const PROVIDER_STALE_RUNNING_GRACE_MS = 5 * 60_000;
 const PROVIDER_DISPATCH_AUTHORITY_POLICY: SparkAgentProviderTaskAuthorityPolicy = {
@@ -107,12 +133,24 @@ function getProviderResultsPath(): string {
 	return path.join(getSpawnerStateDir(), 'mission-provider-results.json');
 }
 
+function envStaleRunningProviderMs(): number | null {
+	const raw = process.env.SPAWNER_PROVIDER_STALE_RUNNING_MS;
+	if (!raw) return null;
+	const parsed = Number(raw);
+	return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
 function staleRunningProviderMs(): number {
+	const fromEnv = envStaleRunningProviderMs();
+	if (fromEnv !== null) return Math.max(60_000, fromEnv);
 	return Math.max(
 		60_000,
-		Number(process.env.SPAWNER_PROVIDER_STALE_RUNNING_MS) ||
-			agentWorkTimeoutMs() + PROVIDER_STALE_RUNNING_GRACE_MS
+		agentWorkTimeoutMs() + PROVIDER_STALE_RUNNING_GRACE_MS
 	);
+}
+
+export function _staleRunningProviderMsForTests(): number {
+	return staleRunningProviderMs();
 }
 
 function estimateProviderTaskActivityMs(taskCount: number): number {
@@ -474,9 +512,9 @@ class ProviderRuntimeManager {
 					const apiKeys: Record<string, string> = {};
 					for (const provider of state.multiLLMExecution.providers || []) {
 						if (provider.requiresApiKey && provider.apiKeyEnv) {
-							const value = process.env[provider.apiKeyEnv];
-							if (value && value.trim()) {
-								apiKeys[provider.id] = value.trim();
+							const value = readAllowedProviderApiKey(provider.apiKeyEnv);
+							if (value) {
+								apiKeys[provider.id] = value;
 							}
 						}
 					}
@@ -507,9 +545,9 @@ class ProviderRuntimeManager {
 			const apiKeys: Record<string, string> = {};
 			for (const provider of executionPack.providers) {
 				if (provider.apiKeyEnv) {
-					const value = process.env[provider.apiKeyEnv];
-					if (value && value.trim()) {
-						apiKeys[provider.id] = value.trim();
+					const value = readAllowedProviderApiKey(provider.apiKeyEnv);
+					if (value) {
+						apiKeys[provider.id] = value;
 					}
 				}
 			}
@@ -750,46 +788,50 @@ class ProviderRuntimeManager {
 
 		// Run all providers in parallel - don't await here for immediate return
 		// But we need to handle completion
-		Promise.allSettled(providerPromises).then(() => {
-			const allSessions = this.getSessionsForMission(missionId);
-			const allComplete = allSessions.every((s) => isTerminalProviderStatus(s.status));
-			const anyFailed = allSessions.some((s) => s.status === 'failed');
+		Promise.allSettled(providerPromises)
+			.then(() => {
+				const allSessions = this.getSessionsForMission(missionId);
+				const allComplete = allSessions.every((s) => isTerminalProviderStatus(s.status));
+				const anyFailed = allSessions.some((s) => s.status === 'failed');
 
-			if (allComplete && !this.pausedMissions.has(missionId)) {
-				const allCancelled = allSessions.every((s) => s.status === 'cancelled');
-				const type = allCancelled ? 'mission_cancelled' : anyFailed ? 'mission_failed' : 'mission_completed';
-				this.rememberStatusReason(
-					missionId,
-					allCancelled
-						? 'Mission cancelled'
-						: anyFailed
-							? 'Mission completed with provider failures'
-							: 'Mission completed successfully'
-				);
-				onEvent({
-					type,
-					missionId,
-					source: 'spawner-ui',
-					timestamp: new Date().toISOString(),
-					message: allCancelled
-						? 'Mission cancelled'
-						: anyFailed
-						? `Mission completed with errors (${allSessions.filter((s) => s.status === 'failed').length} failed)`
-						: `All ${allSessions.length} providers completed successfully`,
-					data: {
-						providers: Object.fromEntries(
-							allSessions.map((s) => [
-								s.providerId,
-								{ status: s.status, error: s.error, durationMs: s.result?.durationMs }
-							])
-						)
-					}
-				});
-			}
-			if (allComplete) {
-				this.missionEventHandlers.delete(missionId);
-			}
-		});
+				if (allComplete && !this.pausedMissions.has(missionId)) {
+					const allCancelled = allSessions.every((s) => s.status === 'cancelled');
+					const type = allCancelled ? 'mission_cancelled' : anyFailed ? 'mission_failed' : 'mission_completed';
+					this.rememberStatusReason(
+						missionId,
+						allCancelled
+							? 'Mission cancelled'
+							: anyFailed
+								? 'Mission completed with provider failures'
+								: 'Mission completed successfully'
+					);
+					onEvent({
+						type,
+						missionId,
+						source: 'spawner-ui',
+						timestamp: new Date().toISOString(),
+						message: allCancelled
+							? 'Mission cancelled'
+							: anyFailed
+								? `Mission completed with errors (${allSessions.filter((s) => s.status === 'failed').length} failed)`
+								: `All ${allSessions.length} providers completed successfully`,
+						data: {
+							providers: Object.fromEntries(
+								allSessions.map((s) => [
+									s.providerId,
+									{ status: s.status, error: s.error, durationMs: s.result?.durationMs }
+								])
+							)
+						}
+					});
+				}
+				if (allComplete) {
+					this.missionEventHandlers.delete(missionId);
+				}
+			})
+			.catch((error) => {
+				console.warn('[ProviderRuntime] Mission completion handler failed:', error);
+			});
 		this.persistMissionSessions(missionId);
 
 		return {
@@ -889,6 +931,7 @@ class ProviderRuntimeManager {
 				clearInterval(active);
 				this.providerTaskHeartbeats.delete(key);
 			}
+			signal.removeEventListener('abort', stop);
 		};
 		signal.addEventListener('abort', stop, { once: true });
 		return stop;

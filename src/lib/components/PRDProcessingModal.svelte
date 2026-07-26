@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onDestroy } from 'svelte';
 	import { logger } from '$lib/utils/logger';
 	import { scale, fade } from 'svelte/transition';
 	import { backOut } from 'svelte/easing';
@@ -31,16 +32,29 @@
 	// Copyable prompt for Claude Code
 	const claudePrompt = $derived(`Analyze the pending PRD and send results to Spawner UI`);
 	let copied = $state(false);
+	let copyError = $state(false);
+	let copyResetTimer: ReturnType<typeof setTimeout> | null = null;
 
 	async function copyPrompt() {
 		try {
 			await navigator.clipboard.writeText(claudePrompt);
 			copied = true;
-			setTimeout(() => copied = false, 2000);
+			copyError = false;
 		} catch (e) {
+			copyError = true;
 			console.error('Failed to copy:', e);
 		}
+		if (copyResetTimer) clearTimeout(copyResetTimer);
+		copyResetTimer = setTimeout(() => {
+			copyResetTimer = null;
+			copied = false;
+			copyError = false;
+		}, 2000);
 	}
+
+	onDestroy(() => {
+		if (copyResetTimer) clearTimeout(copyResetTimer);
+	});
 
 	const stages = [
 		{ label: 'Reading PRD', icon: '◈' },
@@ -78,19 +92,27 @@
 {#if isOpen}
 	<!-- Backdrop -->
 	<div
-		class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+		class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto overscroll-contain"
 		in:fade={{ duration: 200 }}
 		out:fade={{ duration: 150 }}
 	>
 		<!-- Modal container -->
 		<div
-			class="bg-bg-secondary border border-surface-border w-full max-w-md"
+			class="bg-bg-secondary border border-surface-border w-full max-w-md max-h-[90dvh] my-auto overflow-y-auto overscroll-contain"
+			role="dialog"
+			aria-modal="true"
+			aria-labelledby="prd-modal-title"
 			in:scale={{ duration: 250, start: 0.96, easing: backOut }}
 			out:scale={{ duration: 150, start: 0.96 }}
 		>
 			<!-- Progress bar at top -->
 			<div class="h-0.5 bg-surface w-full overflow-hidden">
 				<div
+					role="progressbar"
+					aria-valuenow={progressPercent}
+					aria-valuemin="0"
+					aria-valuemax="100"
+					aria-label="PRD processing progress"
 					class="h-full bg-accent-primary transition-all duration-500 ease-out"
 					style="width: {progressPercent}%"
 				></div>
@@ -101,7 +123,7 @@
 				<p class="font-mono text-xs text-accent-primary tracking-widest mb-1">
 					PRD → PIPELINE
 				</p>
-				<h2 class="font-serif text-xl text-text-primary">Generating Workflow</h2>
+				<h2 id="prd-modal-title" class="font-serif text-xl text-text-primary">Generating Workflow</h2>
 				{#if clarificationMode}
 					<p class="mt-2 text-sm text-text-secondary">
 						Spark understood that you are asking whether the previous message was understood. Share the missing audience, core workflow, saved memory, and vibe details to continue.
@@ -168,7 +190,7 @@
 									class="absolute top-2 right-2 px-2 py-1 text-xs font-mono bg-surface hover:bg-surface-active border border-surface-border transition-colors"
 									onclick={copyPrompt}
 								>
-									{copied ? '✓ Copied' : 'Copy fallback'}
+									{copyError ? '⚠ Select & copy manually' : copied ? '✓ Copied' : 'Copy fallback'}
 								</button>
 							</div>
 

@@ -127,7 +127,7 @@ export const filteredRegistry = derived(mcpStore, ($state) => {
 	}
 
 	// Sort by popularity
-	filtered = filtered.sort((a, b) => b.popularity - a.popularity);
+	filtered = [...filtered].sort((a, b) => b.popularity - a.popularity);
 
 	return filtered;
 });
@@ -258,13 +258,15 @@ export function createInstance(
 	config: MCPConfig = {},
 	name?: string
 ): MCPInstance {
-	const mcpDef = get(mcpStore).registry.find((m) => m.id === mcpId);
+	const registry = get(mcpStore).registry;
+	const mcpDef = registry.find((m) => m.id === mcpId);
 	if (!mcpDef) {
-		throw new Error(`MCP not found in registry: ${mcpId}`);
+		const known = registry.map((m) => m.id).sort().join(', ') || '(empty)';
+		throw new Error(`MCP not found in registry: ${mcpId}. Known MCP ids: ${known}.`);
 	}
 
 	const instance: MCPInstance = {
-		id: `mcp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+		id: `mcp_${Date.now()}_${crypto.randomUUID().replace(/-/g, '').slice(0, 9)}`,
 		definitionId: mcpId,
 		name: name || mcpDef.name,
 		status: 'disconnected',
@@ -742,7 +744,7 @@ export function detachFromTeam(mcpId: string, teamId: string) {
 export function addFeedback(feedback: Omit<MCPFeedback, 'id' | 'createdAt' | 'status'>) {
 	const newFeedback: MCPFeedback = {
 		...feedback,
-		id: `feedback_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+		id: `feedback_${Date.now()}_${crypto.randomUUID().replace(/-/g, '').slice(0, 9)}`,
 		status: 'pending',
 		createdAt: new Date().toISOString()
 	};

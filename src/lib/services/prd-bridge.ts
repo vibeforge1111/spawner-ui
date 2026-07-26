@@ -23,6 +23,10 @@ import type { Skill } from '$lib/stores/skills.svelte';
 
 const PRD_BRIDGE_TIMEOUT_MS = 30 * 60 * 1000;
 
+export function createPrdRequestId(): string {
+	return `prd-${Date.now()}-${crypto.randomUUID().replace(/-/g, '').slice(0, 8)}`;
+}
+
 // =============================================================================
 // TYPES
 // =============================================================================
@@ -157,7 +161,7 @@ export async function requestPRDAnalysis(
 	projectName?: string,
 	timeoutMs: number = PRD_BRIDGE_TIMEOUT_MS
 ): Promise<PRDAnalysisResult> {
-	const requestId = `prd-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+	const requestId = createPrdRequestId();
 
 	analysisStatus.set('pending');
 	analysisError.set(null);
@@ -340,6 +344,10 @@ export async function checkPendingPRDResult(): Promise<PRDAnalysisResult | null>
 		const authHeaders = getEventsAuthHeaders();
 		// Check if there's a pending request
 		const pendingResponse = await fetch('/api/prd-bridge/pending', { headers: authHeaders });
+		if (!pendingResponse.ok) {
+			console.warn(`[PRDBridge] /api/prd-bridge/pending returned HTTP ${pendingResponse.status}`);
+			return null;
+		}
 		const pendingData = await pendingResponse.json();
 
 		if (!pendingData.pending || !pendingData.requestId) {
@@ -350,6 +358,10 @@ export async function checkPendingPRDResult(): Promise<PRDAnalysisResult | null>
 		const resultResponse = await fetch(`/api/prd-bridge/result?requestId=${pendingData.requestId}`, {
 			headers: authHeaders
 		});
+		if (!resultResponse.ok) {
+			console.warn(`[PRDBridge] /api/prd-bridge/result returned HTTP ${resultResponse.status}`);
+			return null;
+		}
 		const resultData = await resultResponse.json();
 
 		if (!resultData.found || !resultData.result) {

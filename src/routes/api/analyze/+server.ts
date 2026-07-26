@@ -42,7 +42,7 @@ interface ClaudeAnalysis {
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
 const log = logger.scope('AnalyzeAPI');
 
-const ANALYSIS_PROMPT = `You are an expert software architect analyzing a project description to recommend the most relevant development skills.
+const ANALYSIS_SYSTEM_PROMPT = `You are an expert software architect analyzing a project description to recommend the most relevant development skills.
 
 ## Your Task
 Read the project description carefully and select 15-25 skills that are SPECIFICALLY relevant. Think about:
@@ -79,10 +79,14 @@ Return ONLY valid JSON:
 Tier meanings:
 - tier 1: Essential - project cannot work without this
 - tier 2: Recommended - significantly improves the project
-- tier 3: Helpful - nice to have, adds polish
+- tier 3: Helpful - nice to have, adds polish`;
 
-## Project Description
-{{GOAL}}`;
+// Anthropic prompt caching: at ~4KB the bundled instruction + skill catalog
+// becomes cache-eligible (~1024 token minimum). Routing it through the
+// structured `system` field with cache_control=ephemeral lets repeat
+// /api/analyze calls within the 5-minute window reuse the prefix instead of
+// re-billing the entire catalog as fresh input tokens.
+const SYSTEM_PROMPT_CACHE_MIN_CHARS = 4096;
 
 /**
  * Format skill index for Claude prompt
@@ -142,11 +146,37 @@ export const POST: RequestHandler = async (event) => {
 			externalNetwork: true
 		});
 
-		// Build the prompt with full skill index
+		// Build the system prefix with the full skill index. The catalog never
+		// varies per request, so we keep it in the cacheable system block; only
+		// the project description rides in the per-request user message.
 		const skillsFormatted = formatSkillsForPrompt();
-		const prompt = ANALYSIS_PROMPT
-			.replace('{{SKILLS}}', skillsFormatted)
-			.replace('{{GOAL}}', body.goal);
+		const systemPrompt = ANALYSIS_SYSTEM_PROMPT.replace('{{SKILLS}}', skillsFormatted);
+		const userPrompt = `## Project Description\n${body.goal}`;
+
+		const requestBody: Record<string, unknown> = {
+			model: 'claude-sonnet-4-20250514',
+			max_tokens: 2048, // Increased for detailed skill reasoning
+			messages: [
+				{
+					role: 'user',
+					content: userPrompt
+				}
+			]
+		};
+		// Mark the long, stable system prefix cache-eligible when it clears
+		// Anthropic's ~1024-token minimum. Below the floor the API silently
+		// ignores the marker, so the threshold guard is safe for trimmed catalogs.
+		if (systemPrompt.length >= SYSTEM_PROMPT_CACHE_MIN_CHARS) {
+			requestBody.system = [
+				{
+					type: 'text',
+					text: systemPrompt,
+					cache_control: { type: 'ephemeral' }
+				}
+			];
+		} else {
+			requestBody.system = systemPrompt;
+		}
 
 		// Call Claude API with extended token limit for complex analysis
 		const response = await fetch(CLAUDE_API_URL, {
@@ -156,16 +186,7 @@ export const POST: RequestHandler = async (event) => {
 				'x-api-key': apiKey,
 				'anthropic-version': '2023-06-01'
 			},
-			body: JSON.stringify({
-				model: 'claude-sonnet-4-20250514',
-				max_tokens: 2048, // Increased for detailed skill reasoning
-				messages: [
-					{
-						role: 'user',
-						content: prompt
-					}
-				]
-			})
+			body: JSON.stringify(requestBody)
 		});
 
 		if (!response.ok) {
@@ -177,7 +198,17 @@ export const POST: RequestHandler = async (event) => {
 			}, { status: 502 });
 		}
 
-		const data = await response.json();
+		const rawBody = await response.text();
+		let data: { content?: Array<{ type: string; text?: string }> };
+		try {
+			data = JSON.parse(rawBody);
+		} catch {
+			log.error('Claude API returned non-JSON 200 body:', rawBody.slice(0, 500));
+			return json({
+				error: 'Claude API returned HTTP 200 but body was not JSON',
+				fallback: true
+			}, { status: 502 });
+		}
 
 		// Extract the text content
 		const textContent = data.content?.find((c: { type: string }) => c.type === 'text');

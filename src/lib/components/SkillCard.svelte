@@ -71,7 +71,7 @@
 			<span class="font-mono text-xs">{formatTokens(skill.tokenEstimate)} tokens</span>
 		</div>
 
-		<span class="flex items-center gap-1 text-sm text-accent-primary font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+		<span class="flex items-center gap-1 text-sm text-accent-primary font-medium transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100">
 			View
 			<Icon name="chevron-right" size={14} />
 		</span>
