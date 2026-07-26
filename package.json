@@ -9,6 +9,7 @@
 		"static",
 		"vendor/harness-core",
 		"scripts/health-spark.mjs",
+		"npm-shrinkwrap.json",
 		".env.example",
 		"README.md",
 		"LICENSE"
