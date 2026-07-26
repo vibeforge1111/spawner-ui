@@ -532,7 +532,8 @@ function recordAgentLedgerEvent(entry: MissionControlRelayStatusEntry): void {
 			{
 				requestId: requestIdFromStatusEntry(entry),
 				sessionId: `mission-control:${entry.missionId}`,
-				actorId: entry.source
+				actorId: entry.source,
+				createdAt: entry.timestamp
 			}
 		);
 	} catch {

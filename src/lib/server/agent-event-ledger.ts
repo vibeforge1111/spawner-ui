@@ -180,13 +180,22 @@ export function tryAppendAgentEventLine(
 
 export function appendAgentEvent(
 	event: AgentEventRecord,
-	options: { requestId?: string | null; traceRef?: string | null; sessionId?: string | null; actorId?: string | null } = {}
+	options: {
+		requestId?: string | null;
+		traceRef?: string | null;
+		sessionId?: string | null;
+		actorId?: string | null;
+		createdAt?: string | null;
+	} = {}
 ): AgentEventLedgerEntry {
+	const requestedCreatedAt = normalizeNullable(options.createdAt);
+	const parsedCreatedAt = requestedCreatedAt ? Date.parse(requestedCreatedAt) : Number.NaN;
+	const createdAtMs = Number.isFinite(parsedCreatedAt) ? parsedCreatedAt : Date.now();
 	const entry: AgentEventLedgerEntry = {
 		...event,
-		event_id: `agent-${Date.now()}-${crypto.randomUUID().replace(/-/g, '').slice(0, 8)}`,
+		event_id: `agent-${createdAtMs}-${crypto.randomUUID().replace(/-/g, '').slice(0, 8)}`,
 		component: AGENT_EVENT_COMPONENT,
-		created_at: new Date().toISOString(),
+		created_at: new Date(createdAtMs).toISOString(),
 		request_id: normalizeNullable(options.requestId),
 		trace_ref: normalizeNullable(options.traceRef) || traceRefFromFacts(event.facts),
 		session_id: normalizeNullable(options.sessionId),
