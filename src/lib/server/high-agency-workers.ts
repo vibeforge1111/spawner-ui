@@ -1,7 +1,7 @@
 import { existsSync, realpathSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
-import { externalProjectPathsAllowed, resolveContainedPath, sparkWorkspaceRoot } from './spark-run-workspace';
+import { resolveContainedPath, sparkWorkspaceRoot } from './spark-run-workspace';
 
 export const HIGH_AGENCY_WORKERS_ENV = 'SPARK_ALLOW_HIGH_AGENCY_WORKERS';
 const EXTERNAL_PROJECT_PATHS_ENV = 'SPARK_ALLOW_EXTERNAL_PROJECT_PATHS';
@@ -100,7 +100,7 @@ export function assertHighAgencyWorkerAllowed(workingDirectory?: string): HighAg
 
 	const workspaceRoot = resolveExistingPath(sparkWorkspaceRoot(effectiveEnv));
 	const cwd = resolve(workingDirectory?.trim() || process.cwd());
-	const externalAllowed = externalProjectPathsAllowed(effectiveEnv);
+	const externalAllowed = flagEnabled(effectiveEnv.SPARK_ALLOW_EXTERNAL_PROJECT_PATHS);
 	let workingDirectoryResolved = cwd;
 	if (!externalAllowed) {
 		try {
