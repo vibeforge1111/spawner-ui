@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
 	assertHighAgencyWorkerAllowed,
 	highAgencyWorkersAllowed,
@@ -30,6 +30,13 @@ function restoreEnv(name: string, value: string | undefined): void {
 	}
 	process.env[name] = value;
 }
+
+beforeEach(() => {
+	process.env.SPARK_HOME = tempDir('spark-high-agency-test-home-');
+	delete process.env.SPARK_ALLOW_EXTERNAL_PROJECT_PATHS;
+	delete process.env.SPARK_ALLOW_HIGH_AGENCY_WORKERS;
+	delete process.env.SPARK_CODEX_SANDBOX;
+});
 
 afterEach(() => {
 	restoreEnv('SPARK_WORKSPACE_ROOT', originalSparkWorkspaceRoot);

@@ -1,7 +1,7 @@
 import { existsSync, realpathSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
-import { externalProjectPathsAllowed, resolveWorkspaceContainedPath, sparkWorkspaceRoot } from './spark-run-workspace';
+import { externalProjectPathsAllowed, resolveContainedPath, sparkWorkspaceRoot } from './spark-run-workspace';
 
 export const HIGH_AGENCY_WORKERS_ENV = 'SPARK_ALLOW_HIGH_AGENCY_WORKERS';
 const EXTERNAL_PROJECT_PATHS_ENV = 'SPARK_ALLOW_EXTERNAL_PROJECT_PATHS';
@@ -91,19 +91,24 @@ export function effectiveLevel5Env(envRecord: Record<string, string | undefined>
 }
 
 export function assertHighAgencyWorkerAllowed(workingDirectory?: string): HighAgencyWorkerApproval {
-	if (!highAgencyWorkersAllowed()) {
+	const effectiveEnv = effectiveLevel5Env();
+	if (!highAgencyWorkersAllowed(effectiveEnv)) {
 		throw new Error(
 			`High-agency worker mode is disabled. Set ${HIGH_AGENCY_WORKERS_ENV}=1 only on trusted local installs.`
 		);
 	}
 
-	const workspaceRoot = resolveExistingPath(sparkWorkspaceRoot());
+	const workspaceRoot = resolveExistingPath(sparkWorkspaceRoot(effectiveEnv));
 	const cwd = resolve(workingDirectory?.trim() || process.cwd());
-	const externalAllowed = externalProjectPathsAllowed();
+	const externalAllowed = externalProjectPathsAllowed(effectiveEnv);
 	let workingDirectoryResolved = cwd;
 	if (!externalAllowed) {
 		try {
-			workingDirectoryResolved = resolveWorkspaceContainedPath(cwd, 'High-agency worker path');
+			workingDirectoryResolved = resolveContainedPath(
+				sparkWorkspaceRoot(effectiveEnv),
+				cwd,
+				'High-agency worker path'
+			);
 		} catch {
 			throw new Error(
 				`High-agency workers must run inside Spark workspace root (${workspaceRoot}). ` +
