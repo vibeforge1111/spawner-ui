@@ -1,7 +1,7 @@
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
 	assertHighAgencyWorkerAllowed,
 	highAgencyWorkersAllowed,
@@ -31,6 +31,13 @@ function restoreEnv(name: string, value: string | undefined): void {
 	process.env[name] = value;
 }
 
+beforeEach(() => {
+	process.env.SPARK_HOME = tempDir('spark-high-agency-test-home-');
+	delete process.env.SPARK_ALLOW_EXTERNAL_PROJECT_PATHS;
+	delete process.env.SPARK_ALLOW_HIGH_AGENCY_WORKERS;
+	delete process.env.SPARK_CODEX_SANDBOX;
+});
+
 afterEach(() => {
 	restoreEnv('SPARK_WORKSPACE_ROOT', originalSparkWorkspaceRoot);
 	restoreEnv('SPAWNER_WORKSPACE_ROOT', originalSpawnerWorkspaceRoot);
@@ -45,6 +52,11 @@ afterEach(() => {
 
 describe('high-agency worker policy', () => {
 	it('requires explicit opt-in', () => {
+		process.env.SPARK_HOME = tempDir('spark-no-level5-home-');
+		delete process.env.SPARK_ALLOW_HIGH_AGENCY_WORKERS;
+		delete process.env.SPARK_ALLOW_EXTERNAL_PROJECT_PATHS;
+		delete process.env.SPARK_CODEX_SANDBOX;
+
 		expect(highAgencyWorkersAllowed({})).toBe(false);
 		expect(highAgencyWorkersAllowed({ SPARK_ALLOW_HIGH_AGENCY_WORKERS: '1' })).toBe(true);
 		expect(() => assertHighAgencyWorkerAllowed()).toThrow('High-agency worker mode is disabled');
@@ -112,6 +124,54 @@ describe('high-agency worker policy', () => {
 				SPARK_ALLOW_HIGH_AGENCY_WORKERS: '1'
 			})
 		).toBe('danger-full-access');
+	});
+
+	it('uses persisted Spawner Level 5 env when the service process env is stale', () => {
+		const sparkHome = tempDir('spark-level5-env-');
+		const moduleEnv = join(sparkHome, 'config', 'modules');
+		mkdirSync(moduleEnv, { recursive: true });
+		writeFileSync(
+			join(moduleEnv, 'spawner-ui.env'),
+			[
+				'SPARK_ALLOW_HIGH_AGENCY_WORKERS=1',
+				'SPARK_ALLOW_EXTERNAL_PROJECT_PATHS=1',
+				'SPARK_CODEX_SANDBOX=danger-full-access',
+				''
+			].join('\n'),
+			'utf8'
+		);
+
+		expect(
+			level5RuntimeGuardrailsActive({
+				SPARK_HOME: sparkHome,
+				SPARK_CODEX_SANDBOX: 'workspace-write'
+			})
+		).toBe(true);
+		expect(
+			resolveCodexSandbox({
+				SPARK_HOME: sparkHome,
+				SPARK_CODEX_SANDBOX: 'workspace-write'
+			})
+		).toBe('danger-full-access');
+	});
+
+	it('does not use a partial persisted Spawner Level 5 env for full access', () => {
+		const sparkHome = tempDir('spark-partial-level5-env-');
+		const moduleEnv = join(sparkHome, 'config', 'modules');
+		mkdirSync(moduleEnv, { recursive: true });
+		writeFileSync(
+			join(moduleEnv, 'spawner-ui.env'),
+			[
+				'SPARK_ALLOW_HIGH_AGENCY_WORKERS=1',
+				'SPARK_ALLOW_EXTERNAL_PROJECT_PATHS=1',
+				'SPARK_CODEX_SANDBOX=workspace-write',
+				''
+			].join('\n'),
+			'utf8'
+		);
+
+		expect(level5RuntimeGuardrailsActive({ SPARK_HOME: sparkHome })).toBe(false);
+		expect(resolveCodexSandbox({ SPARK_HOME: sparkHome })).toBe('workspace-write');
 	});
 
 	it('requires the full Level 5 guardrail bundle for whole-computer operator mode', () => {

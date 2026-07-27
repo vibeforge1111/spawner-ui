@@ -24,6 +24,7 @@ import { formatTaskQualityGuidance } from '$lib/server/task-quality-rubric';
 import { formatVerificationPlanGuidance, generateVerificationPlan } from '$lib/server/verification-plan-generator';
 import { enrichBrief, isSparseUnderstandingClarification } from '$lib/server/brief-enricher';
 import { spawnerStateDir } from '$lib/server/spawner-state';
+import { resolveCodexSandbox } from '$lib/server/high-agency-workers';
 import {
 	assertSafeLocalProjectPath,
 	ensureContainedDirectoryInRoots,
@@ -1987,7 +1988,7 @@ export function _resolvePrdCodexCommandTemplate(
 	if (explicit) return explicit.includes('{model}') ? explicit.replace('{model}', model) : explicit;
 	const profile = (env.SPAWNER_PRD_CODEX_PROFILE || 'speed').trim();
 	const profileArg = profile ? ` --profile ${profile}` : '';
-	return `codex exec --model ${model}${profileArg} --sandbox workspace-write`;
+	return `codex exec --model ${model}${profileArg} --sandbox ${resolveCodexSandbox(env)}`;
 }
 
 async function startAutoAnalysis(

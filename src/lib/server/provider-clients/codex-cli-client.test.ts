@@ -3,9 +3,40 @@ import { parseCodexCliCommand, persistCodexPrompt } from './codex-cli-client';
 
 describe('parseCodexCliCommand', () => {
 	it('adds skip-git-repo-check for model-based Codex exec commands', () => {
-		expect(parseCodexCliCommand('codex exec --model gpt-5.5')).toEqual({
+		expect(parseCodexCliCommand('codex exec --model gpt-5.5', { env: {} })).toEqual({
 			binary: 'codex',
-			args: ['exec', '--skip-git-repo-check', '--model', 'gpt-5.5']
+			args: ['exec', '--skip-git-repo-check', '--model', 'gpt-5.5', '--sandbox', 'workspace-write']
+		});
+	});
+
+	it('uses danger-full-access for model-based Codex exec commands when Level 5 guardrails are active', () => {
+		expect(
+			parseCodexCliCommand('codex exec --model gpt-5.5', {
+				env: {
+					SPARK_ALLOW_HIGH_AGENCY_WORKERS: '1',
+					SPARK_ALLOW_EXTERNAL_PROJECT_PATHS: '1',
+					SPARK_CODEX_SANDBOX: 'danger-full-access'
+				}
+			})
+		).toEqual({
+			binary: 'codex',
+			args: ['exec', '--skip-git-repo-check', '--model', 'gpt-5.5', '--sandbox', 'danger-full-access']
+		});
+	});
+
+	it('preserves explicit profile selection while adding sandbox enforcement', () => {
+		expect(parseCodexCliCommand('codex exec --model gpt-5.5 --profile speed', { env: {} })).toEqual({
+			binary: 'codex',
+			args: [
+				'exec',
+				'--skip-git-repo-check',
+				'--model',
+				'gpt-5.5',
+				'--profile',
+				'speed',
+				'--sandbox',
+				'workspace-write'
+			]
 		});
 	});
 
