@@ -71,6 +71,8 @@ let testSpawnerDir: string | null = null;
 const originalSparkWorkspaceRoot = process.env.SPARK_WORKSPACE_ROOT;
 const originalSpawnerWorkspaceRoot = process.env.SPAWNER_WORKSPACE_ROOT;
 const originalAllowExternalProjectPaths = process.env.SPARK_ALLOW_EXTERNAL_PROJECT_PATHS;
+const originalAllowHighAgencyWorkers = process.env.SPARK_ALLOW_HIGH_AGENCY_WORKERS;
+const originalCodexSandbox = process.env.SPARK_CODEX_SANDBOX;
 
 function restoreEnv(name: string, value: string | undefined): void {
 	if (value === undefined) delete process.env[name];
@@ -115,6 +117,9 @@ describe('PRD auto-dispatch helpers', () => {
 		restoreEnv('SPARK_WORKSPACE_ROOT', originalSparkWorkspaceRoot);
 		restoreEnv('SPAWNER_WORKSPACE_ROOT', originalSpawnerWorkspaceRoot);
 		restoreEnv('SPARK_ALLOW_EXTERNAL_PROJECT_PATHS', originalAllowExternalProjectPaths);
+		restoreEnv('SPARK_ALLOW_HIGH_AGENCY_WORKERS', originalAllowHighAgencyWorkers);
+		restoreEnv('SPARK_CODEX_SANDBOX', originalCodexSandbox);
+		vi.restoreAllMocks();
 		if (testSpawnerDir && existsSync(testSpawnerDir)) {
 			await rm(testSpawnerDir, { recursive: true, force: true });
 		}
@@ -513,6 +518,38 @@ describe('PRD auto-dispatch helpers', () => {
 		expect(result.started).toBe(true);
 		expect(result.projectPath).toBe(path.join(realpathSync(workspaceRoot), 'native-governor-project'));
 		expect(result.authority?.source).toBe('governor_decision');
+	});
+
+	it('uses Level 5 Codex sandbox for direct mission auto-dispatch', async () => {
+		const workspaceRoot = path.join(testSpawnerDir!, 'workspaces');
+		const projectPath = path.join(workspaceRoot, 'level5-codex-project');
+		await mkdir(workspaceRoot, { recursive: true });
+		process.env.SPARK_WORKSPACE_ROOT = workspaceRoot;
+		process.env.SPARK_CODEX_SANDBOX = 'danger-full-access';
+		process.env.SPARK_ALLOW_HIGH_AGENCY_WORKERS = '1';
+		process.env.SPARK_ALLOW_EXTERNAL_PROJECT_PATHS = '1';
+		let observedCommandTemplate = '';
+		vi.spyOn(providerRuntime, 'dispatch').mockImplementation(async ({ executionPack }) => {
+			observedCommandTemplate =
+				executionPack.providers.find((provider) => provider.id === 'codex')?.commandTemplate || '';
+			return {} as Awaited<ReturnType<typeof providerRuntime.dispatch>>;
+		});
+		const candidate: PrdCanvasLoadForAutoDispatch = {
+			...load,
+			requestId: 'tg-build-level5-codex-sandbox',
+			missionId: 'mission-level5-codex-sandbox',
+			pipelineId: 'prd-tg-build-level5-codex-sandbox',
+			executionPrompt: 'Build a compact local API service.',
+			relay: { projectLineage: { projectPath } }
+		};
+		candidate.executionAuthority = governorAuthority(candidate);
+
+		const result = await autoDispatchPrdCanvasLoad(candidate);
+
+		expect(result.started).toBe(true);
+		expect(observedCommandTemplate).toBe(
+			'codex exec --model gpt-5.5 --profile speed --sandbox danger-full-access'
+		);
 	});
 
 	it('rechecks the project directory and rejects a symlink swap before provider dispatch', async () => {
