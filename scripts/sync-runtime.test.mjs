@@ -51,6 +51,25 @@ function runCheck(source, runtime) {
 	});
 }
 
+function runInstalledStateCheck(source, runtime) {
+	const sparkHome = mkdtempSync(join(tmpdir(), 'spawner-sync-home-'));
+	tempRoots.push(sparkHome);
+	mkdirSync(join(sparkHome, 'state'), { recursive: true });
+	writeFileSync(
+		join(sparkHome, 'state', 'installed.json'),
+		`${JSON.stringify({ 'spawner-ui': { path: runtime, source: runtime } }, null, 2)}\n`
+	);
+	return spawnSync(process.execPath, [scriptPath, '--check'], {
+		encoding: 'utf8',
+		env: {
+			...process.env,
+			SPARK_HOME: sparkHome,
+			SPAWNER_SYNC_SOURCE_ROOT: source,
+			SPAWNER_RUNTIME_ROOT: ''
+		}
+	});
+}
+
 afterEach(() => {
 	while (tempRoots.length > 0) {
 		rmSync(tempRoots.pop(), { recursive: true, force: true });
@@ -63,6 +82,16 @@ describe('sync-runtime drift check', () => {
 		const runtime = cloneRepo(source);
 
 		const result = runCheck(source, runtime);
+
+		expect(result.status).toBe(0);
+		expect(result.stdout).toContain('runtime git mirror matches source checkout');
+	});
+
+	it('uses the installed module record before the legacy source fallback', () => {
+		const source = makeRepo();
+		const runtime = cloneRepo(source);
+
+		const result = runInstalledStateCheck(source, runtime);
 
 		expect(result.status).toBe(0);
 		expect(result.stdout).toContain('runtime git mirror matches source checkout');

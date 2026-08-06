@@ -18,9 +18,24 @@ const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 
 const SOURCE_ROOT = path.resolve(process.env.SPAWNER_SYNC_SOURCE_ROOT || path.join(__dirname, '..'));
-const RUNTIME_ROOT = path.resolve(
-	process.env.SPAWNER_RUNTIME_ROOT || path.join(os.homedir(), '.spark', 'modules', 'spawner-ui', 'source')
-);
+
+function installedRuntimeRoot() {
+	if (process.env.SPAWNER_RUNTIME_ROOT?.trim()) {
+		return path.resolve(process.env.SPAWNER_RUNTIME_ROOT.trim());
+	}
+	const sparkHome = path.resolve(process.env.SPARK_HOME?.trim() || path.join(os.homedir(), '.spark'));
+	const fallback = path.join(sparkHome, 'modules', 'spawner-ui', 'source');
+	const installedJson = path.join(sparkHome, 'state', 'installed.json');
+	try {
+		const installed = JSON.parse(fs.readFileSync(installedJson, 'utf8'));
+		const configured = installed?.['spawner-ui']?.path || installed?.['spawner-ui']?.source;
+		return configured ? path.resolve(configured) : fallback;
+	} catch {
+		return fallback;
+	}
+}
+
+const RUNTIME_ROOT = installedRuntimeRoot();
 
 const ALLOWED_RUNTIME_OVERLAY_PATHS = new Set([
 	'docs/SPARK_HARNESS_CONTRACT_ADOPTION.md',
