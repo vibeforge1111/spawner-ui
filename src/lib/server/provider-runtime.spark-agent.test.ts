@@ -5,6 +5,7 @@ import path from 'node:path';
 import {
 	_isAllowedProviderApiKeyEnvForTests,
 	_staleRunningProviderMsForTests,
+	providerHasEffectiveExecutor,
 	providerRuntime,
 	reconcileStaleProviderResults
 } from './provider-runtime';
@@ -25,6 +26,21 @@ function provider(id: 'claude' | 'codex', model: string): MultiLLMProviderConfig
 		requiresApiKey: true,
 		apiKeyEnv: id === 'claude' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY',
 		commandTemplate: id === 'claude' ? 'claude --model {model}' : 'codex exec --model {model}'
+	};
+}
+
+function openAICompatExecutor(): MultiLLMProviderConfig {
+	return {
+		id: 'openai',
+		label: 'OpenAI',
+		model: 'gpt-test',
+		enabled: true,
+		kind: 'openai_compat',
+		eventSource: 'openai',
+		requiresApiKey: true,
+		apiKeyEnv: 'OPENAI_API_KEY',
+		executesFilesystem: true,
+		sparkExecutionBridge: 'codex'
 	};
 }
 
@@ -97,8 +113,11 @@ afterEach(() => {
 	providerRuntime.cleanup('mission-step2-active-recovery');
 	providerRuntime.cleanup('mission-step2-live-stale');
 	providerRuntime.cleanup('mission-step2-resume-fresh-authority');
+	providerRuntime.cleanup('mission-step2-untooled-openai');
 	delete process.env.SPAWNER_STATE_DIR;
 	delete process.env.SPAWNER_PROVIDER_STALE_RUNNING_MS;
+	delete process.env.SPARK_AGENT_HARNESS_URL;
+	delete process.env.SPARK_HARNESS_URL;
 });
 
 describe('provider-runtime Spark agent bridge', () => {
@@ -262,6 +281,37 @@ describe('provider-runtime Spark agent bridge', () => {
 			expect(typeof event.data?.providerId).toBe('string');
 			expect(typeof event.data?.sparkAgentSessionId).toBe('string');
 		}
+	});
+
+	it('fails closed when an assigned OpenAI execute task has no harness or artifact workspace', async () => {
+		const fetchSpy = vi.spyOn(globalThis, 'fetch');
+		const events: BridgeEvent[] = [];
+
+		await providerRuntime.dispatch({
+			executionPack: buildPack('mission-step2-untooled-openai', [openAICompatExecutor()]),
+			apiKeys: { openai: 'test-openai' },
+			executionAuthority: dispatchAuthority(),
+			onEvent: (event) => events.push(event),
+			workingDirectory: undefined
+		});
+
+		await waitFor(() => events.some((event) => event.type === 'mission_failed'));
+		expect(providerRuntime.getMissionResults('mission-step2-untooled-openai')[0]).toMatchObject({
+			providerId: 'openai',
+			status: 'failed'
+		});
+		expect(providerRuntime.getMissionResults('mission-step2-untooled-openai')[0].error).toContain(
+			'tool-capable executor'
+		);
+		expect(fetchSpy).not.toHaveBeenCalled();
+		expect(events.some((event) => event.type === 'mission_completed')).toBe(false);
+	});
+
+	it('recognizes only a live harness or real artifact workspace as OpenAI execution capability', () => {
+		const openai = openAICompatExecutor();
+		expect(providerHasEffectiveExecutor(openai, undefined, {})).toBe(false);
+		expect(providerHasEffectiveExecutor(openai, undefined, { SPARK_AGENT_HARNESS_URL: 'http://127.0.0.1:4444' })).toBe(true);
+		expect(providerHasEffectiveExecutor(openai, '/tmp/spark-artifact-workspace', {})).toBe(true);
 	});
 
 	it('blocks direct provider dispatch without native Governor authority', async () => {

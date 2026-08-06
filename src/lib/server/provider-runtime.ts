@@ -235,6 +235,18 @@ export function providerShouldUseSparkExecutionBridge(
 	);
 }
 
+export function providerHasEffectiveExecutor(
+	provider: Pick<MultiLLMProviderConfig, 'id' | 'kind' | 'executesFilesystem' | 'sparkExecutionBridge'>,
+	workingDirectory: string | undefined,
+	env: Record<string, string | undefined> = process.env
+): boolean {
+	if (provider.kind === 'terminal_cli' && (provider.id === 'claude' || provider.id === 'codex')) {
+		return true;
+	}
+	if (provider.kind !== 'openai_compat') return provider.executesFilesystem === true;
+	return providerShouldUseSparkExecutionBridge(provider, env) || Boolean(provider.executesFilesystem && workingDirectory);
+}
+
 function sessionToResultSnapshot(session: ProviderSession): ProviderMissionResultSnapshot {
 	return withMissionTraceMetadata(session.missionId, {
 		providerId: session.providerId,
@@ -669,14 +681,12 @@ class ProviderRuntimeManager {
 			const assignment = executionPack.assignments[provider.id];
 			const assignedExecutionTasks =
 				assignment?.mode === 'execute' ? assignment.taskIds.length : 0;
-			const executesFilesystem =
-				provider.executesFilesystem === true ||
-				(provider.kind === 'terminal_cli' && (provider.id === 'claude' || provider.id === 'codex'));
-			if (assignedExecutionTasks > 0 && !executesFilesystem) {
+			const hasEffectiveExecutor = providerHasEffectiveExecutor(provider, workingDirectory);
+			if (assignedExecutionTasks > 0 && !hasEffectiveExecutor) {
 				session.status = 'failed';
 				session.error =
-					`${provider.label} is connected for chat/reasoning, but it is not configured as a filesystem executor. ` +
-					`Use a terminal executor provider or add an execution bridge before auto-dispatching implementation tasks.`;
+					`${provider.label} is connected for chat/reasoning, but it does not have a tool-capable executor for this assigned work. ` +
+					`Configure the Spark execution bridge or provide a real artifact workspace before dispatching execution tasks.`;
 				session.completedAt = new Date();
 				sessionStatuses[provider.id] = { status: 'failed', error: session.error };
 				this.rememberStatusReason(missionId, session.error);
@@ -690,7 +700,8 @@ class ProviderRuntimeManager {
 							provider: provider.id,
 							providerLabel: provider.label,
 							assignedTaskCount: assignedExecutionTasks,
-							requiresFilesystemExecutor: true
+							requiresFilesystemExecutor: true,
+							requiresToolCapableExecutor: true
 						}
 					})
 				);
