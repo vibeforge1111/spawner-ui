@@ -5,7 +5,7 @@ import { providerRuntime } from '$lib/server/provider-runtime';
 import { buildMissionControlTrace, type MissionControlTrace } from '$lib/server/mission-control-trace';
 
 function traceReadAuthPayload(event: Parameters<typeof requireControlAuth>[0]) {
-	const openRead = requireControlAuth(event, {
+	const eventRead = requireControlAuth(event, {
 		surface: 'MissionControlTrace',
 		apiKeyEnvVar: 'EVENTS_API_KEY',
 		fallbackApiKeyEnvVar: 'MCP_API_KEY',
@@ -14,9 +14,18 @@ function traceReadAuthPayload(event: Parameters<typeof requireControlAuth>[0]) {
 		allowLoopbackWithoutKey: true,
 		allowedOriginsEnvVar: 'EVENTS_ALLOWED_ORIGINS'
 	});
-	if (openRead) return { openRead, hasControlAuth: false };
+	const bridgeRead = requireControlAuth(event, {
+		surface: 'MissionControlTrace',
+		apiKeyEnvVar: 'SPARK_BRIDGE_API_KEY',
+		fallbackApiKeyEnvVar: 'MCP_API_KEY',
+		apiKeyQueryParam: 'apiKey',
+		apiKeyCookieName: 'spawner_events_api_key',
+		allowLoopbackWithoutKey: true,
+		allowedOriginsEnvVar: 'EVENTS_ALLOWED_ORIGINS'
+	});
+	if (eventRead && bridgeRead) return { openRead: eventRead, hasControlAuth: false };
 
-	const strictRead = requireControlAuth(event, {
+	const strictEventRead = requireControlAuth(event, {
 		surface: 'MissionControlTrace',
 		apiKeyEnvVar: 'EVENTS_API_KEY',
 		fallbackApiKeyEnvVar: 'MCP_API_KEY',
@@ -25,8 +34,17 @@ function traceReadAuthPayload(event: Parameters<typeof requireControlAuth>[0]) {
 		allowLoopbackWithoutKey: false,
 		allowedOriginsEnvVar: 'EVENTS_ALLOWED_ORIGINS'
 	});
+	const strictBridgeRead = requireControlAuth(event, {
+		surface: 'MissionControlTrace',
+		apiKeyEnvVar: 'SPARK_BRIDGE_API_KEY',
+		fallbackApiKeyEnvVar: 'MCP_API_KEY',
+		apiKeyQueryParam: 'apiKey',
+		apiKeyCookieName: 'spawner_events_api_key',
+		allowLoopbackWithoutKey: false,
+		allowedOriginsEnvVar: 'EVENTS_ALLOWED_ORIGINS'
+	});
 
-	return { openRead: null, hasControlAuth: strictRead === null };
+	return { openRead: null, hasControlAuth: strictEventRead === null || strictBridgeRead === null };
 }
 
 function sanitizeTraceForLoopback(trace: MissionControlTrace) {

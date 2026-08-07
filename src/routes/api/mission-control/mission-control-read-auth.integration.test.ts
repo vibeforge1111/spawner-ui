@@ -7,7 +7,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const PRIVATE_ENV = vi.hoisted((): Record<string, string | undefined> => ({
 	EVENTS_API_KEY: 'events-key',
-	MCP_API_KEY: 'mcp-key'
+	MCP_API_KEY: 'mcp-key',
+	SPARK_BRIDGE_API_KEY: 'bridge-key'
 }));
 
 vi.mock('$env/dynamic/private', () => ({ env: PRIVATE_ENV }));
@@ -23,14 +24,15 @@ const originalStateDir = process.env.SPAWNER_STATE_DIR;
 function resetEnv() {
 	PRIVATE_ENV.EVENTS_API_KEY = 'events-key';
 	PRIVATE_ENV.MCP_API_KEY = 'mcp-key';
+	PRIVATE_ENV.SPARK_BRIDGE_API_KEY = 'bridge-key';
 	PRIVATE_ENV.EVENTS_ALLOWED_ORIGINS = '';
 	if (originalStateDir === undefined) delete process.env.SPAWNER_STATE_DIR;
 	else process.env.SPAWNER_STATE_DIR = originalStateDir;
 }
 
-function event(url: string, clientAddress = '127.0.0.1'): RequestEvent {
+function event(url: string, clientAddress = '127.0.0.1', headers: Record<string, string> = {}): RequestEvent {
 	return {
-		request: new Request(url, { headers: { accept: 'application/json' } }),
+		request: new Request(url, { headers: { accept: 'application/json', ...headers } }),
 		url: new URL(url),
 		getClientAddress: () => clientAddress,
 		cookies: {
@@ -87,6 +89,28 @@ describe('mission-control read route auth', () => {
 
 	it('keeps non-local reads gated without credentials', async () => {
 		const response = await getBoard(event('https://spawner.example.com/api/mission-control/board', '203.0.113.10') as never);
+
+		expect(response.status).toBe(401);
+	});
+
+	it('lets the authenticated Spark bridge read terminal trace results for Telegram delivery', async () => {
+		const response = await getTrace(
+			event('https://spawner.example.com/api/mission-control/trace?missionId=missing', '203.0.113.10', {
+				'x-api-key': 'bridge-key'
+			}) as never
+		);
+
+		expect(response.status).toBe(200);
+		const payload = await response.json();
+		expect(payload.authorityBoundary).toBeUndefined();
+	});
+
+	it('rejects the wrong Spark bridge key for non-local trace reads', async () => {
+		const response = await getTrace(
+			event('https://spawner.example.com/api/mission-control/trace?missionId=missing', '203.0.113.10', {
+				'x-api-key': 'wrong-bridge-key'
+			}) as never
+		);
 
 		expect(response.status).toBe(401);
 	});
