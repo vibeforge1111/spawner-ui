@@ -63,7 +63,11 @@ export function createOrderedMissionRelayQueue<T>(
 			tail = tail.then(() => deliver(event)).catch(() => onError());
 		},
 		async flush() {
-			await tail;
+			for (;;) {
+				const observedTail = tail;
+				await observedTail;
+				if (tail === observedTail) return;
+			}
 		}
 	};
 }

@@ -384,6 +384,48 @@ describe('/api/spark/run integration', () => {
 		expect(completed).toEqual(started);
 	});
 
+	it('keeps flush open for relay events appended while an earlier delivery is draining', async () => {
+		let releaseFirst!: () => void;
+		let releaseSecond!: () => void;
+		let markSecondStarted!: () => void;
+		const firstGate = new Promise<void>((resolve) => {
+			releaseFirst = resolve;
+		});
+		const secondGate = new Promise<void>((resolve) => {
+			releaseSecond = resolve;
+		});
+		const secondStarted = new Promise<void>((resolve) => {
+			markSecondStarted = resolve;
+		});
+		const completed: string[] = [];
+		const queue = createOrderedMissionRelayQueue(async (event: { type: string }) => {
+			if (event.type === 'mission_created') await firstGate;
+			if (event.type === 'mission_failed') {
+				markSecondStarted();
+				await secondGate;
+			}
+			completed.push(event.type);
+		});
+
+		queue.enqueue({ type: 'mission_created' });
+		let flushSettled = false;
+		const flush = queue.flush().then(() => {
+			flushSettled = true;
+		});
+		await Promise.resolve();
+		queue.enqueue({ type: 'mission_failed' });
+		releaseFirst();
+		await secondStarted;
+
+		expect(completed).toEqual(['mission_created']);
+		expect(flushSettled).toBe(false);
+
+		releaseSecond();
+		await flush;
+		expect(completed).toEqual(['mission_created', 'mission_failed']);
+		expect(flushSettled).toBe(true);
+	});
+
 	it('derives one mission_started when provider runtime repeats dispatch_started', async () => {
 		const dispatch = vi.mocked(providerRuntime.dispatch);
 		const emitted: Array<{ type?: string; missionId?: string }> = [];
