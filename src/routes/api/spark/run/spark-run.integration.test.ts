@@ -23,7 +23,7 @@ vi.mock('$lib/server/provider-runtime', () => ({
 	}
 }));
 
-import { GET, POST } from './+server';
+import { createOrderedMissionRelayQueue, GET, POST } from './+server';
 import { providerRuntime } from '$lib/server/provider-runtime';
 import { eventBridge } from '$lib/services/event-bridge';
 import { getMissionControlPersistPath, getMissionControlRelaySnapshot } from '$lib/server/mission-control-relay';
@@ -346,6 +346,42 @@ describe('/api/spark/run integration', () => {
 		} finally {
 			unsubscribe?.();
 		}
+	});
+
+	it('serializes relay delivery and waits for a slow first event before flush resolves', async () => {
+		let releaseFirst!: () => void;
+		const firstGate = new Promise<void>((resolve) => {
+			releaseFirst = resolve;
+		});
+		const started: string[] = [];
+		const completed: string[] = [];
+		const queue = createOrderedMissionRelayQueue(async (event: { type: string }) => {
+			started.push(event.type);
+			if (event.type === 'mission_created') await firstGate;
+			completed.push(event.type);
+		});
+
+		queue.enqueue({ type: 'mission_created' });
+		queue.enqueue({ type: 'dispatch_started' });
+		queue.enqueue({ type: 'mission_started' });
+		queue.enqueue({ type: 'task_failed' });
+		queue.enqueue({ type: 'mission_failed' });
+		let flushSettled = false;
+		const flush = queue.flush().then(() => {
+			flushSettled = true;
+		});
+		await Promise.resolve();
+
+		expect(started).toEqual(['mission_created']);
+		expect(completed).toEqual([]);
+		expect(flushSettled).toBe(false);
+
+		releaseFirst();
+		await flush;
+		expect(started).toEqual([
+			'mission_created', 'dispatch_started', 'mission_started', 'task_failed', 'mission_failed'
+		]);
+		expect(completed).toEqual(started);
 	});
 
 	it('derives one mission_started when provider runtime repeats dispatch_started', async () => {
