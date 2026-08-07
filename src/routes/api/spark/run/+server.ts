@@ -53,7 +53,7 @@ interface SparkRunBody {
 	};
 }
 
-export function createOrderedMissionRelayQueue<T>(
+export function _createOrderedMissionRelayQueue<T>(
 	deliver: (event: T) => Promise<void>,
 	onError: () => void = () => console.warn('[SparkRun] Mission relay delivery failed.')
 ) {
@@ -237,7 +237,7 @@ export const POST: RequestHandler = async (event) => {
 		windowMs: 60_000
 	});
 	if (rateLimited) return rateLimited;
-	const relayQueue = createOrderedMissionRelayQueue(relayMissionControlEvent);
+	const relayQueue = _createOrderedMissionRelayQueue(relayMissionControlEvent);
 
 	try {
 		const body = (await event.request.json().catch(() => ({}))) as SparkRunBody;

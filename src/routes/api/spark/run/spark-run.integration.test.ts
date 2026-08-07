@@ -23,7 +23,7 @@ vi.mock('$lib/server/provider-runtime', () => ({
 	}
 }));
 
-import { createOrderedMissionRelayQueue, GET, POST } from './+server';
+import { _createOrderedMissionRelayQueue, GET, POST } from './+server';
 import { providerRuntime } from '$lib/server/provider-runtime';
 import { eventBridge } from '$lib/services/event-bridge';
 import { getMissionControlPersistPath, getMissionControlRelaySnapshot } from '$lib/server/mission-control-relay';
@@ -355,7 +355,7 @@ describe('/api/spark/run integration', () => {
 		});
 		const started: string[] = [];
 		const completed: string[] = [];
-		const queue = createOrderedMissionRelayQueue(async (event: { type: string }) => {
+		const queue = _createOrderedMissionRelayQueue(async (event: { type: string }) => {
 			started.push(event.type);
 			if (event.type === 'mission_created') await firstGate;
 			completed.push(event.type);
@@ -398,7 +398,7 @@ describe('/api/spark/run integration', () => {
 			markSecondStarted = resolve;
 		});
 		const completed: string[] = [];
-		const queue = createOrderedMissionRelayQueue(async (event: { type: string }) => {
+		const queue = _createOrderedMissionRelayQueue(async (event: { type: string }) => {
 			if (event.type === 'mission_created') await firstGate;
 			if (event.type === 'mission_failed') {
 				markSecondStarted();
