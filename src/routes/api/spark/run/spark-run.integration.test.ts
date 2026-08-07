@@ -348,6 +348,36 @@ describe('/api/spark/run integration', () => {
 		}
 	});
 
+	it('derives one mission_started when provider runtime repeats dispatch_started', async () => {
+		const dispatch = vi.mocked(providerRuntime.dispatch);
+		const emitted: Array<{ type?: string; missionId?: string }> = [];
+		const unsubscribe = eventBridge.subscribe((bridgeEvent) => emitted.push(bridgeEvent));
+		dispatch.mockImplementationOnce(async ({ executionPack, onEvent }) => {
+			const missionId = executionPack.missionId || 'spark-duplicate-dispatch-test';
+			const startedAt = '2026-08-07T10:20:00.000Z';
+			for (let index = 0; index < 2; index += 1) {
+				onEvent?.({
+					type: 'dispatch_started', missionId, source: 'provider-runtime', timestamp: startedAt,
+					message: 'Dispatch started.', data: {}
+				});
+			}
+			return { success: true, missionId, sessions: {}, startedAt, authority: {} as never };
+		});
+
+		try {
+			const response = await POST(routeEvent({
+				goal: 'Run one tiny no-edit mission.', providers: ['codex'],
+				requestId: 'tg-spark-run-duplicate-dispatch', executionAuthority: governorAuthority()
+			}) as never);
+			const body = await expectOkJson(response);
+			const eventTypes = emitted.filter((entry) => entry.missionId === body.missionId).map((entry) => entry.type);
+			expect(eventTypes.filter((type) => type === 'dispatch_started')).toHaveLength(2);
+			expect(eventTypes.filter((type) => type === 'mission_started')).toHaveLength(1);
+		} finally {
+			unsubscribe?.();
+		}
+	});
+
 	it('does not invent mission_started when dispatch rejects before dispatch_started', async () => {
 		const dispatch = vi.mocked(providerRuntime.dispatch);
 		const emitted: Array<{ type?: string; missionId?: string }> = [];
