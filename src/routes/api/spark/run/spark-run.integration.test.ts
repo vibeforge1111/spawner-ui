@@ -6,19 +6,27 @@ import path from 'node:path';
 
 vi.mock('$lib/server/provider-runtime', () => ({
 	providerRuntime: {
-		dispatch: vi.fn(async ({ executionPack }) => ({
-			success: true,
-			missionId: executionPack.missionId,
-			sessions: { codex: { status: 'running' } },
-			startedAt: '2026-05-04T10:00:00.000Z'
-		})),
+		dispatch: vi.fn(async ({ executionPack, onEvent }) => {
+			const startedAt = '2026-05-04T10:00:00.000Z';
+			onEvent?.({
+				type: 'dispatch_started', missionId: executionPack.missionId,
+				source: 'provider-runtime', timestamp: startedAt, message: 'Dispatch started.', data: {}
+			});
+			return {
+				success: true,
+				missionId: executionPack.missionId,
+				sessions: { codex: { status: 'running' } },
+				startedAt
+			};
+		}),
 		getMissionResults: vi.fn(() => [])
 	}
 }));
 
 import { GET, POST } from './+server';
 import { providerRuntime } from '$lib/server/provider-runtime';
-import { getMissionControlPersistPath } from '$lib/server/mission-control-relay';
+import { eventBridge } from '$lib/services/event-bridge';
+import { getMissionControlPersistPath, getMissionControlRelaySnapshot } from '$lib/server/mission-control-relay';
 import {
 	assertNativeGovernorHarnessAuthority,
 	buildServerGovernorDecisionAuthority
@@ -298,6 +306,95 @@ describe('/api/spark/run integration', () => {
 			mutationClass: 'launches_mission',
 			requestId: 'tg-spark-run-local'
 		})).not.toThrow();
+	});
+
+	it('records mission_started from dispatch_started before an immediate provider failure', async () => {
+		const dispatch = vi.mocked(providerRuntime.dispatch);
+		const emitted: Array<{ type?: string; missionId?: string }> = [];
+		const unsubscribe = eventBridge.subscribe((bridgeEvent) => emitted.push(bridgeEvent));
+		dispatch.mockImplementationOnce(async ({ executionPack, onEvent }) => {
+			const missionId = executionPack.missionId || 'spark-fast-failure-test';
+			const startedAt = '2026-08-07T10:19:35.642Z';
+			onEvent?.({
+				type: 'dispatch_started', missionId, source: 'provider-runtime', timestamp: startedAt,
+				message: 'Dispatch started.', data: {}
+			});
+			onEvent?.({
+				type: 'task_failed', missionId, source: 'openai', timestamp: '2026-08-07T10:19:36.279Z',
+				message: 'No tool-capable executor is available.', data: { error: 'No tool-capable executor is available.' }
+			});
+			onEvent?.({
+				type: 'mission_failed', missionId, source: 'provider-runtime', timestamp: '2026-08-07T10:19:36.290Z',
+				message: 'Mission failed.', data: {}
+			});
+			return { success: true, missionId, sessions: {}, startedAt, authority: {} as never };
+		});
+
+		try {
+			const response = await POST(routeEvent({
+				goal: 'Run one tiny no-edit mission.', providers: ['codex'],
+				requestId: 'tg-spark-run-fast-failure', executionAuthority: governorAuthority()
+			}) as never);
+			const body = await expectOkJson(response);
+			const eventTypes = emitted.filter((entry) => entry.missionId === body.missionId).map((entry) => entry.type);
+			expect(eventTypes).toEqual([
+				'mission_created', 'dispatch_started', 'mission_started', 'task_failed', 'mission_failed'
+			]);
+			expect(eventTypes.filter((type) => type === 'mission_started')).toHaveLength(1);
+			const persisted = getMissionControlRelaySnapshot(body.missionId).recent.map((entry) => entry.eventType);
+			expect([...persisted].reverse()).toEqual(eventTypes);
+		} finally {
+			unsubscribe?.();
+		}
+	});
+
+	it('derives one mission_started when provider runtime repeats dispatch_started', async () => {
+		const dispatch = vi.mocked(providerRuntime.dispatch);
+		const emitted: Array<{ type?: string; missionId?: string }> = [];
+		const unsubscribe = eventBridge.subscribe((bridgeEvent) => emitted.push(bridgeEvent));
+		dispatch.mockImplementationOnce(async ({ executionPack, onEvent }) => {
+			const missionId = executionPack.missionId || 'spark-duplicate-dispatch-test';
+			const startedAt = '2026-08-07T10:20:00.000Z';
+			for (let index = 0; index < 2; index += 1) {
+				onEvent?.({
+					type: 'dispatch_started', missionId, source: 'provider-runtime', timestamp: startedAt,
+					message: 'Dispatch started.', data: {}
+				});
+			}
+			return { success: true, missionId, sessions: {}, startedAt, authority: {} as never };
+		});
+
+		try {
+			const response = await POST(routeEvent({
+				goal: 'Run one tiny no-edit mission.', providers: ['codex'],
+				requestId: 'tg-spark-run-duplicate-dispatch', executionAuthority: governorAuthority()
+			}) as never);
+			const body = await expectOkJson(response);
+			const eventTypes = emitted.filter((entry) => entry.missionId === body.missionId).map((entry) => entry.type);
+			expect(eventTypes.filter((type) => type === 'dispatch_started')).toHaveLength(2);
+			expect(eventTypes.filter((type) => type === 'mission_started')).toHaveLength(1);
+		} finally {
+			unsubscribe?.();
+		}
+	});
+
+	it('does not invent mission_started when dispatch rejects before dispatch_started', async () => {
+		const dispatch = vi.mocked(providerRuntime.dispatch);
+		const emitted: Array<{ type?: string; missionId?: string }> = [];
+		const unsubscribe = eventBridge.subscribe((bridgeEvent) => emitted.push(bridgeEvent));
+		dispatch.mockRejectedValueOnce(new Error('dispatch setup failed'));
+		try {
+			const response = await POST(routeEvent({
+				goal: 'Run one tiny no-edit mission.', providers: ['codex'],
+				requestId: 'tg-spark-run-pre-dispatch-failure', executionAuthority: governorAuthority()
+			}) as never);
+			expect(response.status).toBe(500);
+			await expect(response.json()).resolves.toMatchObject({ success: false, error: 'dispatch setup failed' });
+			expect(emitted.map((entry) => entry.type)).not.toContain('mission_started');
+			expect(emitted.map((entry) => entry.type)).not.toContain('dispatch_started');
+		} finally {
+			unsubscribe?.();
+		}
 	});
 
 	it('exposes a non-dispatching route health probe', async () => {

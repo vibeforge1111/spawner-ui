@@ -211,6 +211,13 @@ Mission Control events should include:
 | `data.telegramRelay` | for Telegram builds | `{ port, profile, url }` target, used to avoid relay spraying |
 | `data.plannedTasks` | on `mission_created` | Seeds Kanban queued tasks before execution starts |
 
+Lifecycle ordering is an owner contract:
+
+- A route may emit `mission_started` only after provider runtime emits `dispatch_started`.
+- The start event must be recorded from that callback before forwarding later task or terminal callbacks.
+- A synchronous pre-dispatch rejection emits no start event.
+- `/api/spark/run` must not generate a start after a terminal callback. Board, Trace, and Telegram consumers must independently preserve terminal precedence when handling delayed or replayed events.
+
 ## Operational Checks
 
 Use these checks when debugging a user report:

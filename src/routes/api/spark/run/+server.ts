@@ -358,6 +358,7 @@ export const POST: RequestHandler = async (event) => {
 				.filter((entry) => entry[1].length > 0)
 		);
 
+		let missionStartedEmitted = false;
 		const dispatchResult = await providerRuntime.dispatch({
 			executionPack,
 			apiKeys,
@@ -381,12 +382,14 @@ export const POST: RequestHandler = async (event) => {
 				};
 				eventBridge.emit(relayEvent);
 				void relayMissionControlEvent(relayEvent);
+				if (bridgeEvent.type === 'dispatch_started' && !missionStartedEmitted) {
+					missionStartedEmitted = true;
+					emitMissionEvent('mission_started', `Mission started (${mission.id}).`, {
+						startedAt: bridgeEvent.timestamp,
+						authorityVerdict
+					});
+				}
 			}
-		});
-
-		emitMissionEvent('mission_started', `Mission started (${dispatchResult.missionId}).`, {
-			startedAt: dispatchResult.startedAt,
-			authorityVerdict
 		});
 
 		return json({

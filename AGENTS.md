@@ -45,6 +45,9 @@ This repo does not own:
   in from the caller or created by a source-owned internal policy.
 - Local mission state, schedule state, provider state, and board state are
   execution-plane truth, not permission to start new user-requested work.
+- Lifecycle state is monotonic. Emit `mission_started` only from a real
+  `dispatch_started` owner event, before any task or terminal callback; never
+  emit a late start after awaiting a dispatch that may already have failed.
 - Old patches, wording vetoes, pending-state helpers, and route-specific
   launch checks are migration debt until retired, demoted to evidence, bound
   behind Governor authority, or carried as explicit release blockers.
