@@ -53,6 +53,25 @@ interface SparkRunBody {
 	};
 }
 
+export function _createOrderedMissionRelayQueue<T>(
+	deliver: (event: T) => Promise<void>,
+	onError: () => void = () => console.warn('[SparkRun] Mission relay delivery failed.')
+) {
+	let tail = Promise.resolve();
+	return {
+		enqueue(event: T) {
+			tail = tail.then(() => deliver(event)).catch(() => onError());
+		},
+		async flush() {
+			for (;;) {
+				const observedTail = tail;
+				await observedTail;
+				if (tail === observedTail) return;
+			}
+		}
+	};
+}
+
 export const GET: RequestHandler = async (event) => {
 	const unauthorized = requireControlAuth(event, {
 		surface: 'SparkRunHealth',
@@ -218,6 +237,7 @@ export const POST: RequestHandler = async (event) => {
 		windowMs: 60_000
 	});
 	if (rateLimited) return rateLimited;
+	const relayQueue = _createOrderedMissionRelayQueue(relayMissionControlEvent);
 
 	try {
 		const body = (await event.request.json().catch(() => ({}))) as SparkRunBody;
@@ -309,7 +329,7 @@ export const POST: RequestHandler = async (event) => {
 				}
 			};
 			eventBridge.emit(bridgeEvent);
-			void relayMissionControlEvent(bridgeEvent);
+			relayQueue.enqueue(bridgeEvent);
 		};
 
 		emitMissionEvent('mission_created', `Mission created (${mission.id}).`);
@@ -381,7 +401,7 @@ export const POST: RequestHandler = async (event) => {
 					}
 				};
 				eventBridge.emit(relayEvent);
-				void relayMissionControlEvent(relayEvent);
+				relayQueue.enqueue(relayEvent);
 				if (bridgeEvent.type === 'dispatch_started' && !missionStartedEmitted) {
 					missionStartedEmitted = true;
 					emitMissionEvent('mission_started', `Mission started (${mission.id}).`, {
@@ -391,6 +411,7 @@ export const POST: RequestHandler = async (event) => {
 				}
 			}
 		});
+		await relayQueue.flush();
 
 		return json({
 			success: true,
@@ -406,6 +427,7 @@ export const POST: RequestHandler = async (event) => {
 			audit: capability
 		});
 	} catch (error) {
+		await relayQueue.flush();
 		if (error instanceof HarnessAuthorityError) {
 			return json({ success: false, error: error.message, code: error.code, authority: error.verdict }, { status: error.status });
 		}
