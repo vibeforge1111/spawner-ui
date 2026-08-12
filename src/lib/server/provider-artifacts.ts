@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile, rename } from 'node:fs/promises';
 import path from 'node:path';
 
 export interface ProviderArtifactFile {
@@ -167,7 +167,9 @@ export async function materializeProviderArtifacts(input: {
 		const root = path.resolve(input.workingDirectory);
 		if (target !== root && !target.startsWith(`${root}${path.sep}`)) continue;
 		await mkdir(path.dirname(target), { recursive: true });
-		await writeFile(target, file.content, 'utf-8');
+		const targetTmp = target + '.' + Math.random().toString(36).slice(2) + '.tmp';
+		await writeFile(targetTmp, file.content, 'utf-8');
+		await rename(targetTmp, target);
 		written.push(file.path);
 	}
 
