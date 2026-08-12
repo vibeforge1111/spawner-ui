@@ -138,7 +138,8 @@ function extractJson(text: string): string | null {
 		try {
 			JSON.parse(candidate);
 			return candidate;
-		} catch {
+		} catch (err: unknown) {
+			console.warn('[spark-compete] caught error:', err);
 			return null;
 		}
 	}

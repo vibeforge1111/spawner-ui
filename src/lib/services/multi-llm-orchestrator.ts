@@ -230,7 +230,7 @@ export const DEFAULT_MULTI_LLM_PROVIDERS: MultiLLMProviderConfig[] = [
 	{
 		id: 'ollama',
 		label: 'Ollama',
-		model: 'llama3.2:3b',
+		model: process.env.SPARK_MISSION_LLM_MODEL || process.env.OLLAMA_MODEL || 'llama3.2:3b',
 		enabled: false,
 		kind: 'openai_compat',
 		eventSource: 'ollama',

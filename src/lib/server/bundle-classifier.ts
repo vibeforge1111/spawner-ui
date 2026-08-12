@@ -79,7 +79,8 @@ async function loadBundles(): Promise<BundleSpec[]> {
 				load_order: parsed.load_order || [],
 				notes: parsed.notes || ''
 			});
-		} catch {
+		} catch (err: unknown) {
+			console.warn('[spark-compete] caught error:', err);
 			// Skip malformed bundle, keep classifier robust.
 		}
 	}
