@@ -1,4 +1,4 @@
-import { chmod, mkdir, readFile, writeFile } from 'fs/promises';
+import { chmod, mkdir, readFile, writeFile, rename } from 'fs/promises';
 import { existsSync } from 'fs';
 import { createHash, randomBytes } from 'crypto';
 import { join } from 'path';
@@ -73,7 +73,10 @@ export async function createH70SkillAccessToken(options: H70SkillAccessTokenOpti
 
 	const dir = tokenDir();
 	await mkdir(dir, { recursive: true });
-	await writeFile(resolveWithinBaseDir(dir, `${hash}.json`), JSON.stringify(record, null, 2), 'utf-8');
+	const tokenRecordPath = resolveWithinBaseDir(dir, `${hash}.json`);
+        const tokenRecordTmp = tokenRecordPath + '.tmp';
+        await writeFile(tokenRecordTmp, JSON.stringify(record, null, 2), 'utf-8');
+        await rename(tokenRecordTmp, tokenRecordPath);
 	return token;
 }
 
@@ -86,7 +89,9 @@ export async function createH70SkillAccessProof(
 	const dir = runtimeTokenDir();
 	await mkdir(dir, { recursive: true });
 	const tokenFile = resolveWithinBaseDir(dir, `${options.missionId}.token`);
-	await writeFile(tokenFile, token, { encoding: 'utf-8', mode: 0o600 });
+	const tokenFileTmp = tokenFile + '.tmp';
+        await writeFile(tokenFileTmp, token, { encoding: 'utf-8', mode: 0o600 });
+        await rename(tokenFileTmp, tokenFile);
 	await chmod(tokenFile, 0o600);
 	return { tokenFile };
 }
