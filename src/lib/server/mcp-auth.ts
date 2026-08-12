@@ -8,6 +8,18 @@ import {
 } from '$lib/server/hosted-ui-auth';
 
 const rateLimitBuckets = new Map<string, number[]>();
+const RATE_LIMIT_MAX_BUCKETS = 10_000;
+
+function pruneRateLimitBuckets(windowMs: number): void {
+	const now = Date.now();
+	for (const [key, timestamps] of rateLimitBuckets) {
+		if (timestamps.every((t) => now - t > windowMs)) rateLimitBuckets.delete(key);
+	}
+	if (rateLimitBuckets.size > RATE_LIMIT_MAX_BUCKETS) {
+		const oldest = rateLimitBuckets.keys().next().value as string;
+		rateLimitBuckets.delete(oldest);
+	}
+}
 
 function constantTimeEquals(left: string, right: string): boolean {
 	const leftBuffer = Buffer.from(left);
@@ -231,6 +243,7 @@ export function enforceRateLimit(event: RequestEvent, options: RateLimitOptions)
 
 	active.push(now);
 	rateLimitBuckets.set(bucketKey, active);
+	pruneRateLimitBuckets(options.windowMs);
 	return null;
 }
 
