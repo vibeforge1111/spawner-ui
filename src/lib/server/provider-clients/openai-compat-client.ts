@@ -195,7 +195,8 @@ async function handleStreamingResponse(
 							...(typeof cachedPrompt === 'number' ? { cachedPrompt } : {})
 						};
 					}
-				} catch {
+				} catch (err: unknown) {
+			console.warn('[spark-compete] caught error:', err);
 					// Skip malformed chunks
 				}
 			}

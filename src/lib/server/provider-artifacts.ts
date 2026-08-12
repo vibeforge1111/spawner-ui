@@ -141,7 +141,8 @@ export async function materializeProviderArtifacts(input: {
 	let bundle: ProviderArtifactBundle;
 	try {
 		bundle = parseProviderArtifactBundle(input.response);
-	} catch {
+	} catch (err: unknown) {
+			console.warn('[spark-compete] caught error:', err);
 		return {
 			ok: false,
 			error:

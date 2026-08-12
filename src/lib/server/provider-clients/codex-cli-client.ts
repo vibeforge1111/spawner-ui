@@ -248,7 +248,8 @@ export async function executeCodexCliRequest(
 				killed = true;
 				try {
 					child.kill('SIGTERM');
-				} catch {
+				} catch (err: unknown) {
+			console.warn('[spark-compete] caught error:', err);
 					// Process may have already exited
 				}
 				killTimeout = setTimeout(() => {

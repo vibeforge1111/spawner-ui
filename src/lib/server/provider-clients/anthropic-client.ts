@@ -222,7 +222,8 @@ async function handleAnthropicStream(
 							total: (u.input_tokens || 0) + (u.output_tokens || 0)
 						};
 					}
-				} catch {
+				} catch (err: unknown) {
+			console.warn('[spark-compete] caught error:', err);
 					// Skip malformed chunks
 				}
 			}
