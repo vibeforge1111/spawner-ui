@@ -28,7 +28,8 @@ function normalizeBaseUrl(value: string | null): URL | null {
 	if (!value) return null;
 	try {
 		return new URL(value.endsWith('/') ? value : `${value}/`);
-	} catch {
+	} catch (err: unknown) {
+			console.warn('[spark-compete] caught error:', err);
 		return null;
 	}
 }
