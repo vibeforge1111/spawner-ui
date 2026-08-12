@@ -17,7 +17,9 @@
  * Selected when SPAWNER_PRD_AUTO_PROVIDER=claude.
  */
 
-import { readFile, writeFile } from 'fs/promises';
+import { readFile, writeFile, rename } from 'fs/promises';
+import { join as joinPath } from 'path';
+import { randomBytes } from 'crypto';
 import { existsSync } from 'fs';
 import { join } from 'path';
 import type { SkillTier } from './skill-tiers';
@@ -237,7 +239,9 @@ export async function startClaudeAutoAnalysis(opts: {
 
 			const safe = normalizeRequestId(requestId);
 			const resultPath = join(paths.resultsDir, `${safe}.json`);
-			await writeFile(resultPath, JSON.stringify(parsed, null, 2), 'utf-8');
+			const tmpPath = resultPath + '.' + randomBytes(6).toString('hex') + '.tmp';
+                        await writeFile(tmpPath, JSON.stringify(parsed, null, 2), 'utf-8');
+                        await rename(tmpPath, resultPath);
 
 			await appendTrace('auto_worker_finished', {
 				provider: 'claude',
