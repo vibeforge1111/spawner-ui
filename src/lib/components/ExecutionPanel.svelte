@@ -432,7 +432,7 @@
 		try {
 			const raw = localStorage.getItem(MULTI_LLM_KEYS_STORAGE);
 			if (!raw) return;
-			const parsed = JSON.parse(raw);
+			let parsed; try { parsed = JSON.parse(raw); } catch { return; }
 			if (parsed && typeof parsed === 'object') {
 				multiLLMApiKeys = parsed as Record<string, string>;
 			}
@@ -731,7 +731,7 @@
 		try {
 			const raw = localStorage.getItem(MISSION_DEFAULTS_KEY);
 			if (!raw) return;
-			const parsed = JSON.parse(raw);
+			let parsed; try { parsed = JSON.parse(raw); } catch { return; }
 			if (typeof parsed?.missionName === 'string' && parsed.missionName.trim()) missionName = parsed.missionName;
 			if (typeof parsed?.missionDescription === 'string') missionDescription = parsed.missionDescription;
 			if (typeof parsed?.projectPath === 'string' && parsed.projectPath.trim()) projectPath = parsed.projectPath;
