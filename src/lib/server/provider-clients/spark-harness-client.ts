@@ -31,7 +31,7 @@ interface AssignedCanvasTask {
 	title: string;
 }
 
-const DEFAULT_SPARK_HARNESS_URL = 'http://127.0.0.1:8011';
+const DEFAULT_SPARK_HARNESS_URL = process.env.SPARK_HARNESS_URL ?? 'http://127.0.0.1:8011';
 const POLL_INTERVAL_MS = 1500;
 const STATUS_POLL_MAX_TRANSIENT_FAILURES = 3;
 const DEFAULT_TIMEOUT_MS = sparkHarnessTimeoutMs();
