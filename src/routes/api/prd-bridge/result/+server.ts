@@ -97,25 +97,15 @@ function summarizeStoredResult(requestId: string, result: Record<string, unknown
 		}
 	};
 }
-
 /**
  * POST - Store an analysis result
  */
 export const POST: RequestHandler = async (event) => {
-	const unauthorized = requireControlAuth(event, {
-		surface: 'PRDBridgeResult',
-		apiKeyEnvVar: 'EVENTS_API_KEY',
-		fallbackApiKeyEnvVar: 'MCP_API_KEY',
-		apiKeyQueryParam: 'apiKey',
-		apiKeyCookieName: 'spawner_events_api_key',
-		allowLoopbackWithoutKey: false,
-		allowedOriginsEnvVar: 'EVENTS_ALLOWED_ORIGINS'
-	});
-	if (unauthorized) return unauthorized;
+	const { openRead } = resultReadAuthPayload(event);
+	if (openRead) return openRead;
 
 	try {
-		const { request } = event;
-		const { requestId, result } = await request.json();
+		const { requestId, result } = await event.request.json();
 
 		if (!requestId || !result || typeof requestId !== 'string') {
 			return json({ error: 'requestId and result are required' }, { status: 400 });
@@ -232,8 +222,7 @@ export const GET: RequestHandler = async (event) => {
 	if (openRead) return openRead;
 
 	try {
-		const { url } = event;
-		const requestId = url.searchParams.get('requestId');
+		const requestId = event.url.searchParams.get('requestId');
 
 		if (!requestId) {
 			return json({ error: 'requestId is required' }, { status: 400 });

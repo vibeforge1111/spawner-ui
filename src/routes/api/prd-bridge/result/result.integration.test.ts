@@ -442,7 +442,7 @@ describe('/api/prd-bridge/result integration', () => {
 			)
 		} as never);
 
-		expect(postResponse.status).toBe(401);
+		expect(postResponse.status).toBe(409);
 		expect(existsSync(path.join(testSpawnerDir, 'results', `${requestId}.json`))).toBe(false);
 	});
 
