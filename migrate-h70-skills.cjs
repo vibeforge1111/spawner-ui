@@ -222,9 +222,13 @@ function main() {
   console.log('Starting H70 Skills Migration...\n');
 
   // Backup existing skills.json
-  if (fs.existsSync(OUTPUT_PATH)) {
-    console.log(`Backing up existing skills.json to ${BACKUP_PATH}`);
-    fs.copyFileSync(OUTPUT_PATH, BACKUP_PATH);
+  try {
+      if (fs.existsSync(OUTPUT_PATH)) {
+        console.log(`Backing up existing skills.json to ${BACKUP_PATH}`);
+        fs.copyFileSync(OUTPUT_PATH, BACKUP_PATH);
+      }
+  } catch (e) {
+      // silent catch
   }
 
   // Find all skill.yaml files
