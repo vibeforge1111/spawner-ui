@@ -95,8 +95,8 @@ describe('/api/prd-bridge/load-to-canvas integration', () => {
 		testSpawnerDir = await mkdtemp(path.join(tmpdir(), 'spawner-load-to-canvas-'));
 		process.env.SPAWNER_STATE_DIR = testSpawnerDir;
 		process.env.SPARK_BRIDGE_API_KEY = TEST_API_KEY;
+		process.env.MCP_API_KEY = TEST_API_KEY;
 		delete process.env.EVENTS_API_KEY;
-		delete process.env.MCP_API_KEY;
 		await mkdir(path.join(testSpawnerDir, 'results'), { recursive: true });
 	});
 

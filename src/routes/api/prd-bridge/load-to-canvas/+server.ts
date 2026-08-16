@@ -30,6 +30,15 @@ import {
 } from '$lib/server/harness-authority';
 import { stripAuthorityResidue } from '$lib/server/authority-residue';
 import { requireControlAuth } from '$lib/server/mcp-auth';
+
+const CANVAS_LOAD_AUTH = {
+	surface: 'PRDBridgeLoadToCanvas',
+	apiKeyEnvVar: 'EVENTS_API_KEY',
+	fallbackApiKeyEnvVar: 'MCP_API_KEY',
+	apiKeyQueryParam: 'apiKey',
+	apiKeyCookieName: 'spawner_events_api_key',
+	allowedOriginsEnvVar: 'EVENTS_ALLOWED_ORIGINS'
+} as const;
 import { parseJsonOrThrow } from '$lib/utils/safe-json';
 import {
 	expectedDeterministicArtifactTargetFromPending,
@@ -269,16 +278,8 @@ function workflowHandoffFromDispatch(input: {
 }
 
 export const POST: RequestHandler = async (event) => {
-	const unauthorized = requireControlAuth(event, {
-		surface: 'PRDBridgeLoadToCanvas',
-		apiKeyEnvVar: 'SPARK_BRIDGE_API_KEY',
-		fallbackApiKeyEnvVars: ['EVENTS_API_KEY', 'MCP_API_KEY'],
-		apiKeyQueryParam: 'apiKey',
-		apiKeyCookieName: 'spawner_events_api_key',
-		allowLoopbackWithoutKey: false,
-		allowedOriginsEnvVar: 'EVENTS_ALLOWED_ORIGINS'
-	});
-	if (unauthorized) return unauthorized;
+	const authError = requireControlAuth(event, CANVAS_LOAD_AUTH);
+	if (authError) return authError;
 
 	try {
 		const { request } = event;
