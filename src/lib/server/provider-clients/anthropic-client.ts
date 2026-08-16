@@ -83,6 +83,7 @@ export async function executeAnthropicRequest(
 				}
 			}
 
+			// NOTE: This fetch() has no AbortController. Long-running servers can hang the request indefinitely. Add { signal: AbortSignal.timeout(30000) } to bound the wait.
 			const response = await fetch(ANTHROPIC_API_URL, {
 				method: 'POST',
 				headers: {
