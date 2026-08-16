@@ -1,3 +1,4 @@
+import { sanitizedChildEnv } from "../sanitized-env";
 /**
  * Codex CLI Provider Client
  *
@@ -224,7 +225,7 @@ export async function executeCodexCliRequest(
 		const child = spawnHidden(resolvedBinary, command.args, {
 			cwd,
 			stdio: ['pipe', 'pipe', 'pipe'],
-			env: { ...process.env }
+			env: sanitizedChildEnv()
 		});
 
 		// Send prompt via stdin

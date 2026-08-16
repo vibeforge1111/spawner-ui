@@ -1,3 +1,4 @@
+import { sanitizedChildEnv } from "./sanitized-env";
 /**
  * Shared Command Runner - Server-side utilities for executing commands
  *
@@ -160,7 +161,7 @@ export function runCommand(
 			cwd,
 			shell: false,
 			timeout: timeoutMs,
-			env: { ...process.env, FORCE_COLOR: '0', CI: 'true' },
+			env: sanitizedChildEnv({ FORCE_COLOR: "0", CI: "true" }),
 			windowsHide: true
 		});
 

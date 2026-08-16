@@ -1,3 +1,4 @@
+import { sanitizedChildEnv } from "./sanitized-env";
 /**
  * brief-enricher.ts — pre-generation pass that lifts vague briefs into
  * something the canvas generator can actually plan against.
@@ -331,7 +332,7 @@ function runClaudePrint(prompt: string): Promise<string> {
 			windowsHide: true,
 			shell: command.shell,
 			windowsVerbatimArguments: command.windowsVerbatimArguments,
-			env: { ...process.env }
+			env: sanitizedChildEnv()
 		});
 		const stdout = new BoundedProcessOutput('OUTPUT');
 		const stderr = new BoundedProcessOutput('STDERR');

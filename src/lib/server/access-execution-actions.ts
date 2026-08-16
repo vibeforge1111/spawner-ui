@@ -1,3 +1,4 @@
+import { sanitizedChildEnv } from "./sanitized-env";
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { spawnHidden, terminateProcessTree } from './hidden-process';
@@ -209,7 +210,7 @@ async function defaultAccessExecutionRunner(
 		let settled = false;
 		const child = spawnHidden(command, args, {
 			cwd: options.cwd,
-			env: { ...process.env, FORCE_COLOR: '0', CI: 'true' }
+			env: sanitizedChildEnv({ FORCE_COLOR: "0", CI: "true" })
 		});
 
 		const timer = setTimeout(() => {

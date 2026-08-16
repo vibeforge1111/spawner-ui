@@ -1,3 +1,4 @@
+import { sanitizedChildEnv } from "../server/sanitized-env";
 import { randomUUID } from 'node:crypto';
 import type { ChildProcess } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
@@ -431,6 +432,19 @@ export function parseProviderCommand(providerId: SparkAgentProviderId, commandTe
 		}
 		if (!sandboxSpecified) {
 			args.push('--sandbox', resolveCodexSandbox());
+			return {
+				binary: 'codex',
+				resolvedBinary: resolveCliBinary('codex') || 'codex',
+				args
+			};
+		}
+		if (tokens.length === 6 && tokens[4] === '--sandbox') {
+			args.push("--sandbox", resolveCodexSandbox(sanitizedChildEnv({ SPARK_CODEX_SANDBOX: tokens[5] })))
+			return {
+				binary: 'codex',
+				resolvedBinary: resolveCliBinary('codex') || 'codex',
+				args
+			};
 		}
 		return {
 			binary: 'codex',
@@ -1546,7 +1560,7 @@ class SparkAgentBridgeService {
 			const child = spawnHidden(command.resolvedBinary, command.args, {
 				cwd,
 				stdio: ['pipe', 'pipe', 'pipe'],
-				env: { ...process.env }
+				env: sanitizedChildEnv()
 			});
 
 			const workerState = this.workerSessions.get(context.sessionId);
