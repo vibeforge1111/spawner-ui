@@ -126,6 +126,10 @@ const MAX_RECENT_EVENTS = Number(env.MISSION_CONTROL_RECENT_EVENT_LIMIT) || 1000
 const MAX_RECENT_EVENTS_PER_MISSION = Number(env.MISSION_CONTROL_RECENT_EVENT_LIMIT_PER_MISSION) || 120;
 const DEFAULT_STALE_NON_TERMINAL_MS = 24 * 60 * 60 * 1000;
 
+// Memory pruning: cap total tracked missions and remove completed entries older than this TTL.
+const MAX_TRACKED_MISSIONS = Number(env.MISSION_CONTROL_MAX_TRACKED_MISSIONS) || 500;
+const COMPLETED_MISSION_TTL_MS = Number(env.MISSION_CONTROL_COMPLETED_TTL_MS) || 60 * 60 * 1000; // 1 hour
+
 const DEFAULT_SPARK_INGEST_URL = env.SPARK_MISSION_CONTROL_INGEST_URL || '';
 const DEFAULT_SPARK_TOKEN = env.SPARKD_TOKEN || '';
 
@@ -1113,6 +1117,86 @@ function recordLifecycleTimestamps(
 	}
 }
 
+const TERMINAL_MISSION_EVENT_TYPES = new Set(['mission_completed', 'mission_failed', 'mission_cancelled']);
+
+/**
+ * Prune stale entries from all three module-scoped Maps to prevent unbounded memory growth.
+ *
+ * Strategy:
+ * 1. Identify completed/failed/cancelled mission IDs whose most-recent relay event is older
+ *    than COMPLETED_MISSION_TTL_MS.
+ * 2. If the total number of distinct tracked mission IDs still exceeds MAX_TRACKED_MISSIONS,
+ *    also evict the oldest missions (by most-recent event timestamp) until under the cap.
+ * 3. Remove the evicted mission IDs from relayState.perMission, missionLifecycleStates, and
+ *    all task keys belonging to them from taskLifecycleStates, then trim relayState.recent.
+ */
+function pruneRelayStateMaps(): void {
+	const now = Date.now();
+
+	// Build a map of missionId -> { isTerminal, latestTimestampMs }
+	const missionMeta = new Map<string, { isTerminal: boolean; latestMs: number }>();
+	for (const entry of relayState.recent) {
+		const existing = missionMeta.get(entry.missionId);
+		const tsMs = Date.parse(entry.timestamp);
+		const entryMs = Number.isFinite(tsMs) ? tsMs : 0;
+		if (!existing) {
+			missionMeta.set(entry.missionId, {
+				isTerminal: TERMINAL_MISSION_EVENT_TYPES.has(entry.eventType),
+				latestMs: entryMs
+			});
+		} else {
+			if (TERMINAL_MISSION_EVENT_TYPES.has(entry.eventType)) {
+				existing.isTerminal = true;
+			}
+			if (entryMs > existing.latestMs) {
+				existing.latestMs = entryMs;
+			}
+		}
+	}
+
+	const toEvict = new Set<string>();
+
+	// Step 1: evict terminal missions older than TTL
+	for (const [missionId, meta] of missionMeta) {
+		if (meta.isTerminal && now - meta.latestMs > COMPLETED_MISSION_TTL_MS) {
+			toEvict.add(missionId);
+		}
+	}
+
+	// Step 2: if still over the cap, evict oldest missions regardless of terminal status
+	const remaining = [...missionMeta.entries()].filter(([id]) => !toEvict.has(id));
+	if (remaining.length > MAX_TRACKED_MISSIONS) {
+		remaining.sort((a, b) => a[1].latestMs - b[1].latestMs);
+		const excess = remaining.length - MAX_TRACKED_MISSIONS;
+		for (let i = 0; i < excess; i++) {
+			toEvict.add(remaining[i][0]);
+		}
+	}
+
+	if (toEvict.size === 0) return;
+
+	// Remove from perMission
+	for (const missionId of toEvict) {
+		relayState.perMission.delete(missionId);
+	}
+
+	// Remove from missionLifecycleStates
+	for (const missionId of toEvict) {
+		missionLifecycleStates.delete(missionId);
+	}
+
+	// Remove matching task keys from taskLifecycleStates (keys are "missionId:taskIdentity")
+	for (const key of taskLifecycleStates.keys()) {
+		const colonIdx = key.indexOf(':');
+		if (colonIdx !== -1 && toEvict.has(key.slice(0, colonIdx))) {
+			taskLifecycleStates.delete(key);
+		}
+	}
+
+	// Trim recent events
+	relayState.recent = relayState.recent.filter((entry) => !toEvict.has(entry.missionId));
+}
+
 export function getMissionControlBoard(): Record<string, MissionControlBoardEntry[]> {
 	const byMission = new Map<string, MissionControlBoardEntry>();
 	const terminalMissionIds = new Set(
@@ -1228,6 +1312,9 @@ export function getMissionControlBoard(): Record<string, MissionControlBoardEntr
 	for (const entries of Object.values(board)) {
 		entries.sort(compareMissionControlEntriesByLastUpdatedDesc);
 	}
+
+	// Prune Maps after each board build to prevent unbounded memory growth (issue #685).
+	pruneRelayStateMaps();
 
 	return board;
 }
