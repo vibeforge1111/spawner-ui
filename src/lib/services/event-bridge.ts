@@ -77,6 +77,10 @@ class ServerEventBridge {
 /**
  * Client-side event bridge (used in browser)
  */
+const MAX_RECONNECT_ATTEMPTS = 10;
+const BASE_RECONNECT_DELAY_MS = 3000;
+const MAX_RECONNECT_DELAY_MS = 60000;
+
 class ClientEventBridge {
 	private eventSource: EventSource | null = null;
 	private subscribers: Set<EventCallback> = new Set();
@@ -109,6 +113,7 @@ class ClientEventBridge {
 
 			this.eventSource.onopen = () => {
 				logger.info('[EventBridge] Connected to event stream');
+				this.reconnectAttempts = 0;
 				this.connectionStatus.set('connected');
 				this.reconnectAttempts = 0;
 			};
@@ -156,6 +161,22 @@ class ClientEventBridge {
 			return;
 		}
 		this.reconnectAttempts = nextAttempt;
+
+		if (this.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+			logger.info(
+				`[EventBridge] Max reconnect attempts (${MAX_RECONNECT_ATTEMPTS}) reached. Giving up.`
+			);
+			return;
+		}
+
+		const delay = Math.min(
+			BASE_RECONNECT_DELAY_MS * Math.pow(2, this.reconnectAttempts),
+			MAX_RECONNECT_DELAY_MS
+		);
+		this.reconnectAttempts++;
+		logger.info(
+			`[EventBridge] Reconnect attempt ${this.reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS} in ${delay}ms`
+		);
 
 		this.reconnectTimer = setTimeout(() => {
 			this.reconnectTimer = null;
