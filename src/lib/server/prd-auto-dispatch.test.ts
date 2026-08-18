@@ -548,7 +548,7 @@ describe('PRD auto-dispatch helpers', () => {
 
 		expect(result.started).toBe(true);
 		expect(observedCommandTemplate).toBe(
-			'codex exec --model gpt-5.5 --profile speed --sandbox danger-full-access'
+			'codex exec --model gpt-5.5 --sandbox danger-full-access'
 		);
 	});
 
