@@ -51,7 +51,7 @@ async function appendPrdTrace(requestId: string, event: string, details: Record<
 }
 
 function resultReadAuthPayload(event: Parameters<typeof requireControlAuth>[0]) {
-	const openRead = requireControlAuth(event, {
+	const loopbackRead = requireControlAuth(event, {
 		surface: 'PRDBridgeResult',
 		apiKeyEnvVar: 'EVENTS_API_KEY',
 		fallbackApiKeyEnvVar: 'MCP_API_KEY',
@@ -60,9 +60,7 @@ function resultReadAuthPayload(event: Parameters<typeof requireControlAuth>[0]) 
 		allowLoopbackWithoutKey: true,
 		allowedOriginsEnvVar: 'EVENTS_ALLOWED_ORIGINS'
 	});
-	if (openRead) return { openRead, hasControlAuth: false };
-
-	const strictRead = requireControlAuth(event, {
+	const eventControlRead = requireControlAuth(event, {
 		surface: 'PRDBridgeResult',
 		apiKeyEnvVar: 'EVENTS_API_KEY',
 		fallbackApiKeyEnvVar: 'MCP_API_KEY',
@@ -71,8 +69,17 @@ function resultReadAuthPayload(event: Parameters<typeof requireControlAuth>[0]) 
 		allowLoopbackWithoutKey: false,
 		allowedOriginsEnvVar: 'EVENTS_ALLOWED_ORIGINS'
 	});
+	const bridgeControlRead = requireControlAuth(event, {
+		surface: 'PRDBridgeResult',
+		apiKeyEnvVar: 'SPARK_BRIDGE_API_KEY',
+		apiKeyQueryParam: 'apiKey',
+		apiKeyCookieName: 'spawner_events_api_key',
+		allowLoopbackWithoutKey: false,
+		allowedOriginsEnvVar: 'EVENTS_ALLOWED_ORIGINS'
+	});
+	const hasControlAuth = eventControlRead === null || bridgeControlRead === null;
 
-	return { openRead: null, hasControlAuth: strictRead === null };
+	return { openRead: hasControlAuth ? null : loopbackRead, hasControlAuth };
 }
 
 function summarizeStoredResult(requestId: string, result: Record<string, unknown>) {
