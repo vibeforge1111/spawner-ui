@@ -44,14 +44,19 @@ describe('PRD bridge clarification policy', () => {
 
 	it('uses Level 5 Codex sandbox for PRD analysis without weakening explicit overrides', () => {
 		expect(_resolvePrdCodexCommandTemplate('gpt-5.5', {})).toBe(
-			'codex exec --model gpt-5.5 --profile speed --sandbox workspace-write'
+			'codex exec --model gpt-5.5 --sandbox workspace-write'
 		);
 		expect(
 			_resolvePrdCodexCommandTemplate('gpt-5.5', {
 				SPARK_CODEX_SANDBOX: 'danger-full-access',
 				SPARK_ALLOW_HIGH_AGENCY_WORKERS: '1'
 			})
-		).toBe('codex exec --model gpt-5.5 --profile speed --sandbox danger-full-access');
+		).toBe('codex exec --model gpt-5.5 --sandbox danger-full-access');
+		expect(
+			_resolvePrdCodexCommandTemplate('gpt-5.5', {
+				SPAWNER_PRD_CODEX_PROFILE: 'custom'
+			})
+		).toBe('codex exec --model gpt-5.5 --profile custom --sandbox workspace-write');
 		expect(
 			_resolvePrdCodexCommandTemplate('gpt-5.5', {
 				SPAWNER_PRD_CODEX_COMMAND_TEMPLATE:

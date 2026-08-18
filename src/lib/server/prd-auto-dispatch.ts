@@ -137,9 +137,10 @@ function missionCodexCommandTemplate(
 ): string {
 	const profile = safeCodexCliToken(
 		envRecord.SPARK_MISSION_CODEX_PROFILE || envRecord.SPARK_CODEX_PROFILE,
-		'speed'
+		''
 	);
-	return `codex exec --model ${model} --profile ${profile} --sandbox ${missionCodexSandbox(envRecord)}`;
+	const profileArg = profile ? ` --profile ${profile}` : '';
+	return `codex exec --model ${model}${profileArg} --sandbox ${missionCodexSandbox(envRecord)}`;
 }
 
 function configuredProvider(provider: MultiLLMProviderConfig): MultiLLMProviderConfig {
