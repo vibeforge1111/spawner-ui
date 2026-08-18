@@ -8,6 +8,8 @@ import { GET, POST } from './+server';
 let testSpawnerDir: string;
 const TEST_API_KEY = 'prd-bridge-result-test-secret';
 const originalMcpApiKey = process.env.MCP_API_KEY;
+const originalEventsApiKey = process.env.EVENTS_API_KEY;
+const originalSparkBridgeApiKey = process.env.SPARK_BRIDGE_API_KEY;
 
 function restoreEnv(name: string, value: string | undefined) {
 	if (value === undefined) delete process.env[name];
@@ -62,6 +64,8 @@ describe('/api/prd-bridge/result integration', () => {
 		await resetTestSpawnerDir();
 		testSpawnerDir = await mkdtemp(path.join(tmpdir(), 'spawner-prd-result-'));
 		process.env.SPAWNER_STATE_DIR = testSpawnerDir;
+		process.env.EVENTS_API_KEY = '';
+		process.env.SPARK_BRIDGE_API_KEY = '';
 		process.env.MCP_API_KEY = TEST_API_KEY;
 		vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 200 })));
 	});
@@ -70,6 +74,8 @@ describe('/api/prd-bridge/result integration', () => {
 		vi.unstubAllGlobals();
 		await resetTestSpawnerDir();
 		restoreEnv('MCP_API_KEY', originalMcpApiKey);
+		restoreEnv('EVENTS_API_KEY', originalEventsApiKey);
+		restoreEnv('SPARK_BRIDGE_API_KEY', originalSparkBridgeApiKey);
 	});
 
 	it('stores and reads PRD results from the configured Spawner state directory', async () => {
@@ -201,6 +207,36 @@ describe('/api/prd-bridge/result integration', () => {
 		expect(body.result).toBeUndefined();
 		expect(JSON.stringify(body)).not.toContain('Private task');
 		expect(JSON.stringify(body)).not.toContain('private-skill');
+	});
+
+	it('returns the canonical result to an authenticated Spark bridge caller', async () => {
+		const requestId = 'tg-build-spark-bridge-result-read';
+		const bridgeApiKey = 'telegram-spawner-bridge-secret';
+		process.env.SPARK_BRIDGE_API_KEY = bridgeApiKey;
+		await mkdir(path.join(testSpawnerDir, 'results'), { recursive: true });
+		await writeFile(
+			path.join(testSpawnerDir, 'results', `${requestId}.json`),
+			JSON.stringify({
+				requestId,
+				success: true,
+				tasks: [{ id: 'TAS-1', title: 'Start the build', skills: [] }]
+			}),
+			'utf-8'
+		);
+
+		const getResponse = await GET(getResultEvent(requestId, bridgeApiKey) as never);
+		const body = await getResponse.json();
+
+		expect(getResponse.status).toBe(200);
+		expect(body).toMatchObject({
+			found: true,
+			requestId,
+			result: {
+				requestId,
+				success: true,
+				tasks: [{ id: 'TAS-1', title: 'Start the build', skills: [] }]
+			}
+		});
 	});
 
 	it('reads canonical result artifacts with a UTF-8 BOM prefix', async () => {
