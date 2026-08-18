@@ -171,12 +171,7 @@ export function healthRequiresCodex(providers, env = process.env, sparkDefaultPr
   if (selectedProvider === "codex") return true;
   if (selectedProvider && selectedProvider !== "codex") return false;
   const codexProvider = providers.find((provider) => provider && provider.id === "codex");
-  return Boolean(
-    codexProvider &&
-      (codexProvider.configured === true ||
-        codexProvider.envKeyConfigured === true ||
-        codexProvider.cliConfigured === true),
-  );
+  return Boolean(codexProvider && codexProvider.sparkSelected === true);
 }
 
 async function main() {
