@@ -17,7 +17,7 @@
 	"scripts": {
 		"dev": "vite dev --host 127.0.0.1 --port 3333",
 		"build": "vite build",
-		"start": "node build",
+		"start": "node --env-file=.env build",
 		"health:spark": "node scripts/health-spark.mjs",
 		"preview": "vite preview",
 		"preview:app": "vite dev --host 127.0.0.1 --port 5555",
