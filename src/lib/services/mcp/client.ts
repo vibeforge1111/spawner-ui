@@ -32,6 +32,7 @@ export interface ConnectedMCP {
 }
 
 // Active connections
+const MAX_MCP_CONNECTIONS = 10;
 const connections = new Map<string, ConnectedMCP>();
 const COMMAND_EXT_SUFFIX = /\.(exe|cmd|bat)$/i;
 const DEFAULT_ALLOWED_COMMANDS = ['npx', 'node'];
