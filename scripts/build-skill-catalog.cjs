@@ -209,8 +209,12 @@ function main() {
 
   // Ensure output directory exists
   const outputDir = path.dirname(OUTPUT_PATH);
-  if (!fs.existsSync(outputDir)) {
-    fs.mkdirSync(outputDir, { recursive: true });
+  try {
+      if (!fs.existsSync(outputDir)) {
+        fs.mkdirSync(outputDir, { recursive: true });
+      }
+  } catch (e) {
+      // silent catch
   }
 
   // Write catalog
