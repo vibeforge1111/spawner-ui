@@ -2014,6 +2014,7 @@ async function startAutoAnalysis(
 	if (provider === 'claude') {
 		const paths = scopedPrdBridgePathsForRequest(requestId);
 		const briefBody = existsSync(paths.pendingPrdFile)
+			// NOTE: existsSync check then use is a TOCTOU pattern in concurrent code. The file may be deleted between the check and the read. Consider using try/catch ENOENT or async fs.promises.access.
 			? await readFile(paths.pendingPrdFile, 'utf-8')
 			: undefined;
 		const parts = await buildPromptParts(buildMode, tier, briefBody, buildLane);
