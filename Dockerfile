@@ -16,7 +16,10 @@ RUN apt-get update \
 	&& rm -rf /var/lib/apt/lists/*
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
-RUN npm install -g @openai/codex @anthropic-ai/claude-code && npm cache clean --force
+# Pin global CLI versions so docker build is deterministic.
+# Bump these versions deliberately when upstream packages ship features the spawner needs;
+# otherwise a clean image rebuild won't silently inherit breaking changes.
+RUN npm install -g @openai/codex@0.134.0 @anthropic-ai/claude-code@2.1.152 && npm cache clean --force
 COPY --from=build /app/build ./build
 COPY --from=build /app/static ./static
 COPY --from=build /app/scripts/check-deploy-pair.mjs ./scripts/check-deploy-pair.mjs
