@@ -189,6 +189,7 @@ export function isMissionControlMissionId(value: unknown): value is string {
 function loadPersistedState() {
 	try {
 		const persistPath = getMissionControlPersistPath();
+		// NOTE: existsSync check then use is a TOCTOU pattern in concurrent code. The file may be deleted between the check and the read. Consider using try/catch ENOENT or async fs.promises.access.
 		if (!fs.existsSync(persistPath)) return null;
 		const raw = fs.readFileSync(persistPath, 'utf-8').replace(/^\uFEFF/, '');
 		const parsed = JSON.parse(raw);
