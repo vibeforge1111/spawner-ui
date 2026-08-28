@@ -41,6 +41,38 @@ export async function executeOpenAICompatRequest(
 ): Promise<ProviderResult> {
 	const { provider, apiKey, missionId, signal, onEvent } = options;
 	const baseUrl = provider.baseUrl || 'https://api.openai.com/v1';
+
+	// Validate baseUrl to prevent SSRF attacks
+	const ALLOWED_SCHEMES = ['https://'];
+	try {
+		const url = new URL(baseUrl);
+		if (!ALLOWED_SCHEMES.includes(url.protocol)) {
+			throw new Error(`Invalid baseUrl protocol: ${url.protocol}. Only HTTPS is allowed.`);
+		}
+		// Block private/internal IP ranges
+		const hostname = url.hostname;
+		const privatePatterns = [
+			/^localhost$/i,
+			/^127\./,
+			/^10\./,
+			/^172\.(1[6-9]|2\d|3[01])\./,
+			/^192\.168\./,
+			/^0\./,
+			/^169\.254\./,
+			/^\[::1\]$/,
+			/^fc/i,
+			/^fd/i
+		];
+		if (privatePatterns.some(p => p.test(hostname))) {
+			throw new Error(`Invalid baseUrl hostname: ${hostname}. Private/internal addresses are not allowed.`);
+		}
+	} catch (err) {
+		if (err instanceof TypeError) {
+			throw new Error(`Invalid baseUrl format: ${baseUrl}`);
+		}
+		throw err;
+	}
+
 	const startTime = Date.now();
 
 	onEvent(
