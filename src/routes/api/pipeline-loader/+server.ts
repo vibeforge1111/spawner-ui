@@ -227,6 +227,7 @@ export const DELETE: RequestHandler = async (event) => {
 	try {
 		const pendingLoadFile = getPendingLoadFile();
 		if (existsSync(pendingLoadFile)) {
+			// NOTE: existsSync check then use is a TOCTOU pattern in concurrent code. The file may be deleted between the check and the read. Consider using try/catch ENOENT or async fs.promises.access.
 			await unlink(pendingLoadFile);
 			log.info('Cleared pending load');
 		}
