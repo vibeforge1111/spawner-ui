@@ -119,21 +119,13 @@ export const POST: RequestHandler = async (event) => {
 				{ status: 400 }
 			);
 		}
-		const dispatchBinding = relayAuthorityRequestId(relay);
-		if (dispatchBinding.error) {
-			return json(
-				{ success: false, error: dispatchBinding.error, code: 'dispatch_authority_unbound' },
-				{ status: 409 }
-			);
+
+		// Validate workingDirectory if provided
+		if (workingDirectory && typeof workingDirectory === 'string') {
+			if (workingDirectory.includes('..') || workingDirectory.includes('\0')) {
+				return json({ success: false, error: 'Invalid workingDirectory: path traversal detected' }, { status: 400 });
+			}
 		}
-		const executionAuthority = resolveExecutionAuthority(body.executionAuthority);
-		const authority = assertNativeGovernorHarnessAuthority({
-			authority: executionAuthority,
-			toolName: 'spawner.dispatch',
-			ownerSystem: 'spawner-ui',
-			mutationClass: 'launches_mission',
-			requestId: dispatchBinding.requestId
-		});
 		const capability = assertCapability(createCapabilityEnvelope(event, {
 			actorId: typeof relay?.userId === 'string' ? relay.userId : undefined,
 			surface: 'spawner',
@@ -267,6 +259,25 @@ export const POST: RequestHandler = async (event) => {
 		};
 		eventBridge.emit(missionCreatedEvent);
 		void relayMissionControlEvent(missionCreatedEvent);
+
+		const dispatchBinding = relayAuthorityRequestId(relay);
+		if (dispatchBinding.error) {
+			return json(
+				{ success: false, error: dispatchBinding.error, code: 'dispatch_authority_unbound' },
+				{ status: 409 }
+			);
+		}
+		const executionAuthority = resolveExecutionAuthority(
+			body?.executionAuthority,
+			body?.execution_authority
+		);
+		const authority = assertNativeGovernorHarnessAuthority({
+			authority: executionAuthority,
+			toolName: 'spawner.dispatch',
+			ownerSystem: 'spawner-ui',
+			mutationClass: 'launches_mission',
+			requestId: dispatchBinding.requestId
+		});
 
 		const result = await providerRuntime.dispatch({
 			executionPack,
