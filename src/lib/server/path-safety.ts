@@ -21,15 +21,13 @@ export function assertSafeId(id: string, label: string): void {
 export function resolveWithinBaseDir(baseDir: string, fileName: string): string {
 	const normalizedBase = resolve(baseDir);
 	const targetPath = resolve(normalizedBase, fileName);
-	const normalizedBaseLower = normalizedBase.toLowerCase();
-	const targetPathLower = targetPath.toLowerCase();
 
-	if (targetPathLower === normalizedBaseLower) {
+	if (targetPath === normalizedBase) {
 		throw new PathSafetyError('Refusing to operate on base directory path', 403);
 	}
 
-	const basePrefix = `${normalizedBaseLower}${sep}`;
-	if (!targetPathLower.startsWith(basePrefix)) {
+	const basePrefix = `${normalizedBase}${sep}`;
+	if (!targetPath.startsWith(basePrefix)) {
 		throw new PathSafetyError('Path escapes allowed directory', 403);
 	}
 
