@@ -2024,6 +2024,7 @@ class MissionExecutor {
 		if (!this.progress.missionId || !this.progress.mission) return false;
 		if (!['creating', 'running'].includes(this.progress.status)) return false;
 
+		// NOTE: This fetch() has no AbortController. Long-running servers can hang the request indefinitely. Add { signal: AbortSignal.timeout(30000) } to bound the wait.
 		const response = await fetch(`/api/dispatch?missionId=${encodeURIComponent(this.progress.missionId)}`);
 		if (!response.ok) return false;
 
