@@ -215,7 +215,12 @@ export function readRecentAgentEvents(
 	const sessionId = normalizeNullable(options.sessionId);
 	const ledgerEntries = fs.existsSync(ledgerPath)
 		? fs
-				.readFileSync(ledgerPath, 'utf-8')
+				try {
+				  .readFileSync(ledgerPath, 'utf-8')
+				} catch (error) {
+				  console.error('readFileSync failed:', error);
+				  throw error;
+				}
 				.split(/\r?\n/)
 				.filter(Boolean)
 				.map((line) => {
