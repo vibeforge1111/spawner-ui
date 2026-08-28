@@ -460,7 +460,10 @@
 	const done = $derived(
 		filteredCards()
 			.filter((c) => c.status === 'completed' || c.status === 'failed' || c.status === 'cancelled')
-			.sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''))
+			.sort(
+				(a, b) =>
+					(b.updatedAt ?? '').localeCompare(a.updatedAt ?? '') || b.id.localeCompare(a.id)
+			)
 	);
 	const focusedMissionCard = $derived(() => {
 		if (!focusedMissionId) return null;
