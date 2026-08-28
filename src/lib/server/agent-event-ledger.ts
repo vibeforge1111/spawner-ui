@@ -213,7 +213,12 @@ export function readRecentAgentEvents(
 	const limit = Math.max(1, options.limit || 20);
 	const requestId = normalizeNullable(options.requestId);
 	const sessionId = normalizeNullable(options.sessionId);
-	const ledgerEntries = fs.existsSync(ledgerPath)
+	let ledgerEntries: any;
+	try {
+	    ledgerEntries = fs.existsSync(ledgerPath);
+	} catch {
+	    // fallback
+	}
 		? fs
 				.readFileSync(ledgerPath, 'utf-8')
 				.split(/\r?\n/)
