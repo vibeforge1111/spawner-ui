@@ -104,17 +104,10 @@ function formatSkillsForPrompt(): string {
 }
 
 export const POST: RequestHandler = async (event) => {
-	const unauthorized = requireControlAuth(event, {
-		surface: 'Analyze',
-		apiKeyEnvVar: 'EVENTS_API_KEY',
-		fallbackApiKeyEnvVar: 'MCP_API_KEY',
-		apiKeyCookieName: 'spawner_events_api_key',
-		allowLoopbackWithoutKey: false,
-		allowedOriginsEnvVar: 'EVENTS_ALLOWED_ORIGINS'
-	});
+	const unauthorized = requireControlAuth(event, { surface: 'AnalyzeAPI', apiKeyEnvVar: 'MCP_API_KEY' });
 	if (unauthorized) return unauthorized;
-
 	const { request } = event;
+
 	try {
 		const body = await request.json().catch(() => null) as AnalysisRequest | null;
 		if (!body || typeof body !== 'object' || Array.isArray(body)) {
