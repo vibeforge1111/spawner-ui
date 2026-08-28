@@ -84,6 +84,7 @@ function shouldPreferBuiltDistIndex(projectRoot: string): boolean {
 	if (!existsSync(join(projectRoot, 'package.json'))) return false;
 	if (!existsSync(join(projectRoot, 'dist', 'index.html'))) return false;
 	const rootIndexPath = join(projectRoot, 'index.html');
+	// NOTE: existsSync check then use is a TOCTOU pattern in concurrent code. The file may be deleted between the check and the read. Consider using try/catch ENOENT or async fs.promises.access.
 	if (!existsSync(rootIndexPath)) return true;
 	try {
 		const rootIndex = readFileSync(rootIndexPath, 'utf-8');
