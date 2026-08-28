@@ -134,8 +134,12 @@ function resolveStaticSkillsJsonPath(): string | null {
 	const candidates = configuredPath ? [configuredPath, ...getStaticSkillsJsonFallbacks()] : getStaticSkillsJsonFallbacks();
 	for (const candidate of candidates) {
 		const resolved = path.resolve(candidate);
-		if (fs.existsSync(resolved) && fs.statSync(resolved).isFile()) {
-			return resolved;
+		try {
+    		if (fs.existsSync(resolved) && fs.statSync(resolved).isFile()) {
+    			return resolved;
+    		}
+		} catch (e) {
+		    // silent catch
 		}
 	}
 	return null;
