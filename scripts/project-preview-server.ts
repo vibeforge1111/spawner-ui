@@ -57,7 +57,16 @@ async function handleRequest(request: Request): Promise<Response> {
 	}
 }
 
+function configuredPreviewHost(): string {
+	const cliIndex = process.argv.indexOf('--host');
+	if (cliIndex !== -1 && process.argv.length > cliIndex + 1) {
+		return process.argv[cliIndex + 1];
+	}
+	return '127.0.0.1';
+}
+
 const port = configuredPreviewPort();
+const host = configuredPreviewHost();
 const server = createServer(async (req, res) => {
 	try {
 		if (req.method !== 'GET' && req.method !== 'HEAD') {
@@ -65,7 +74,7 @@ const server = createServer(async (req, res) => {
 			res.end('Method not allowed.');
 			return;
 		}
-		const response = await handleRequest(new Request(`http://127.0.0.1:${port}${req.url || '/'}`, {
+		const response = await handleRequest(new Request(`http://${host}:${port}${req.url || '/'}`, {
 			method: req.method
 		}));
 		res.writeHead(response.status, Object.fromEntries(response.headers.entries()));
@@ -81,6 +90,6 @@ const server = createServer(async (req, res) => {
 	}
 });
 
-server.listen(port, '127.0.0.1', () => {
-	console.log(`Spark project previews running at http://127.0.0.1:${port}`);
+server.listen(port, host, () => {
+	console.log(`Spark project previews running at http://${host}:${port}`);
 });
