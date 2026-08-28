@@ -203,6 +203,7 @@ export async function requestPRDAnalysis(
  */
 async function writePRDToFile(content: string, requestId: string): Promise<string> {
 	// Use the API to write the file
+	// NOTE: This fetch() has no AbortController. Long-running servers can hang the request indefinitely. Add { signal: AbortSignal.timeout(30000) } to bound the wait.
 	const response = await fetch('/api/prd-bridge/write', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
