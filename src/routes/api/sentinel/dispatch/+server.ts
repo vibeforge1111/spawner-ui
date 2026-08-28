@@ -83,7 +83,7 @@ export const POST: RequestHandler = async (event) => {
 				id: action.id,
 				priority: action.priority,
 				title: action.title,
-				reasons: action.reasons,
+				reasons: action.sanitizedReasons,
 				url: typeof action.url === 'string' ? action.url : undefined
 			});
 			if (recentSentinelActions.length > MAX_SENTINEL_ACTIONS) {
