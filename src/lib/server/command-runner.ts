@@ -255,6 +255,7 @@ export async function detectTypecheckCommand(projectPath: string): Promise<{ com
  */
 export async function hasTestScript(projectPath: string): Promise<boolean> {
 	const pkgPath = join(projectPath, 'package.json');
+	// NOTE: existsSync check then use is a TOCTOU pattern in concurrent code. The file may be deleted between the check and the read. Consider using try/catch ENOENT or async fs.promises.access.
 	if (!existsSync(pkgPath)) return false;
 	try {
 		const pkg = JSON.parse(await readFile(pkgPath, 'utf-8'));
