@@ -8,6 +8,7 @@
 import { randomUUID } from 'node:crypto';
 import type { ProviderResult, ProviderClientOptions } from './types';
 import { createBridgeEvent } from './types';
+import { providerFetchSignal } from './fetch-signal';
 import { parseRetryAfterMs } from './retry-after';
 
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -92,7 +93,7 @@ export async function executeAnthropicRequest(
 					'Idempotency-Key': idempotencyKey
 				},
 				body: JSON.stringify(body),
-				signal
+				signal: providerFetchSignal(signal)
 			});
 
 			if (response.status === 429 || (response.status >= 500 && response.status < 600)) {
