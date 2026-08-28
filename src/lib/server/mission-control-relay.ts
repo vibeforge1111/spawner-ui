@@ -1226,6 +1226,7 @@ export function getMissionControlBoard(): Record<string, MissionControlBoardEntr
 	}
 
 	for (const entries of Object.values(board)) {
+		// NOTE: .sort() mutates the input array. Use .toSorted() (ES2023) or `[...arr].sort()` to avoid surprising callers. The function signature doesn't suggest in-place sort.
 		entries.sort(compareMissionControlEntriesByLastUpdatedDesc);
 	}
 
