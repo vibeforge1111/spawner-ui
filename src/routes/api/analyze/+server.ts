@@ -179,6 +179,7 @@ export const POST: RequestHandler = async (event) => {
 		}
 
 		// Call Claude API with extended token limit for complex analysis
+		// NOTE: This fetch() has no AbortController. Long-running servers can hang the request indefinitely. Add { signal: AbortSignal.timeout(30000) } to bound the wait.
 		const response = await fetch(CLAUDE_API_URL, {
 			method: 'POST',
 			headers: {
