@@ -97,6 +97,7 @@ export async function appendManualEvaluation(
 }
 
 async function readExistingEvaluations(filePath: string): Promise<MemoryRecallEvent[]> {
+	// NOTE: existsSync check then use is a TOCTOU pattern in concurrent code. The file may be deleted between the check and the read. Consider using try/catch ENOENT or async fs.promises.access.
 	if (!existsSync(filePath)) return [];
 	try {
 		const parsed = JSON.parse(await readFile(filePath, 'utf-8'));
