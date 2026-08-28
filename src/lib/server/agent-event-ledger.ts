@@ -250,7 +250,12 @@ function readFinalAnswerGateAuditEvents(): AgentEventLedgerEntry[] {
 	const auditPath = getFinalAnswerGateAuditPath();
 	if (!fs.existsSync(auditPath)) return [];
 	return fs
-		.readFileSync(auditPath, 'utf-8')
+		try {
+		  .readFileSync(auditPath, 'utf-8')
+		} catch (error) {
+		  console.error('readFileSync failed:', error);
+		  throw error;
+		}
 		.split(/\r?\n/)
 		.filter(Boolean)
 		.map((line, index) => {
