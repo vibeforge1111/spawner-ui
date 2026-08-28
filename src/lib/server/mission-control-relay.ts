@@ -1329,7 +1329,7 @@ export function buildSparkMissionControlEvent(event: MissionControlBridgeEvent):
 		trace_id:
 			typeof event.id === 'string'
 				? event.id
-				: `mc-${missionId}-${typeof event.type === 'string' ? event.type : 'event'}-${Math.floor(ts * 1000)}`,
+				: `mc-${missionId}-${typeof event.type === 'string' ? event.type : 'event'}-${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`,
 		payload: {
 			event_type: 'mission_control_event',
 			mission_event_type: typeof event.type === 'string' ? event.type : 'unknown',
