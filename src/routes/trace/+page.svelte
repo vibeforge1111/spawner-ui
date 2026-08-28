@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onDestroy, onMount } from 'svelte';
+	import { browser } from '$app/environment';
 	import Navbar from '$lib/components/Navbar.svelte';
 	import Footer from '$lib/components/Footer.svelte';
 	import Icon from '$lib/components/Icon.svelte';
@@ -248,14 +249,39 @@
 		requestId = params.get('requestId') || '';
 	}
 
+	function handleVisibilityChange(): void {
+		if (!browser) return;
+		if (document.visibilityState === 'visible') {
+			// Tab is back in the foreground: refetch immediately so the
+			// operator sees current mission state, then resume the 4s
+			// poll if autoRefresh is on.
+			if (autoRefresh) {
+				void loadTrace();
+				startPolling();
+			}
+		} else {
+			// Tab hidden: pause polling. Without this, the 4s trace poll
+			// keeps firing in a background tab and burns network for a
+			// stream the operator cannot see. Polling resumes on
+			// visibility=visible above (only if autoRefresh is on).
+			stopPolling();
+		}
+	}
+
 	onMount(() => {
 		applyUrlParams();
 		void loadTrace();
 		startPolling();
+		if (browser) {
+			document.addEventListener('visibilitychange', handleVisibilityChange);
+		}
 	});
 
 	onDestroy(() => {
 		stopPolling();
+		if (browser) {
+			document.removeEventListener('visibilitychange', handleVisibilityChange);
+		}
 	});
 </script>
 
