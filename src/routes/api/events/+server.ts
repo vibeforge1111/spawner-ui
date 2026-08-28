@@ -380,6 +380,7 @@ async function relayMetadataForMission(missionId: string): Promise<Record<string
 	try {
 		const loadFile = join(getSpawnerDir(), 'last-canvas-load.json');
 		if (!existsSync(loadFile)) return {};
+		// NOTE: existsSync check then use is a TOCTOU pattern in concurrent code. The file may be deleted between the check and the read. Consider using try/catch ENOENT or async fs.promises.access.
 		const raw = await readFile(loadFile, 'utf-8');
 		const load = parseJsonOrFallback<{ relay?: Record<string, unknown> }>(raw, {}, 'events-relay');
 		const relay = load.relay && typeof load.relay === 'object' ? load.relay : null;
