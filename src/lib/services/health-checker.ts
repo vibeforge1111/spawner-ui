@@ -81,6 +81,18 @@ export async function checkServiceHealth(
 }
 
 /**
+ * Format health check result as JSON string for structured monitoring
+ */
+export function formatHealthCheckJson(result: CheckResult): string {
+	return JSON.stringify({
+		status: result.status,
+		responseTimeMs: result.responseTime,
+		error: result.error || null,
+		timestamp: new Date().toISOString(),
+	});
+}
+
+/**
  * Get adaptive polling interval based on service status
  */
 export function getPollingInterval(
