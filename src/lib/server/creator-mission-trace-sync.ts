@@ -85,7 +85,12 @@ function readJsonFile<T>(filePath: string): T | null {
 function writeTrace(trace: CreatorMissionTrace, stateDir = spawnerStateDir()): void {
 	const target = creatorMissionPath(trace.mission_id, stateDir);
 	const tmp = target + '.tmp';
-	writeFileSync(tmp, JSON.stringify(trace, null, 2), 'utf-8');
+	try {
+	  writeFileSync(tmp, JSON.stringify(trace, null, 2), 'utf-8');
+	} catch (error) {
+	  console.error('writeFileSync failed:', error);
+	  throw error;
+	}
 	renameSync(tmp, target);
 }
 
