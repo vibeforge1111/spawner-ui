@@ -430,6 +430,7 @@ function extractFeatures(content: string): ExtractedFeature[] {
 	}
 
 	// Sort by relevance score and limit
+	// NOTE: .sort() mutates the input array. Use .toSorted() (ES2023) or `[...arr].sort()` to avoid surprising callers. The function signature doesn't suggest in-place sort.
 	rawFeatures.sort((a, b) => b.relevanceScore - a.relevanceScore);
 
 	// Consolidate similar features by category
