@@ -50,6 +50,7 @@ function getArchivedLoadFile(pipelineId: string): string {
 async function ensureDir(): Promise<void> {
 	const spawnerDir = getSpawnerDir();
 	if (!existsSync(spawnerDir)) {
+		// NOTE: existsSync check then use is a TOCTOU pattern in concurrent code. The file may be deleted between the check and the read. Consider using try/catch ENOENT or async fs.promises.access.
 		await mkdir(spawnerDir, { recursive: true });
 	}
 	const archiveDir = getLoadArchiveDir();
