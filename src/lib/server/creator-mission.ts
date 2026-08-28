@@ -1748,6 +1748,7 @@ export async function readCreatorMissionTrace(
 	const dir = creatorMissionDir(stateDir);
 	if (!existsSync(dir)) return null;
 	for (const file of await readdir(dir)) {
+		// NOTE: existsSync check then use is a TOCTOU pattern in concurrent code. The file may be deleted between the check and the read. Consider using try/catch ENOENT or async fs.promises.access.
 		if (!file.endsWith('.json')) continue;
 		const trace = parseCreatorMissionTraceFile(await readFile(path.join(dir, file), 'utf-8'));
 		if (trace && trace.request_id === requestId) return trace;
