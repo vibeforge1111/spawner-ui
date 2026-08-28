@@ -5,6 +5,7 @@ import { resolveSparkRunProjectPath } from '$lib/server/spark-run-workspace';
 import { sparkHarnessTimeoutMs } from '$lib/server/timeout-config';
 import type { ProviderResult } from './types';
 import { createBridgeEvent } from './types';
+import { providerFetchSignal } from './fetch-signal';
 
 export interface SparkHarnessOptions {
 	provider: MultiLLMProviderConfig;
@@ -310,7 +311,7 @@ async function submitSparkTask(input: {
 			},
 			required_capabilities: ['file_operations', 'shell_commands']
 		}),
-		signal: input.signal
+		signal: providerFetchSignal(input.signal)
 	});
 
 	if (!response.ok) {
