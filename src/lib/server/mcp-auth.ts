@@ -218,14 +218,21 @@ export function enforceRateLimit(event: RequestEvent, options: RateLimitOptions)
 	const existing = rateLimitBuckets.get(bucketKey) || [];
 	const active = existing.filter((timestamp) => timestamp >= windowStart);
 	if (active.length >= options.limit) {
+		// Name the wait-window in the HTTP Retry-After header so clients (curl, fetch wrappers,
+		// the openai-compat provider's 429 loop) can pace retries against the actual bucket
+		// instead of spinning on a fixed backoff. Value is rounded up to seconds per RFC 7231 7.1.3.
+		const oldestActive = active[0] ?? now;
+		const msUntilFree = Math.max(0, options.windowMs - (now - oldestActive));
+		const retryAfterSeconds = Math.max(1, Math.ceil(msUntilFree / 1000));
 		return json(
 			{
 				error: 'Rate limit exceeded',
 				scope: options.scope,
 				limit: options.limit,
-				windowMs: options.windowMs
+				windowMs: options.windowMs,
+				retryAfterSeconds
 			},
-			{ status: 429 }
+			{ status: 429, headers: { 'Retry-After': String(retryAfterSeconds) } }
 		);
 	}
 
