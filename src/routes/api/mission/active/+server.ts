@@ -18,6 +18,7 @@ import type { MultiLLMExecutionPack } from '$lib/services/multi-llm-orchestrator
 import { requireControlAuth } from '$lib/server/mcp-auth';
 import { spawnerStateDir } from '$lib/server/spawner-state';
 import { parseJsonOrFallback } from '$lib/utils/safe-json';
+import { writeFileAtomic } from '$lib/server/atomic-write';
 
 const ACTIVE_MISSION_FILE = 'active-mission.json';
 const TERMINAL_MISSION_EVENTS = new Set(['mission_completed', 'mission_failed', 'mission_paused']);
@@ -312,7 +313,7 @@ export const POST: RequestHandler = async (event) => {
 			resumeInstructions: generateResumeInstructions(body)
 		};
 
-		await writeFile(missionPath, JSON.stringify(state, null, 2));
+		await writeFileAtomic(missionPath, JSON.stringify(state, null, 2));
 
 		return json({
 			success: true,
