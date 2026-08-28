@@ -8,6 +8,7 @@ import {
 } from '$lib/server/hosted-ui-auth';
 
 const rateLimitBuckets = new Map<string, number[]>();
+const RATE_LIMIT_MAX_BUCKETS = 10_000;
 
 function constantTimeEquals(left: string, right: string): boolean {
 	const leftBuffer = Buffer.from(left);
@@ -209,9 +210,34 @@ function pruneStaleRateLimitBuckets(now: number, windowMs: number): void {
 	}
 }
 
+/** Evict oldest bucket when the map exceeds capacity to prevent OOM. */
+function evictOldestRateLimitBuckets(): void {
+	if (rateLimitBuckets.size <= RATE_LIMIT_MAX_BUCKETS) return;
+
+	// Find the bucket whose most recent timestamp is oldest (LRU eviction).
+	let oldestKey: string | null = null;
+	let oldestTimestamp = Infinity;
+	for (const [key, timestamps] of rateLimitBuckets) {
+		const latest = timestamps.length > 0 ? timestamps[timestamps.length - 1] : 0;
+		if (latest < oldestTimestamp) {
+			oldestTimestamp = latest;
+			oldestKey = key;
+		}
+	}
+	if (oldestKey !== null) {
+		rateLimitBuckets.delete(oldestKey);
+	}
+}
+
 export function enforceRateLimit(event: RequestEvent, options: RateLimitOptions): Response | null {
 	const now = Date.now();
 	pruneStaleRateLimitBuckets(now, options.windowMs);
+
+	// Enforce maximum bucket count to prevent unbounded memory growth.
+	if (rateLimitBuckets.size >= RATE_LIMIT_MAX_BUCKETS) {
+		evictOldestRateLimitBuckets();
+	}
+
 	const identity = getClientIdentity(event);
 	const bucketKey = `${options.scope}:${identity}`;
 	const windowStart = now - options.windowMs;
