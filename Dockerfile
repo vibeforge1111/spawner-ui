@@ -4,7 +4,14 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 FROM deps AS build
-COPY . .
+# Copy only what the SvelteKit build needs. The repo-level .dockerignore
+# additionally filters the build context. Avoids shipping repo-root planning
+# docs, one-off migration scripts, secrets, and editor metadata into the
+# intermediate image layers.
+COPY src ./src
+COPY static ./static
+COPY scripts ./scripts
+COPY svelte.config.js vite.config.ts tsconfig.json postcss.config.js tailwind.config.js ./
 RUN npm run build
 
 FROM node:24-bookworm-slim AS runtime

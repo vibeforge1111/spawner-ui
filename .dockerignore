@@ -1,0 +1,61 @@
+# Source control
+.git
+.gitignore
+.gitattributes
+.github
+
+# Node
+node_modules
+
+# Build output (rebuilt inside the image)
+build
+.svelte-kit
+.output
+.vercel
+.netlify
+.wrangler
+
+# Local env / secrets
+.env
+.env.*
+!.env.example
+!.env.test
+
+# OS
+.DS_Store
+Thumbs.db
+nul
+
+# Local orchestrator/runtime payloads
+.spawner/
+.gstack/
+
+# Office lockfiles
+~$*
+
+# Documentation source artefacts that bloat the build context
+*.md
+docs
+
+# One-off dev / migration / test scripts at repo root that should not ship in the image
+add-*.cjs
+check-*.cjs
+diagnose-*.cjs
+direct-*.cjs
+migrate-*.cjs
+test-*.cjs
+test-*.js
+test-*.mjs
+
+# Office documents (planning artefacts; not runtime)
+*.docx
+*.pdf
+
+# Editor/IDE
+.vscode
+.idea
+*.swp
+
+# Local logs
+*.log
+svelte-check-output.txt
