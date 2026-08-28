@@ -241,6 +241,9 @@ async function handleAnthropicStream(
 			}
 		}
 	} catch (err) {
+		// Release the underlying connection so an aborted or broken stream
+		// does not pin a socket and HTTP/2 stream slot until GC.
+		reader.cancel().catch(() => undefined);
 		if (options.signal?.aborted) {
 			return { success: false, error: 'Cancelled', durationMs: Date.now() - startTime };
 		}
