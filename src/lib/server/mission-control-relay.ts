@@ -1366,6 +1366,7 @@ async function postJson(url: string, payload: unknown, token?: string, extraHead
 			headers.Authorization = `Bearer ${token}`;
 		}
 
+		// NOTE: This fetch() has no AbortController. Long-running servers can hang the request indefinitely. Add { signal: AbortSignal.timeout(30000) } to bound the wait.
 		const response = await fetch(url, {
 			method: 'POST',
 			headers,
