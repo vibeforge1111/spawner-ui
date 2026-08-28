@@ -41,6 +41,7 @@ const LEGACY_AUTH_COOKIE_NAMES = [
 ];
 const AUTH_WINDOW_MS = 60_000;
 const AUTH_MAX_FAILURES = 12;
+const AUTH_FAILURES_MAX_ENTRIES = 10_000;
 const SESSION_IDLE_TIMEOUT_MS = 1000 * 60 * 60 * 12;
 const SESSION_ABSOLUTE_TIMEOUT_MS = 1000 * 60 * 60 * 24;
 const authFailures = new Map<string, { count: number; resetAt: number }>();
@@ -94,6 +95,24 @@ function pruneExpiredHostedUiSessions(now = Date.now()): void {
 	for (const [key, session] of hostedUiSessions.entries()) {
 		if (session.expiresAt <= now || session.absoluteExpiresAt <= now) {
 			hostedUiSessions.delete(key);
+		}
+	}
+}
+
+function pruneAuthFailures(now = Date.now()): void {
+	// Remove expired entries first
+	for (const [key, entry] of authFailures.entries()) {
+		if (entry.resetAt <= now) {
+			authFailures.delete(key);
+		}
+	}
+
+	// If still over limit, evict oldest entries (LRU by resetAt) to enforce cap
+	if (authFailures.size > AUTH_FAILURES_MAX_ENTRIES) {
+		const entries = [...authFailures.entries()].sort((a, b) => a[1].resetAt - b[1].resetAt);
+		const toRemove = entries.slice(0, authFailures.size - AUTH_FAILURES_MAX_ENTRIES);
+		for (const [key] of toRemove) {
+			authFailures.delete(key);
 		}
 	}
 }
@@ -241,6 +260,7 @@ export function hostedUiAuthRateLimitStatus(clientKey: string, now = Date.now())
 	blocked: boolean;
 	retryAfterSeconds: number;
 } {
+	pruneAuthFailures(now);
 	const current = authFailures.get(clientKey);
 	if (!current || current.resetAt <= now) {
 		authFailures.delete(clientKey);
@@ -253,6 +273,7 @@ export function hostedUiAuthRateLimitStatus(clientKey: string, now = Date.now())
 }
 
 export function recordHostedUiAuthFailure(clientKey: string, now = Date.now()): void {
+	pruneAuthFailures(now);
 	const current = authFailures.get(clientKey);
 	if (!current || current.resetAt <= now) {
 		authFailures.set(clientKey, { count: 1, resetAt: now + AUTH_WINDOW_MS });
