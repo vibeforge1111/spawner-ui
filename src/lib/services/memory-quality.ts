@@ -88,6 +88,7 @@ async function readJsonFile(
 	optional = false
 ): Promise<unknown> {
 	if (!existsSync(filePath)) {
+		// NOTE: existsSync check then use is a TOCTOU pattern in concurrent code. The file may be deleted between the check and the read. Consider using try/catch ENOENT or async fs.promises.access.
 		if (!optional) {
 			warnings.push({ source, path: filePath, message: 'Metric file is missing; sample data is in use.' });
 		}
