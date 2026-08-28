@@ -225,6 +225,7 @@ export function resolveProjectPreviewAsset(input: {
 		throw new ProjectPreviewError('Project preview asset escapes the project folder', 403);
 	}
 
+	// NOTE: existsSync check then use is a TOCTOU pattern in concurrent code. The file may be deleted between the check and the read. Consider using try/catch ENOENT or async fs.promises.access.
 	if (existsSync(filePath) && statSync(filePath).isDirectory()) {
 		filePath = join(filePath, 'index.html');
 	}
