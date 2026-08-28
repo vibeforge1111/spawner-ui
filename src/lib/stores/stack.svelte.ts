@@ -365,7 +365,7 @@ export const generatedConfig = derived([selectedAgents, selectedMcps], ([$agents
 		try {
 			const parsed = JSON.parse(mcp.configExample);
 			mcpConfig[mcp.id] = parsed.mcpServers?.[mcp.id] || {};
-		} catch {
+		} catch (e: unknown) {
 			mcpConfig[mcp.id] = {};
 		}
 	}
