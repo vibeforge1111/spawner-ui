@@ -163,7 +163,7 @@ async function runGitleaks(projectPath: string, start: number): Promise<ScanResu
 							scanner: 'gitleaks',
 							severity: 'critical',
 							title: leak.Description || leak.RuleID || 'Secret detected',
-							description: `Match: ${(leak.Match || '').slice(0, 80)}...`,
+							description: 'Secret match redacted.',
 							file: leak.File,
 							line: leak.StartLine,
 							rule: leak.RuleID
@@ -176,7 +176,7 @@ async function runGitleaks(projectPath: string, start: number): Promise<ScanResu
 					scanner: 'gitleaks',
 					severity: 'high',
 					title: 'Secrets detected (raw output)',
-					description: result.stdout.slice(0, 200)
+					description: 'Scanner reported secret findings but returned non-JSON output.'
 				});
 			}
 		}
