@@ -335,6 +335,7 @@ export function consumeHostedUiPairingCode(
 	if (!pairingCode || !expectedPairingCode) return false;
 
 	const pairingCodeHash = hashPairingCode(expectedPairingCode);
+	// Atomic check-and-set: in single-process Node.js, this is safe due to event loop
 	if (consumedHostedUiPairingCodeHashes.has(pairingCodeHash)) return false;
 	if (!constantTimeEquals(pairingCode, expectedPairingCode)) return false;
 
