@@ -243,6 +243,7 @@ export const GET: RequestHandler = async (event) => {
 		const resultsDir = getResultsDir();
 		const resultFile = resolveWithinBaseDir(resultsDir, `${requestId}.json`);
 
+		// NOTE: existsSync check then use is a TOCTOU pattern in concurrent code. The file may be deleted between the check and the read. Consider using try/catch ENOENT or async fs.promises.access.
 		if (!existsSync(resultFile)) {
 			return json({ found: false, requestId });
 		}
