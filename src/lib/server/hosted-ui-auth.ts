@@ -20,9 +20,9 @@ export interface HostedUiAuthEnv {
 	MCP_API_KEY?: string;
 }
 
-const EXEMPT_EXACT_PATHS = new Set(['/robots.txt', '/spark-live/login', '/api/health/live']);
+const EXEMPT_EXACT_PATHS = new Set(['/robots.txt', '/spark-live/login', '/api/health/live', '/api/health']);
 const EXEMPT_PATH_PREFIXES = ['/_app/', '/favicon'];
-const RELEASE_LOCK_PUBLIC_EXACT_PATHS = new Set(['/', '/api/health/live']);
+const RELEASE_LOCK_PUBLIC_EXACT_PATHS = new Set(['/', '/api/health/live', '/api/health']);
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 const LOOPBACK_BROWSER_HOSTS = new Set(['localhost', '127.0.0.1', '0.0.0.0', '::1', '[::1]']);
 const BASE_COOKIE_OPTIONS = {

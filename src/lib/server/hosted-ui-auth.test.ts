@@ -108,6 +108,7 @@ describe('hosted UI auth', () => {
 	it('lets only the public landing page through the release lock', () => {
 		expect(hostedUiReleaseLockPathIsExempt('/')).toBe(true);
 		expect(hostedUiReleaseLockPathIsExempt('/api/health/live')).toBe(true);
+		expect(hostedUiReleaseLockPathIsExempt('/api/health')).toBe(true);
 		expect(hostedUiReleaseLockPathIsExempt('/canvas')).toBe(false);
 		expect(hostedUiReleaseLockPathIsExempt('/kanban')).toBe(false);
 		expect(hostedUiReleaseLockPathIsExempt('/api/mission-control/board')).toBe(false);
@@ -120,6 +121,7 @@ describe('hosted UI auth', () => {
 		expect(hostedUiAuthPathIsExempt('/robots.txt')).toBe(true);
 		expect(hostedUiAuthPathIsExempt('/spark-live/login')).toBe(true);
 		expect(hostedUiAuthPathIsExempt('/api/health/live')).toBe(true);
+		expect(hostedUiAuthPathIsExempt('/api/health')).toBe(true);
 		expect(hostedUiAuthPathIsExempt('/spark-live/login-extra')).toBe(false);
 		expect(hostedUiAuthPathIsExempt('/spark-live/setup')).toBe(false);
 		expect(hostedUiAuthPathIsExempt('/api/providers')).toBe(false);
