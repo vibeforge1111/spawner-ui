@@ -1,4 +1,5 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { homedir } from 'node:os';
 import { basename, delimiter, dirname, join, resolve, sep } from 'node:path';
 
@@ -55,24 +56,29 @@ function configuredPreviewOrigins(env: NodeJS.ProcessEnv): string[] {
 }
 
 function pathIsInside(candidate: string, parent: string): boolean {
-	const resolvedCandidate = resolve(candidate).toLowerCase();
-	const resolvedParent = resolve(parent).toLowerCase();
+	const resolvedCandidate = resolve(candidate);
+	const resolvedParent = resolve(parent);
 	return resolvedCandidate === resolvedParent || resolvedCandidate.startsWith(`${resolvedParent}${sep}`);
 }
 
+const tokenToPath = new Map<string, string>();
+
 export function encodeProjectPreviewToken(projectPath: string): string {
-	return Buffer.from(resolve(projectPath), 'utf8').toString('base64url');
+	const resolved = resolve(projectPath);
+	const hash = createHash('sha256').update(resolved, 'utf8').digest('base64url');
+	tokenToPath.set(hash, resolved);
+	return hash;
 }
 
 export function decodeProjectPreviewToken(token: string): string {
 	if (!TOKEN_PATTERN.test(token)) {
 		throw new ProjectPreviewError('Invalid project preview token', 400);
 	}
-	const decoded = Buffer.from(token, 'base64url').toString('utf8').trim();
-	if (!decoded) {
+	const resolved = tokenToPath.get(token);
+	if (!resolved) {
 		throw new ProjectPreviewError('Invalid project preview token', 400);
 	}
-	return resolve(decoded);
+	return resolved;
 }
 
 export function projectPreviewUrl(baseUrl: string, projectPath: string): string {
