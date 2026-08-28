@@ -240,9 +240,13 @@ function main() {
   for (const skillDir of skillDirs) {
     const yamlPath = path.join(skillDir, 'skill.yaml');
 
-    if (!fs.existsSync(yamlPath)) {
-      console.log(`  Skipping ${path.basename(skillDir)} - no skill.yaml`);
-      continue;
+    try {
+        if (!fs.existsSync(yamlPath)) {
+          console.log(`  Skipping ${path.basename(skillDir)} - no skill.yaml`);
+          continue;
+        }
+    } catch (e) {
+        // silent catch
     }
 
     try {
