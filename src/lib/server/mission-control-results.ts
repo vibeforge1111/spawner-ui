@@ -84,7 +84,8 @@ function previewBaseUrl(): string {
 		envRecord.RAILWAY_STATIC_URL?.trim() ||
 		'';
 	if (!raw) return '';
-	return /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+	const normalized = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+	return normalized.replace(/\/+$/, '');
 }
 
 function parseProviderResponseMetadata(response: string | null): {

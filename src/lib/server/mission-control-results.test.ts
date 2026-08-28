@@ -132,7 +132,7 @@ describe('mission-control-results', () => {
 	});
 
 	it('keeps hosted project metadata from structured provider responses', () => {
-		process.env.SPARK_PROJECT_PREVIEW_BASE_URL = 'https://preview.sparkswarm.ai';
+		process.env.SPARK_PROJECT_PREVIEW_BASE_URL = 'https://preview.sparkswarm.ai/';
 		const summary = summarizeProviderResults([
 			result({
 				providerId: 'codex',
@@ -150,7 +150,7 @@ describe('mission-control-results', () => {
 			projectPath: 'C:/Users/USER/.spark/workspaces/mission-1',
 			project_path: 'C:/Users/USER/.spark/workspaces/mission-1'
 		});
-		expect(summary.providerResults[0].previewUrl).toContain('https://preview.sparkswarm.ai/');
+		expect(summary.providerResults[0].previewUrl).toContain('https://preview.sparkswarm.ai/preview/');
 	});
 
 	it('enriches each board entry through the supplied result lookup', () => {
@@ -376,6 +376,92 @@ describe('mission-control-results', () => {
 			}
 		});
 		expect(enriched.failed[0].lastSummary).toContain('Mission stalled: no progress for');
+	});
+
+	it('marks orphan missions stalled within the shorter orphan timeout when no tasks or providers exist', () => {
+		const orphanTimestamp = new Date(Date.now() - 6 * 60 * 1000).toISOString();
+		const enriched = enrichMissionControlBoardWithProviderResults(
+			{
+				running: [
+					entry('mission-orphan', {
+						status: 'running',
+						lastEventType: 'mission_started',
+						lastUpdated: orphanTimestamp,
+						tasks: [],
+						taskStatusCounts: {
+							queued: 0,
+							running: 0,
+							completed: 0,
+							failed: 0,
+							cancelled: 0,
+							total: 0
+						},
+						taskName: null
+					})
+				],
+				failed: [],
+				completed: []
+			},
+			() => []
+		);
+
+		expect(enriched.running).toEqual([]);
+		expect(enriched.failed[0]).toMatchObject({
+			missionId: 'mission-orphan',
+			status: 'failed',
+			lastEventType: 'provider_stalled'
+		});
+		expect(enriched.failed[0].lastSummary).toContain('no task or provider activity');
+	});
+
+	it('uses full stalled timeout for missions that have task evidence (non-orphan)', () => {
+		const recentTimestamp = new Date(Date.now() - 6 * 60 * 1000).toISOString();
+		const enriched = enrichMissionControlBoardWithProviderResults(
+			{
+				running: [
+					entry('mission-with-tasks', {
+						status: 'running',
+						lastEventType: 'mission_started',
+						lastUpdated: recentTimestamp,
+						tasks: [{ title: 'Write tests', skills: [], status: 'running' }],
+						taskStatusCounts: {
+							queued: 0,
+							running: 1,
+							completed: 0,
+							failed: 0,
+							cancelled: 0,
+							total: 1
+						},
+						taskName: 'Write tests'
+					})
+				],
+				failed: [],
+				completed: []
+			},
+			() => []
+		);
+
+		// Still running — not stale because task evidence keeps it in the 30min timeout
+		expect(enriched.running).toHaveLength(1);
+		expect(enriched.failed).toEqual([]);
+	});
+
+	it('strips trailing slashes from preview base URL', () => {
+		process.env.SPARK_PROJECT_PREVIEW_BASE_URL = 'https://preview.sparkswarm.ai///';
+		const summary = summarizeProviderResults([
+			result({
+				providerId: 'codex',
+				response: JSON.stringify({
+					status: 'completed',
+					summary: 'Hosted preview built.',
+					project_path: '/data/workspaces/mission-2'
+				})
+			})
+		]);
+		delete process.env.SPARK_PROJECT_PREVIEW_BASE_URL;
+
+		expect(summary.providerResults[0].previewUrl).toContain('https://preview.sparkswarm.ai/preview/');
+		expect(summary.providerResults[0].previewUrl).not.toContain('///');
 	});
 
 	it('keeps paused board cards paused even when the underlying provider process was cancelled', () => {
