@@ -110,10 +110,10 @@
 							<div class="flex items-center gap-2">
 								<span class="w-6 shrink-0 text-[10px] font-mono text-text-tertiary">#{task.index}</span>
 								<span class="h-1.5 w-1.5 shrink-0 rounded-full {taskDotClass(task.status)}"></span>
-								<span class="truncate text-sm font-medium text-text-primary">{task.title}</span>
+								<span class="truncate text-sm font-medium text-text-primary" title={task.title}>{task.title}</span>
 							</div>
 							{#if task.message && task.status === 'running'}
-								<div class="mt-1 text-[11px] text-text-tertiary truncate">{task.message}</div>
+								<div class="mt-1 text-[11px] text-text-tertiary truncate" title={task.message}>{task.message}</div>
 							{/if}
 							{#if task.skills.length > 0}
 								<div class="mt-1 flex flex-wrap gap-1">
