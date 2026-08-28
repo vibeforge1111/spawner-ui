@@ -478,6 +478,20 @@ function shouldRecordMissionControlEvent(event: MissionControlBridgeEvent): bool
 	return true;
 }
 
+const PRUNE_PER_MISSION_THRESHOLD = 2000;
+
+function prunePerMissionMap(): void {
+	if (relayState.perMission.size <= PRUNE_PER_MISSION_THRESHOLD) {
+		return;
+	}
+	const activeMissionIds = new Set(relayState.recent.map((e) => e.missionId));
+	for (const key of relayState.perMission.keys()) {
+		if (!activeMissionIds.has(key)) {
+			relayState.perMission.delete(key);
+		}
+	}
+}
+
 function recordRelayEvent(event: MissionControlBridgeEvent): void {
 	const entry = toStatusEntry(event);
 	if (!isMissionControlMissionId(entry.missionId)) {
@@ -501,6 +515,7 @@ function recordRelayEvent(event: MissionControlBridgeEvent): void {
 	if (relayState.recent.length > MAX_RECENT_EVENTS) {
 		relayState.recent.length = MAX_RECENT_EVENTS;
 	}
+	prunePerMissionMap();
 	persistState();
 	recordAgentLedgerEvent(entry);
 	try {
