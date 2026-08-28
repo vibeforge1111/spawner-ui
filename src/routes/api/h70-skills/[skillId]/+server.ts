@@ -376,8 +376,12 @@ function findSkillPath(skillsLabPath: string, skillId: string): string | null {
 	// Try exact match first
 	for (const category of SKILL_CATEGORIES) {
 		const skillPath = resolveWithinBaseDir(skillsLabPath, path.join(category, `${skillId}.yaml`));
-		if (fs.existsSync(skillPath)) {
-			return skillPath;
+		try {
+    		if (fs.existsSync(skillPath)) {
+    			return skillPath;
+    		}
+		} catch (e) {
+		    // silent catch
 		}
 	}
 
