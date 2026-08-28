@@ -35,16 +35,18 @@ export function resolveProviderRuntimeConfiguration(
 			? resolveCliBinary(provider.id)
 			: null;
 	const cliConfigured = Boolean(cliPath);
-	const localOpenAICompatConfigured =
+	// Local OpenAI-compat providers (LM Studio, Ollama) are detected but not
+	// automatically marked as ready — they require a live endpoint to function.
+	const localOpenAICompatDetected =
 		provider.kind === 'openai_compat' &&
 		!provider.apiKeyEnv &&
 		(provider.id === 'lmstudio' || provider.id === 'ollama');
-	const configured = envKeyConfigured || cliConfigured || localOpenAICompatConfigured;
+	const configured = envKeyConfigured || cliConfigured;
 	const configurationMode: ProviderConfigurationMode = cliConfigured
 		? 'cli'
 		: envKeyConfigured
 			? 'api_key'
-			: localOpenAICompatConfigured
+			: localOpenAICompatDetected
 				? 'local'
 				: 'none';
 
