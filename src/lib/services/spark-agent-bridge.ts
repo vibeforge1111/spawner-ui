@@ -298,7 +298,8 @@ const CANCELLED_ERROR = 'Cancelled';
 const PROVIDER_TERMINATION_GRACE_MS = 5000;
 const PROVIDER_FAILURE_SUMMARY_MAX_LENGTH = 500;
 const SECRET_ENV_ASSIGNMENT_PATTERN = /\b[A-Z0-9_]*(?:API[_-]?KEY|TOKEN|SECRET|PASSWORD)[A-Z0-9_]*\s*=\s*[^\s"'`]+/gi;
-const BEARER_SECRET_PATTERN = /\bBearer\s+[A-Za-z0-9._~+/\-]+=*/gi;
+const AUTHORIZATION_SECRET_PATTERN =
+	/\b((?:Bearer\s+)|(?:Authorization\s*[:=]\s*(?:Bearer|Token|ApiKey|OAuth)\s+))[^\s"'`,;]+/gi;
 const COMMON_SECRET_VALUE_PATTERN =
 	/\b(?:sk-[A-Za-z0-9_-]{12,}|gh[oprsu]_[A-Za-z0-9_]{12,}|xox[baprs]-[A-Za-z0-9-]{12,}|spark-h70-[A-Za-z0-9_-]{12,}|\d{6,}:[A-Za-z0-9_-]{20,})\b/g;
 
@@ -469,7 +470,7 @@ function blockedProviderResponse(response: string | undefined): string | null {
 function redactProviderFailureSecrets(value: string): string {
 	return value
 		.replace(SECRET_ENV_ASSIGNMENT_PATTERN, '[secret]')
-		.replace(BEARER_SECRET_PATTERN, 'Bearer [secret]')
+		.replace(AUTHORIZATION_SECRET_PATTERN, '$1[secret]')
 		.replace(COMMON_SECRET_VALUE_PATTERN, '[secret]');
 }
 

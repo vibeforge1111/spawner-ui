@@ -264,7 +264,7 @@ describe('providerProcessFailureMessage', () => {
 		const message = providerProcessFailureMessage(
 			1,
 			'',
-			'Error in C:\\Users\\USER\\private\\app with OPENAI_API_KEY=sk-secretvalue123456 and Bearer ghp_secretvalue1234567890'
+			'Error in C:\\Users\\USER\\private\\app with OPENAI_API_KEY=sk-secretvalue123456, Bearer ghp_secretvalue1234567890, Authorization: Token placeholder-token-value-123456, Authorization: ApiKey placeholder-apikey-value-123456, and Authorization: OAuth placeholder-oauth-value-123456'
 		);
 
 		expect(message).toContain('local file');
@@ -272,6 +272,9 @@ describe('providerProcessFailureMessage', () => {
 		expect(message).not.toContain('C:\\Users\\USER');
 		expect(message).not.toContain('sk-secretvalue123456');
 		expect(message).not.toContain('ghp_secretvalue1234567890');
+		expect(message).not.toContain('placeholder-token-value-123456');
+		expect(message).not.toContain('placeholder-apikey-value-123456');
+		expect(message).not.toContain('placeholder-oauth-value-123456');
 	});
 
 	it('falls back to the exit code when no provider output is usable', () => {
