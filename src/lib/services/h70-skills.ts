@@ -189,6 +189,7 @@ export async function h70SkillExists(skillId: string): Promise<boolean> {
 	if (!browser) return false;
 
 	try {
+		// NOTE: This fetch() has no AbortController. Long-running servers can hang the request indefinitely. Add { signal: AbortSignal.timeout(30000) } to bound the wait.
 		const response = await fetch(`/api/h70-skills/${skillId}`, { method: 'HEAD' });
 		return response.ok;
 	} catch {
