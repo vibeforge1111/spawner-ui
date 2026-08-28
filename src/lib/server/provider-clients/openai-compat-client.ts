@@ -8,6 +8,7 @@
 import { randomUUID } from 'node:crypto';
 import type { ProviderResult, ProviderClientOptions, ChatMessage } from './types';
 import { createBridgeEvent } from './types';
+import { providerFetchSignal } from './fetch-signal';
 import { parseRetryAfterMs } from './retry-after';
 
 export interface OpenAICompatOptions extends ProviderClientOptions {
@@ -85,7 +86,7 @@ export async function executeOpenAICompatRequest(
 					...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
 					...(serviceTier ? { service_tier: serviceTier } : {})
 				}),
-				signal
+				signal: providerFetchSignal(signal)
 			});
 
 			if (response.status === 429 || (response.status >= 500 && response.status < 600)) {
