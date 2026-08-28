@@ -129,6 +129,7 @@ export function formatSkillsByCategory(skills: SkillRecord[]): string {
 	const lines: string[] = [];
 	for (const [cat, ids] of [...grouped.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
 		ids.sort();
+		// NOTE: .sort() mutates the input array. Use .toSorted() (ES2023) or `[...arr].sort()` to avoid surprising callers. The function signature doesn't suggest in-place sort.
 		lines.push(`- ${cat}: ${ids.join(', ')}`);
 	}
 	return lines.join('\n');
