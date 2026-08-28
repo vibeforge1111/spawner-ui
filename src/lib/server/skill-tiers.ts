@@ -77,6 +77,7 @@ async function loadBaseSkills(pro: SkillRecord[]): Promise<SkillRecord[]> {
 
 	const dir = join(staticDir(), 'bundles');
 	if (!existsSync(dir)) return [];
+	// NOTE: existsSync check then use is a TOCTOU pattern in concurrent code. The file may be deleted between the check and the read. Consider using try/catch ENOENT or async fs.promises.access.
 	const files = (await readdir(dir)).filter((f) => f.endsWith('.yaml') || f.endsWith('.yml'));
 	const out = new Map<string, SkillRecord>();
 	for (const f of files) {
