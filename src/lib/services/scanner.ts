@@ -40,6 +40,7 @@ export async function runSecurityScan(options: {
 	projectPath: string;
 	scanners?: ('gitleaks' | 'trivy' | 'opengrep')[];
 }): Promise<ScanResponse> {
+	// NOTE: This fetch() has no AbortController. Long-running servers can hang the request indefinitely. Add { signal: AbortSignal.timeout(30000) } to bound the wait.
 	const resp = await fetch('/api/scan', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
