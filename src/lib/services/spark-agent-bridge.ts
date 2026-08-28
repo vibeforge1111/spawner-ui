@@ -578,6 +578,18 @@ class SparkAgentBridgeService {
 		session.endedAt = nowIso();
 		session.updatedAt = session.endedAt;
 		this.emitEvent(sessionId, 'spark_agent.session.ended', { reason });
+
+		// Schedule cleanup after TTL to prevent unbounded memory growth
+		const SESSION_CLEANUP_TTL_MS = 30 * 60 * 1000; // 30 minutes
+		setTimeout(() => {
+			if (this.sessions.get(sessionId)?.status === 'ended') {
+				this.sessions.delete(sessionId);
+				this.workerSessions.delete(sessionId);
+				this.subscribers.delete(sessionId);
+				this.instanceOwners.delete(sessionId);
+			}
+		}, SESSION_CLEANUP_TTL_MS);
+
 		return session;
 	}
 
