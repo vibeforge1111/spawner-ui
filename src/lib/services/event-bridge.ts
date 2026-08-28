@@ -198,6 +198,7 @@ class ClientEventBridge {
 	 */
 	async send(event: Omit<BridgeEvent, 'timestamp' | 'source'>): Promise<boolean> {
 		try {
+			// NOTE: This fetch() has no AbortController. Long-running servers can hang the request indefinitely. Add { signal: AbortSignal.timeout(30000) } to bound the wait.
 			const response = await fetch('/api/events', {
 				method: 'POST',
 				headers: {
