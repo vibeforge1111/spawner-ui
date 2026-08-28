@@ -332,7 +332,15 @@ async function submitSparkTask(input: {
 		throw new Error(`Spark harness rejected task (HTTP ${response.status}): ${detail}`);
 	}
 
-	const data = (await response.json()) as { task_id?: string };
+	const rawBody = await response.text().catch(() => '');
+	let data: { task_id?: string } = {};
+	try {
+		data = rawBody ? (JSON.parse(rawBody) as { task_id?: string }) : {};
+	} catch {
+		throw new Error(
+			`Spark harness returned HTTP ${response.status} OK but the body was not JSON: ${rawBody.slice(0, 300)}`
+		);
+	}
 	if (!data.task_id) {
 		throw new Error('Spark harness did not return a task_id');
 	}
@@ -594,7 +602,14 @@ async function getSparkTaskStatus(
 		}
 		throw new Error(`Spark status request failed (HTTP ${response.status}): ${detail}`);
 	}
-	return (await response.json()) as SparkTaskStatus;
+	const rawBody = await response.text().catch(() => '');
+	try {
+		return rawBody ? (JSON.parse(rawBody) as SparkTaskStatus) : ({} as SparkTaskStatus);
+	} catch {
+		throw new Error(
+			`Spark status request returned HTTP ${response.status} OK but the body was not JSON: ${rawBody.slice(0, 300)}`
+		);
+	}
 }
 
 function parseSparkOutput(output: string): Record<string, unknown> | null {
