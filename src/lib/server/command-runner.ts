@@ -52,6 +52,18 @@ export function validateProjectPath(projectPath: string): { valid: boolean; erro
 			const message = error instanceof Error ? error.message : String(error);
 			return { valid: false, error: message };
 		}
+	} else {
+		// External project paths are allowed — warn and still validate containment
+		console.warn(
+			`[security] SPARK_ALLOW_EXTERNAL_PROJECT_PATHS is enabled. ` +
+			`Validating external project path: ${projectPath}`
+		);
+		try {
+			resolveContainedPath(sparkWorkspaceRoot(), projectPath, 'Project path');
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			return { valid: false, error: message };
+		}
 	}
 	return { valid: true };
 }
