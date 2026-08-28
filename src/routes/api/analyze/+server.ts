@@ -181,6 +181,7 @@ export const POST: RequestHandler = async (event) => {
 		// Call Claude API with extended token limit for complex analysis
 		const response = await fetch(CLAUDE_API_URL, {
 			method: 'POST',
+			signal: AbortSignal.timeout(60_000),
 			headers: {
 				'Content-Type': 'application/json',
 				'x-api-key': apiKey,
