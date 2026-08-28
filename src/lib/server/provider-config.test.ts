@@ -132,4 +132,90 @@ describe('resolveProviderRuntimeConfiguration', () => {
 		expect(unselected.model).toBe('local-model');
 		expect(unselected.baseUrl).toBe('http://localhost:1234/v1');
 	});
+
+	it('normalizes Ollama base URL overrides to include /v1', () => {
+		const provider = {
+			id: 'ollama',
+			label: 'Ollama',
+			model: 'llama3.2:1b',
+			enabled: true,
+			kind: 'openai_compat' as const,
+			eventSource: 'ollama',
+			baseUrl: 'http://localhost:11434/v1'
+		};
+
+		const normalized = applyProviderEnvOverrides(provider, {
+			SPARK_OLLAMA_BASE_URL: 'http://localhost:11434'
+		});
+		const alreadyNormalized = applyProviderEnvOverrides(provider, {
+			SPARK_OLLAMA_BASE_URL: 'http://localhost:11434/v1'
+		});
+
+		expect(normalized.baseUrl).toBe('http://localhost:11434/v1');
+		expect(alreadyNormalized.baseUrl).toBe('http://localhost:11434/v1');
+	});
+
+	it('keeps safe defaults when a base URL override is invalid', () => {
+		const provider = {
+			id: 'ollama',
+			label: 'Ollama',
+			model: 'llama3.2:1b',
+			enabled: true,
+			kind: 'openai_compat' as const,
+			eventSource: 'ollama',
+			baseUrl: 'http://localhost:11434/v1'
+		};
+
+		const malformed = applyProviderEnvOverrides(provider, {
+			SPARK_OLLAMA_BASE_URL: 'not-a-url'
+		});
+		const unsupportedScheme = applyProviderEnvOverrides(provider, {
+			SPARK_OLLAMA_BASE_URL: 'file:///tmp/ollama'
+		});
+
+		expect(malformed.baseUrl).toBe('http://localhost:11434/v1');
+		expect(unsupportedScheme.baseUrl).toBe('http://localhost:11434/v1');
+	});
+
+	it('rejects hostile Ollama paths and keeps the default base URL', () => {
+		const provider = {
+			id: 'ollama',
+			label: 'Ollama',
+			model: 'llama3.2:1b',
+			enabled: true,
+			kind: 'openai_compat' as const,
+			eventSource: 'ollama',
+			baseUrl: 'http://localhost:11434/v1'
+		};
+
+		const hostilePath = applyProviderEnvOverrides(provider, {
+			SPARK_OLLAMA_BASE_URL: 'http://localhost:11434/admin'
+		});
+		const hostileQuery = applyProviderEnvOverrides(provider, {
+			SPARK_OLLAMA_BASE_URL: 'http://localhost:11434?api_key=secret'
+		});
+
+		expect(hostilePath.baseUrl).toBe('http://localhost:11434/v1');
+		expect(hostileQuery.baseUrl).toBe('http://localhost:11434/v1');
+	});
+
+	it('prevents credential leakage by rejecting credentialed base URLs', () => {
+		const provider = {
+			id: 'lmstudio',
+			label: 'LM Studio',
+			model: 'local-model',
+			enabled: false,
+			kind: 'openai_compat' as const,
+			eventSource: 'lmstudio',
+			baseUrl: 'http://localhost:1234/v1'
+		};
+
+		const result = applyProviderEnvOverrides(provider, {
+			SPARK_LMSTUDIO_BASE_URL: 'http://user:super-secret@127.0.0.1:1234/v1'
+		});
+
+		expect(result.baseUrl).toBe('http://localhost:1234/v1');
+		expect(result.baseUrl).not.toContain('super-secret');
+		expect(result.baseUrl).not.toContain('@');
+	});
 });

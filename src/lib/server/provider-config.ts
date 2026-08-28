@@ -69,6 +69,42 @@ function firstConfigured(...values: Array<string | undefined>): string | undefin
 	return undefined;
 }
 
+function sanitizeOpenAiCompatBaseUrl(baseUrl: string | undefined): string | undefined {
+	if (!baseUrl) return undefined;
+	const trimmed = baseUrl.trim();
+	if (!trimmed) return undefined;
+	let parsed: URL;
+	try {
+		parsed = new URL(trimmed);
+	} catch {
+		return undefined;
+	}
+	if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return undefined;
+	if (parsed.username || parsed.password) return undefined;
+	if (parsed.search || parsed.hash) return undefined;
+	return parsed.toString().replace(/\/$/, '');
+}
+
+function normalizeOpenAiCompatBaseUrl(providerId: string, baseUrl: string | undefined): string | undefined {
+	const sanitizedBaseUrl = sanitizeOpenAiCompatBaseUrl(baseUrl);
+	if (!sanitizedBaseUrl) return undefined;
+	if (providerId !== 'ollama') return sanitizedBaseUrl;
+	let parsed: URL;
+	try {
+		parsed = new URL(sanitizedBaseUrl);
+	} catch {
+		return undefined;
+	}
+	const normalizedPath = parsed.pathname.replace(/\/+$/, '');
+	if (!normalizedPath || normalizedPath === '/') {
+		return `${sanitizedBaseUrl}/v1`;
+	}
+	if (normalizedPath === '/v1') {
+		return sanitizedBaseUrl;
+	}
+	return undefined;
+}
+
 export function applyProviderEnvOverrides<T extends MultiLLMProviderConfig>(
 	provider: T,
 	envRecord: Record<string, string | undefined>,
@@ -86,6 +122,7 @@ export function applyProviderEnvOverrides<T extends MultiLLMProviderConfig>(
 		envRecord[`SPARK_${upperId}_BASE_URL`],
 		envRecord[`${upperId}_BASE_URL`]
 	);
+	const normalizedBaseUrl = normalizeOpenAiCompatBaseUrl(provider.id, baseUrl);
 	const commandTemplate = firstConfigured(
 		isMissionDefault ? envRecord.SPARK_MISSION_LLM_COMMAND_TEMPLATE : undefined,
 		envRecord[`SPARK_${upperId}_COMMAND_TEMPLATE`],
@@ -95,7 +132,7 @@ export function applyProviderEnvOverrides<T extends MultiLLMProviderConfig>(
 	return {
 		...provider,
 		...(model ? { model } : {}),
-		...(baseUrl ? { baseUrl } : {}),
+		...(normalizedBaseUrl ? { baseUrl: normalizedBaseUrl } : {}),
 		...(commandTemplate ? { commandTemplate } : {})
 	};
 }
