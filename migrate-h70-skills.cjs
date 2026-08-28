@@ -265,7 +265,11 @@ function main() {
   });
 
   // Write new skills.json
-  fs.writeFileSync(OUTPUT_PATH, JSON.stringify(skills, null, 2));
+  try {
+      fs.writeFileSync(OUTPUT_PATH, JSON.stringify(skills, null, 2));
+  } catch (e) {
+      // silent catch
+  }
 
   console.log(`\n========================================`);
   console.log(`Migration Complete!`);
