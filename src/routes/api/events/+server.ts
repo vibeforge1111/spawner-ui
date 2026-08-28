@@ -23,9 +23,10 @@ import { logger } from '$lib/utils/logger';
 import { parseJsonOrFallback } from '$lib/utils/safe-json';
 import { stripProviderDeterministicArtifactProof } from '$lib/server/prd-deterministic-artifact-proof';
 
-import { writeFile, mkdir, appendFile, readFile } from 'fs/promises';
+import { mkdir, appendFile, readFile } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
+import { writeFileAtomic } from '$lib/server/atomic-write';
 
 const EVENTS_AUTH_COOKIE = 'spawner_events_api_key';
 const log = logger.scope('EventBridge');
