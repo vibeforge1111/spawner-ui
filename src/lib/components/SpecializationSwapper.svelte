@@ -67,28 +67,32 @@
 
 	let active = $state(0);
 	let timer: ReturnType<typeof setInterval> | null = null;
+	let resumeTimeout: ReturnType<typeof setTimeout> | null = null;
 
 	const current = $derived(SPECS[active]);
 
-	onMount(() => {
+	function startAutoCycle() {
+		if (timer) clearInterval(timer);
 		timer = setInterval(() => {
 			active = (active + 1) % SPECS.length;
 		}, 8000);
+	}
+
+	onMount(() => {
+		startAutoCycle();
 	});
 
 	onDestroy(() => {
 		if (timer) clearInterval(timer);
+		if (resumeTimeout) clearTimeout(resumeTimeout);
 	});
 
 	function pick(i: number) {
 		active = i;
 		if (timer) clearInterval(timer);
+		if (resumeTimeout) clearTimeout(resumeTimeout);
 		// Resume auto-cycle after 8s
-		setTimeout(() => {
-			timer = setInterval(() => {
-				active = (active + 1) % SPECS.length;
-			}, 8000);
-		}, 8000);
+		resumeTimeout = setTimeout(startAutoCycle, 8000);
 	}
 </script>
 
