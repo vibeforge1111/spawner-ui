@@ -1260,8 +1260,8 @@ class SparkAgentBridgeService {
 			throw new Error('No mission has been built for this session');
 		}
 
-		session.mission.status = 'failed';
-		session.mission.error = 'Stopped by Spark agent command';
+		session.mission.status = 'cancelled';
+		session.mission.error = null;
 		session.mission.updated_at = nowIso();
 		this.emitEvent(session.id, 'spark_agent.mission.status', {
 			missionId: session.mission.id,
