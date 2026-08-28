@@ -1,3 +1,4 @@
+import { rejectIfCsrfInvalid } from '$lib/server/csrf';
 /**
  * Pipeline Loader API
  *

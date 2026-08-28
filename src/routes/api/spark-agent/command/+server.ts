@@ -1,3 +1,4 @@
+import { rejectIfCsrfInvalid } from '$lib/server/csrf';
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import {
@@ -17,6 +18,8 @@ function isAllowedCommand(value: string): value is SparkAgentCommandName {
 }
 
 export const POST: RequestHandler = async (event) => {
+	const csrfCheck = rejectIfCsrfInvalid(event.request);
+	if (csrfCheck) return csrfCheck;
 	const unauthorized = requireControlAuth(event, {
 		surface: 'Spark Agent',
 		apiKeyEnvVar: 'SPARK_AGENT_API_KEY',

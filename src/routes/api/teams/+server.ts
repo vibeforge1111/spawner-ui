@@ -1,3 +1,4 @@
+import { rejectIfCsrfInvalid } from '$lib/server/csrf';
 // Teams API Endpoint
 // Serves agentic team configurations
 // Configure your teams in: src/lib/data/teams/index.ts

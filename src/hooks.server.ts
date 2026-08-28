@@ -24,6 +24,7 @@ import {
 	hostedUiShouldBypassLocalOperatorAuth,
 	hostedUiIsLocalOperatorLoopbackRequest
 } from '$lib/server/hosted-ui-auth';
+import { generateCsrfToken, setCsrfCookie } from '$lib/server/csrf';
 
 function secureResponse(response: Response): Response {
 	for (const [name, value] of Object.entries(hostedUiSecurityHeaders(env))) {
@@ -33,6 +34,7 @@ function secureResponse(response: Response): Response {
 }
 
 export const handle: Handle = async ({ event, resolve }) => {
+	const csrfToken = generateCsrfToken();
 	const staticAssetPath =
 		event.url.pathname === '/robots.txt' ||
 		event.url.pathname.startsWith('/_app/') ||
@@ -131,5 +133,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 		redirectWithoutAuthQuery(event.url);
 	}
 
-	return secureResponse(await resolve(event));
+		const response = await resolve(event);
+	setCsrfCookie(response, csrfToken);
+	return secureResponse(response);
 };

@@ -1,3 +1,4 @@
+import { rejectIfCsrfInvalid } from '$lib/server/csrf';
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { sparkAgentBridge } from '$lib/services/spark-agent-bridge';
@@ -19,6 +20,8 @@ function parseBody(value: unknown): { sessionId?: string; actor?: string; metada
 }
 
 export const POST: RequestHandler = async (event) => {
+	const csrfCheck = rejectIfCsrfInvalid(event.request);
+	if (csrfCheck) return csrfCheck;
 	const unauthorized = requireControlAuth(event, {
 		surface: 'Spark Agent',
 		apiKeyEnvVar: 'SPARK_AGENT_API_KEY',
