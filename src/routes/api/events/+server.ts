@@ -75,6 +75,22 @@ function isCorsOriginAllowed(origin: string): boolean {
 	return eventsAllowedOrigins().includes(origin);
 }
 
+// Suppress duplicate fan-out when the upstream POSTer retries the same event id
+// on a transient network error — without this, the same mission_completed (or
+// any other event) is broadcast twice to SSE subscribers + downstream consumers.
+const RECENT_EVENT_ID_TTL_MS = 5 * 60 * 1000;
+const recentEventIds = new Map<string, number>();
+function rememberRecentEventId(id: string, now: number): boolean {
+	const previous = recentEventIds.get(id);
+	if (typeof previous === 'number' && now - previous < RECENT_EVENT_ID_TTL_MS) return false;
+	recentEventIds.set(id, now);
+	if (recentEventIds.size > 1000) {
+		const cutoff = now - RECENT_EVENT_ID_TTL_MS;
+		recentEventIds.forEach((ts, key) => { if (ts < cutoff) recentEventIds.delete(key); });
+	}
+	return true;
+}
+
 function corsHeaders(request: Request): Record<string, string> {
 	const origin = request.headers.get('origin');
 	if (!origin || !isCorsOriginAllowed(origin)) return {};
