@@ -1753,6 +1753,7 @@ class MissionExecutor {
 		relay?: ExecutionRunOptions['relay'],
 		executionAuthority?: unknown
 	): Promise<{ success: boolean; sessions?: Record<string, unknown>; error?: string }> {
+		// NOTE: This fetch() has no AbortController. Long-running servers can hang the request indefinitely. Add { signal: AbortSignal.timeout(30000) } to bound the wait.
 		const response = await fetch('/api/dispatch', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
