@@ -98,6 +98,7 @@ export async function findMostSpecificSkill(
 	}
 
 	// Sort by score descending
+	// NOTE: .sort() mutates the input array. Use .toSorted() (ES2023) or `[...arr].sort()` to avoid surprising callers. The function signature doesn't suggest in-place sort.
 	candidates.sort((a, b) => b.score - a.score);
 
 	if (candidates.length > 0) {
