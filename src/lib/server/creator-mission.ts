@@ -1721,6 +1721,21 @@ export async function saveCreatorMissionTrace(trace: CreatorMissionTrace, stateD
 	await rename(tempPath, filePath);
 }
 
+export function creatorMissionTraceNotFoundMessage(input: {
+	missionId?: string | null;
+	requestId?: string | null;
+}): string {
+	const missionId = input.missionId?.trim();
+	const requestId = input.requestId?.trim();
+	if (missionId) {
+		return `creator mission trace not found for missionId='${missionId}'. Confirm the mission was created (createCreatorMission writes <stateDir>/creator-missions/<missionId>.json) and that the state directory matches the one the creator was run against.`;
+	}
+	if (requestId) {
+		return `creator mission trace not found for requestId='${requestId}'. The request id is resolved by scanning <stateDir>/creator-missions/*.json; confirm the mission was created and the state directory matches.`;
+	}
+	return "creator mission trace not found: neither missionId nor requestId was provided. Pass one of input.missionId (preferred) or input.requestId.";
+}
+
 function parseCreatorMissionTraceFile(raw: string): CreatorMissionTrace | null {
 	try {
 		return JSON.parse(raw) as CreatorMissionTrace;
@@ -1775,7 +1790,7 @@ export async function executeCreatorMission(
 ): Promise<{ trace: CreatorMissionTrace; load: CreatorMissionCanvasLoad; dispatch: PrdAutoDispatchResult }> {
 	const trace = await readCreatorMissionTrace(input, options.stateDir);
 	if (!trace) {
-		throw new Error('creator mission trace not found');
+		throw new Error(creatorMissionTraceNotFoundMessage(input));
 	}
 	if (trace.stage_status === 'published') {
 		throw new Error('creator mission is already published');
@@ -2121,7 +2136,7 @@ export async function validateCreatorMission(
 ): Promise<{ trace: CreatorMissionTrace; run: CreatorValidationRun }> {
 	const trace = await readCreatorMissionTrace(input, options.stateDir);
 	if (!trace) {
-		throw new Error('creator mission trace not found');
+		throw new Error(creatorMissionTraceNotFoundMessage(input));
 	}
 	const now = options.now?.() ?? new Date();
 	const startedAt = now.toISOString();
