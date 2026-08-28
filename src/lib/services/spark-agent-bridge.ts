@@ -12,6 +12,7 @@ import {
 	resolveCodexSandbox
 } from '$lib/server/high-agency-workers';
 import { spawnHidden, terminateProcessTree } from '$lib/server/hidden-process';
+import { sanitizeChildProcessEnv } from '$lib/server/child-process-env';
 import { compactProviderHandoffText } from '$lib/server/mission-control-display';
 import { resolveSparkRunProjectPath } from '$lib/server/spark-run-workspace';
 import { agentWorkTimeoutMs } from '$lib/server/timeout-config';
@@ -1546,7 +1547,7 @@ class SparkAgentBridgeService {
 			const child = spawnHidden(command.resolvedBinary, command.args, {
 				cwd,
 				stdio: ['pipe', 'pipe', 'pipe'],
-				env: { ...process.env }
+				env: sanitizeChildProcessEnv(process.env)
 			});
 
 			const workerState = this.workerSessions.get(context.sessionId);

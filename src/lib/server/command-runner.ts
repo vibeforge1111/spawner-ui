@@ -10,6 +10,7 @@ import { readFile } from 'node:fs/promises';
 import { basename, dirname, join, isAbsolute, resolve } from 'node:path';
 import { existsSync } from 'node:fs';
 import { commandTimeoutMs } from './timeout-config';
+import { sanitizeChildProcessEnv } from './child-process-env';
 import { externalProjectPathsAllowed, resolveContainedPath, sparkWorkspaceRoot } from './spark-run-workspace';
 import { BoundedProcessOutput } from './bounded-process-output';
 
@@ -160,7 +161,7 @@ export function runCommand(
 			cwd,
 			shell: false,
 			timeout: timeoutMs,
-			env: { ...process.env, FORCE_COLOR: '0', CI: 'true' },
+			env: sanitizeChildProcessEnv(process.env, { FORCE_COLOR: '0', CI: 'true' }),
 			windowsHide: true
 		});
 
