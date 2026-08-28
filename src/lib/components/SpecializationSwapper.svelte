@@ -67,6 +67,7 @@
 
 	let active = $state(0);
 	let timer: ReturnType<typeof setInterval> | null = null;
+	let resumeDelay: ReturnType<typeof setTimeout> | null = null;
 
 	const current = $derived(SPECS[active]);
 
@@ -77,14 +78,17 @@
 	});
 
 	onDestroy(() => {
+		if (resumeDelay) clearTimeout(resumeDelay);
 		if (timer) clearInterval(timer);
 	});
 
 	function pick(i: number) {
 		active = i;
 		if (timer) clearInterval(timer);
+		if (resumeDelay) clearTimeout(resumeDelay);
 		// Resume auto-cycle after 8s
-		setTimeout(() => {
+		resumeDelay = setTimeout(() => {
+			resumeDelay = null;
 			timer = setInterval(() => {
 				active = (active + 1) % SPECS.length;
 			}, 8000);
