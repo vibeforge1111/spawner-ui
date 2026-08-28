@@ -1,18 +1,9 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { env } from '$env/dynamic/private';
+import { requireControlAuth } from '$lib/server/mcp-auth';
 import { DEFAULT_MULTI_LLM_PROVIDERS } from '$lib/services/multi-llm-orchestrator';
 import { applyProviderEnvOverrides, resolveProviderRuntimeConfiguration } from '$lib/server/provider-config';
-import { requireControlAuth } from '$lib/server/mcp-auth';
-
-function normalizeProviderId(value: string | undefined): string | null {
-	if (!value) return null;
-	const normalized = value.trim().toLowerCase();
-	if (!normalized) return null;
-	return DEFAULT_MULTI_LLM_PROVIDERS.some((provider) => provider.id === normalized)
-		? normalized
-		: null;
-}
 
 function providerAuthPayload(event: Parameters<typeof requireControlAuth>[0]) {
 	const openRead = requireControlAuth(event, {
@@ -35,6 +26,15 @@ function providerAuthPayload(event: Parameters<typeof requireControlAuth>[0]) {
 	});
 
 	return { openRead: null, hasControlAuth: strictRead === null };
+}
+
+function normalizeProviderId(value: string | undefined): string | null {
+	if (!value) return null;
+	const normalized = value.trim().toLowerCase();
+	if (!normalized) return null;
+	return DEFAULT_MULTI_LLM_PROVIDERS.some((provider) => provider.id === normalized)
+		? normalized
+		: null;
 }
 
 export const GET: RequestHandler = async (event) => {
