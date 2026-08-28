@@ -10,12 +10,14 @@
 
 	let step = $state<Step>('done');
 	let timer: ReturnType<typeof setInterval> | null = null;
+	let startupDelay: ReturnType<typeof setTimeout> | null = null;
 
 	const SCRIPT: Step[] = ['typing', 'sent', 'reply', 'building', 'done'];
 
 	onMount(() => {
 		// Show fully populated chat for 4s, then loop the typing animation
-		setTimeout(() => {
+		startupDelay = setTimeout(() => {
+			startupDelay = null;
 			let i = 0;
 			step = SCRIPT[0];
 			timer = setInterval(() => {
@@ -26,6 +28,7 @@
 	});
 
 	onDestroy(() => {
+		if (startupDelay) clearTimeout(startupDelay);
 		if (timer) clearInterval(timer);
 	});
 
