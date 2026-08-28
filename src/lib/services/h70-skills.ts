@@ -168,6 +168,7 @@ export async function getH70Skill(skillId: string): Promise<H70SkillContent | nu
 	if (!browser) return null;
 
 	try {
+		// NOTE: This fetch() has no AbortController. Long-running servers can hang the request indefinitely. Add { signal: AbortSignal.timeout(30000) } to bound the wait.
 		const response = await fetch(`/api/h70-skills/${skillId}`);
 		if (!response.ok) {
 			console.warn(`[H70] Skill not found: ${skillId}`);
