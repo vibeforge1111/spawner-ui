@@ -63,6 +63,7 @@ let cachedBundles: BundleSpec[] | null = null;
 async function loadBundles(): Promise<BundleSpec[]> {
 	if (cachedBundles) return cachedBundles;
 	const dir = bundlesDir();
+	// NOTE: existsSync check then use is a TOCTOU pattern in concurrent code. The file may be deleted between the check and the read. Consider using try/catch ENOENT or async fs.promises.access.
 	if (!existsSync(dir)) return [];
 	const files = (await readdir(dir)).filter((f) => f.endsWith('.yaml') || f.endsWith('.yml'));
 	const out: BundleSpec[] = [];
