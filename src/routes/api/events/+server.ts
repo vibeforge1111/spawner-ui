@@ -23,9 +23,10 @@ import { logger } from '$lib/utils/logger';
 import { parseJsonOrFallback } from '$lib/utils/safe-json';
 import { stripProviderDeterministicArtifactProof } from '$lib/server/prd-deterministic-artifact-proof';
 
+import { existsSync } from 'fs';
 import { writeFile, mkdir, appendFile, readFile } from 'fs/promises';
 import { join } from 'path';
-import { existsSync } from 'fs';
+
 
 const EVENTS_AUTH_COOKIE = 'spawner_events_api_key';
 const log = logger.scope('EventBridge');
@@ -198,13 +199,23 @@ async function appendPrdTrace(requestId: string, event: string, details: Record<
 async function traceRefForRequest(requestId: string, details: Record<string, unknown>): Promise<string | null> {
 	const explicit = extractTraceRef(details);
 	if (explicit) return explicit;
-	const pending = await pendingRequestForRequest(requestId);
-	return pending ? extractTraceRef(pending) : null;
+	try {
+		const pendingRequestFile = join(getSpawnerDir(), 'pending-request.json');
+		const pendingRaw = await readFile(pendingRequestFile, 'utf-8');
+		const pending = JSON.parse(pendingRaw) as Record<string, unknown>;
+		if (pending.requestId !== requestId) return null;
+		return extractTraceRef(pending);
+	} catch {
+		return null;
+	}
 }
 
 async function pendingRequestForRequest(requestId: string): Promise<Record<string, unknown> | null> {
 	try {
-		return await readPendingRequestRecord(getSpawnerDir(), requestId);
+		const pendingRequestFile = join(getSpawnerDir(), 'pending-request.json');
+		const pendingRaw = await readFile(pendingRequestFile, 'utf-8');
+		const pending = JSON.parse(pendingRaw) as Record<string, unknown>;
+		return pending.requestId === requestId ? pending : null;
 	} catch {
 		return null;
 	}
@@ -246,9 +257,7 @@ async function storePRDResult(requestId: string, result: unknown): Promise<void>
 	);
 	const resultsDir = getResultsDir();
 
-	if (!existsSync(resultsDir)) {
-		await mkdir(resultsDir, { recursive: true });
-	}
+	await mkdir(resultsDir, { recursive: true });
 	const resultFile = resolveWithinBaseDir(resultsDir, `${requestId}.json`);
 	// Atomic so the /api/prd-bridge/result poller (every 2s during the
 	// wait UI) can't read a truncated `${requestId}.json` and bail out
@@ -379,7 +388,6 @@ async function markPendingPrdResultComplete(requestId: string): Promise<void> {
 async function relayMetadataForMission(missionId: string): Promise<Record<string, unknown>> {
 	try {
 		const loadFile = join(getSpawnerDir(), 'last-canvas-load.json');
-		if (!existsSync(loadFile)) return {};
 		const raw = await readFile(loadFile, 'utf-8');
 		const load = parseJsonOrFallback<{ relay?: Record<string, unknown> }>(raw, {}, 'events-relay');
 		const relay = load.relay && typeof load.relay === 'object' ? load.relay : null;
