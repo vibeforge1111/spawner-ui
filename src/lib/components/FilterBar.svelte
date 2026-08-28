@@ -69,6 +69,8 @@
 				class:text-text-tertiary={viewMode !== 'cards'}
 				class:hover:text-text-primary={viewMode !== 'cards'}
 				title="Card view"
+				aria-label="Card view"
+				aria-pressed={viewMode === 'cards'}
 			>
 				<Icon name="grid" size={14} />
 			</button>
@@ -82,6 +84,8 @@
 				class:text-text-tertiary={viewMode !== 'rows'}
 				class:hover:text-text-primary={viewMode !== 'rows'}
 				title="List view"
+				aria-label="List view"
+				aria-pressed={viewMode === 'rows'}
 			>
 				<Icon name="menu" size={14} />
 			</button>
