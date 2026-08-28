@@ -12,20 +12,6 @@ import {
 import { enforceRateLimit, requireControlAuth } from '$lib/server/mcp-auth';
 import { HarnessAuthorityError } from '$lib/server/harness-authority';
 
-function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : {};
-}
-
-function errorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error && error.message ? error.message : fallback;
-}
-
-if (!building && process.env.NODE_ENV !== 'test') {
-  startScheduler();
-}
-
 function scheduledAuth(event: RequestEvent, allowLoopbackWithoutKey = false) {
   return requireControlAuth(event, {
     surface: 'Scheduled',
@@ -59,6 +45,20 @@ function sanitizeScheduleForLoopback(schedule: ScheduleRecord): ScheduleRecord {
   };
 }
 
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
+function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
+
+if (!building && process.env.NODE_ENV !== 'test') {
+  startScheduler();
+}
+
 export const GET: RequestHandler = async (event) => {
   const { openRead, hasControlAuth } = scheduledReadAuth(event);
   if (openRead) return openRead;
@@ -69,13 +69,6 @@ export const GET: RequestHandler = async (event) => {
 export const POST: RequestHandler = async (event) => {
   const unauthorized = scheduledAuth(event);
   if (unauthorized) return unauthorized;
-  const rateLimited = enforceRateLimit(event, {
-    scope: 'scheduled_create',
-    limit: 60,
-    windowMs: 60_000
-  });
-  if (rateLimited) return rateLimited;
-
   const { request } = event;
   let body: Record<string, unknown>;
   try {
@@ -107,13 +100,6 @@ export const POST: RequestHandler = async (event) => {
 export const DELETE: RequestHandler = async (event) => {
   const unauthorized = scheduledAuth(event);
   if (unauthorized) return unauthorized;
-  const rateLimited = enforceRateLimit(event, {
-    scope: 'scheduled_delete',
-    limit: 60,
-    windowMs: 60_000
-  });
-  if (rateLimited) return rateLimited;
-
   const { request, url } = event;
   let body: Record<string, unknown> = {};
   try { body = asRecord(await request.json()); } catch {}
