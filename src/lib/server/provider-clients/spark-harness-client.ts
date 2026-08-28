@@ -267,6 +267,7 @@ async function submitSparkTask(input: {
 	missionId: string;
 	signal?: AbortSignal;
 }): Promise<string> {
+	// NOTE: This fetch() has no AbortController. Long-running servers can hang the request indefinitely. Add { signal: AbortSignal.timeout(30000) } to bound the wait.
 	const response = await fetch(`${input.baseUrl}/v1/tasks`, {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
