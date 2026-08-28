@@ -247,7 +247,8 @@ async function _fire(record: ScheduleRecord): Promise<{ ok: boolean; summary: st
     };
   }
   if (record.action === 'loop') {
-    const chipKey = String(record.payload.chipKey ?? '');
+    const chipKey = String(record.payload.chipKey ?? '').replace(/[^a-zA-Z0-9_-]/g, '');
+    const rounds = Math.max(1, Number(record.payload.rounds ?? 2));
     if (!chipKey) return { ok: false, summary: 'loop has no chipKey' };
     return {
       ok: false,
