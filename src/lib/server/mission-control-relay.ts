@@ -122,8 +122,18 @@ const RELAY_EVENT_TYPES = new Set([
 	'log'
 ]);
 
-const MAX_RECENT_EVENTS = Number(env.MISSION_CONTROL_RECENT_EVENT_LIMIT) || 1000;
-const MAX_RECENT_EVENTS_PER_MISSION = Number(env.MISSION_CONTROL_RECENT_EVENT_LIMIT_PER_MISSION) || 120;
+function positiveIntEnv(key: string, raw: string | undefined, fallback: number): number {
+	if (raw === undefined || raw === '') return fallback;
+	const n = Number(raw);
+	if (!Number.isFinite(n) || n <= 0) {
+		console.warn(`[mission-control-relay] ${key}=${JSON.stringify(raw)} invalid (expected positive integer); using default ${fallback}`);
+		return fallback;
+	}
+	return Math.trunc(n);
+}
+
+const MAX_RECENT_EVENTS = positiveIntEnv('MISSION_CONTROL_RECENT_EVENT_LIMIT', env.MISSION_CONTROL_RECENT_EVENT_LIMIT, 1000);
+const MAX_RECENT_EVENTS_PER_MISSION = positiveIntEnv('MISSION_CONTROL_RECENT_EVENT_LIMIT_PER_MISSION', env.MISSION_CONTROL_RECENT_EVENT_LIMIT_PER_MISSION, 120);
 const DEFAULT_STALE_NON_TERMINAL_MS = 24 * 60 * 60 * 1000;
 
 const DEFAULT_SPARK_INGEST_URL = env.SPARK_MISSION_CONTROL_INGEST_URL || '';
@@ -154,7 +164,7 @@ const DEFAULT_WEBHOOKS = (localEnvValue('MISSION_CONTROL_WEBHOOK_URLS') || env.M
 	.map((value) => value.trim())
 	.filter(Boolean);
 const DEFAULT_TELEGRAM_RELAY_SECRET = localEnvValue('TELEGRAM_RELAY_SECRET') || env.TELEGRAM_RELAY_SECRET?.trim() || '';
-const STALE_NON_TERMINAL_MS = Number(env.MISSION_CONTROL_STALE_NONTERMINAL_MS) || DEFAULT_STALE_NON_TERMINAL_MS;
+const STALE_NON_TERMINAL_MS = positiveIntEnv('MISSION_CONTROL_STALE_NONTERMINAL_MS', env.MISSION_CONTROL_STALE_NONTERMINAL_MS, DEFAULT_STALE_NON_TERMINAL_MS);
 const TASK_TERMINAL_EVENTS = new Set(['task_completed', 'task_failed', 'task_cancelled']);
 
 // Persist relay state so HMR reloads + server restarts don't wipe the history.
