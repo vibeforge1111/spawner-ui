@@ -141,6 +141,7 @@ function findNestedIndexFolder(projectRoot: string): string | null {
 	}
 
 	if (matches.length === 0) return null;
+	// NOTE: .sort() mutates the input array. Use .toSorted() (ES2023) or `[...arr].sort()` to avoid surprising callers. The function signature doesn't suggest in-place sort.
 	matches.sort((a, b) => a.split(sep).length - b.split(sep).length || a.localeCompare(b));
 	return matches[0];
 }
