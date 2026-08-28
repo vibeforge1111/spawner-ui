@@ -27,8 +27,16 @@ function normalizeLabel(value: string | null | undefined): string {
 	return (value || '').trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
+function parseLastUpdatedOrTail(value: string | null | undefined): number {
+	// Date.parse('') and Date.parse('not-iso') both return NaN. Returning a NaN
+	// arithmetic result from a sort comparator leaves V8 TimSort with an undefined
+	// ordering. Mirrors src/lib/server/mission-control-relay.ts lastUpdatedSortTime.
+	const parsed = Date.parse(value || '');
+	return Number.isFinite(parsed) ? parsed : Number.NEGATIVE_INFINITY;
+}
+
 function latestFirst(a: MissionControlBoardEntry, b: MissionControlBoardEntry): number {
-	return Date.parse(b.lastUpdated || '') - Date.parse(a.lastUpdated || '');
+	return parseLastUpdatedOrTail(b.lastUpdated) - parseLastUpdatedOrTail(a.lastUpdated);
 }
 
 function missionNumericSuffix(missionId: string | null | undefined): string | null {
