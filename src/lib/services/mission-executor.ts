@@ -283,8 +283,13 @@ class MissionExecutor {
 		this.progress.currentTaskName = saved.currentTaskName;
 		this.progress.currentTaskProgress = saved.currentTaskProgress;
 		this.progress.currentTaskMessage = saved.currentTaskMessage;
-		// Convert Object back to Map
-		this.progress.taskProgressMap = new Map(Object.entries(saved.taskProgressMap || {}));
+		// Convert Object back to Map, restoring startedAt as number
+		this.progress.taskProgressMap = new Map(
+			Object.entries(saved.taskProgressMap || {}).map(([key, val]) => [
+				key,
+				{ ...val, startedAt: typeof val.startedAt === 'string' ? new Date(val.startedAt).getTime() : Number(val.startedAt) }
+			])
+		);
 		this.progress.logs = saved.logs || [];
 		this.progress.startTime = saved.startTime ? new Date(saved.startTime) : null;
 		this.progress.endTime = saved.endTime ? new Date(saved.endTime) : null;
