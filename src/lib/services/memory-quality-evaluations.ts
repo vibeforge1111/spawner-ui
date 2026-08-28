@@ -1,5 +1,6 @@
 import { existsSync } from 'fs';
-import { readFile, writeFile } from 'fs/promises';
+import { readFile } from 'fs/promises';
+import { writeFileAtomic } from '$lib/server/atomic-write';
 import {
 	MEMORY_FAILURE_MODES,
 	MEMORY_OUTCOMES,
@@ -92,7 +93,11 @@ export async function appendManualEvaluation(
 		manual: true
 	};
 
-	await writeFile(paths.evaluationsFile, JSON.stringify([event, ...existing], null, 2), 'utf-8');
+	// Write the appended evaluation list via temp+rename so a crash mid-write
+	// (process kill, OOM, container restart) cannot truncate the on-disk
+	// evaluations log and lose every prior manually-recorded recall event.
+	// Sister precedent #379 (claude-auto-analysis) and #380 (h70-skill-access-token).
+	await writeFileAtomic(paths.evaluationsFile, JSON.stringify([event, ...existing], null, 2));
 	return { dataset: await loadMemoryQualityDataset(paths), event };
 }
 
