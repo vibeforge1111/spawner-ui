@@ -41,6 +41,7 @@ export async function loadCollaborationIndex(): Promise<CollaborationIndex> {
 	if (collaborationIndex) return collaborationIndex;
 
 	try {
+		// NOTE: This fetch() has no AbortController. Long-running servers can hang the request indefinitely. Add { signal: AbortSignal.timeout(30000) } to bound the wait.
 		const response = await fetch('/skill-collaboration.json');
 		if (!response.ok) throw new Error('Failed to load collaboration index');
 		collaborationIndex = await response.json();
