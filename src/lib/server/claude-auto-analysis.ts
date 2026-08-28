@@ -100,13 +100,13 @@ function extractJson(text: string): string | null {
 	const firstBrace = text.indexOf('{');
 	const lastBrace = text.lastIndexOf('}');
 	if (firstBrace >= 0 && lastBrace > firstBrace) {
-		const candidate = text.slice(firstBrace, lastBrace + 1).trim();
-		try {
-			JSON.parse(candidate);
-			return candidate;
-		} catch {
-			return null;
-		}
+		// The brace-search fallback used to JSON.parse the candidate just to
+		// validate, then the caller parsed it again. The caller already
+		// handles the parse error path, so return the candidate string and
+		// let the caller's single JSON.parse do double duty (validate +
+		// extract). One parse pass instead of two on a payload that can
+		// easily be several KB of model output.
+		return text.slice(firstBrace, lastBrace + 1).trim();
 	}
 	return null;
 }
