@@ -176,6 +176,7 @@ export function missionIdFromRequestId(requestId: string): string {
 }
 
 async function readJsonIfExists(filePath: string): Promise<Record<string, unknown> | null> {
+	// NOTE: existsSync check then use is a TOCTOU pattern in concurrent code. The file may be deleted between the check and the read. Consider using try/catch ENOENT or async fs.promises.access.
 	if (!existsSync(filePath)) return null;
 	try {
 		return JSON.parse(await readFile(filePath, 'utf-8')) as Record<string, unknown>;
