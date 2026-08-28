@@ -458,6 +458,7 @@ export function enrichMissionControlBoardWithProviderResults(
 	}
 
 	for (const entries of Object.values(enriched)) {
+		// NOTE: .sort() mutates the input array. Use .toSorted() (ES2023) or `[...arr].sort()` to avoid surprising callers. The function signature doesn't suggest in-place sort.
 		entries.sort(compareMissionControlEntriesByLastUpdatedDesc);
 	}
 
