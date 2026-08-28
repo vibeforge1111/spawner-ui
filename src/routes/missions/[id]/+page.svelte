@@ -109,21 +109,28 @@
 
 	async function loadMissionControlStatus(): Promise<void> {
 		if (!missionId) return;
+		const requestedMissionId = missionId;
 		missionControlLoading = true;
 		missionControlError = null;
 		try {
-			const response = await fetch(`/api/mission-control/status?missionId=${encodeURIComponent(missionId)}`);
+			const response = await fetch(`/api/mission-control/status?missionId=${encodeURIComponent(requestedMissionId)}`);
+			if (requestedMissionId !== missionId) return;
 			if (!response.ok) {
 				throw new Error(`Mission control status failed (${response.status})`);
 			}
 			const body = await response.json();
+			if (requestedMissionId !== missionId) return;
 			missionControl = (body?.snapshot || null) as MissionControlSnapshot | null;
-			const traceResponse = await fetch(`/api/mission-control/trace?missionId=${encodeURIComponent(missionId)}`);
+			const traceResponse = await fetch(`/api/mission-control/trace?missionId=${encodeURIComponent(requestedMissionId)}`);
+			if (requestedMissionId !== missionId) return;
 			missionTrace = traceResponse.ok ? ((await traceResponse.json()) as MissionTraceSnapshot) : null;
 		} catch (error) {
+			if (requestedMissionId !== missionId) return;
 			missionControlError = error instanceof Error ? error.message : 'Unable to load mission control status';
 		} finally {
-			missionControlLoading = false;
+			if (requestedMissionId === missionId) {
+				missionControlLoading = false;
+			}
 		}
 	}
 
