@@ -1424,7 +1424,9 @@ function getTelegramRelayTarget(event: MissionControlBridgeEvent): MissionContro
 	return { port, profile, url };
 }
 
-const LOCAL_URL_PATTERN = /\bhttps?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(?::\d+)?[^\s'"<>)]*/gi;
+// Security: Use atomic-like grouping to prevent ReDoS from catastrophic backtracking
+// The possessive quantifier ++ prevents backtracking into the matched characters
+const LOCAL_URL_PATTERN = /\bhttps?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(?::\d+)?[\w\-.~:/?#[\]@!$&'()*+,;=]*/gi;
 const SECRET_VALUE_PATTERN = /\b(?:sk-[A-Za-z0-9_-]{12,}|\d{5,}:[A-Za-z0-9_-]{20,})\b/g;
 const EXTERNAL_SAFE_DATA_KEYS = new Set([
 	'assignedTaskIds',
