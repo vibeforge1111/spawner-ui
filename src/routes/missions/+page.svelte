@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onDestroy, onMount } from 'svelte';
+	import { browser } from '$app/environment';
 	import Navbar from '$lib/components/Navbar.svelte';
 	import Footer from '$lib/components/Footer.svelte';
 	import {
@@ -78,6 +79,25 @@
 		sentinelPoller = null;
 	}
 
+	function handleVisibilityChange(): void {
+		if (!browser) return;
+		if (document.visibilityState === 'visible') {
+			// Tab is back in the foreground: refetch immediately so the
+			// operator sees current state, then resume the 6s poll.
+			void loadSentinelActions();
+			if (mcpConnected) {
+				void loadMissions();
+			}
+			startSentinelPolling();
+		} else {
+			// Tab hidden: pause polling. Without this, the 6s sentinel
+			// poll keeps firing in a background tab and burns network
+			// plus battery for data the operator cannot see. Polling
+			// resumes on visibility=visible above.
+			stopSentinelPolling();
+		}
+	}
+
 	onMount(async () => {
 		// Wait a bit for MCP connection to establish
 		await new Promise(r => setTimeout(r, 500));
@@ -86,10 +106,16 @@
 		}
 		await loadSentinelActions();
 		startSentinelPolling();
+		if (browser) {
+			document.addEventListener('visibilitychange', handleVisibilityChange);
+		}
 	});
 
 	onDestroy(() => {
 		stopSentinelPolling();
+		if (browser) {
+			document.removeEventListener('visibilitychange', handleVisibilityChange);
+		}
 	});
 
 	// Reload when MCP connects
