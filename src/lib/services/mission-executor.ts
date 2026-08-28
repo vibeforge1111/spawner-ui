@@ -2027,7 +2027,7 @@ class MissionExecutor {
 		const response = await fetch(`/api/dispatch?missionId=${encodeURIComponent(this.progress.missionId)}`);
 		if (!response.ok) return false;
 
-		const status = await response.json() as {
+		const status = await response.json().catch(() => ({})) as {
 			allComplete?: boolean;
 			anyFailed?: boolean;
 			lastReason?: string | null;
