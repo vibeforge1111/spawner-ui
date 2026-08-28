@@ -106,16 +106,17 @@ function requiredText(value: string | null | undefined): string {
 
 function actorFromRequest(event: RequestEvent): Pick<CapabilityEnvelope, 'actorId' | 'actorKind' | 'accessLevel'> {
 	const headerActor = requiredText(event.request.headers.get('x-spark-actor'));
+	if (headerActor) { console.warn('[capability-policy] Ignored spoofed x-spark-actor header:', headerActor); }
 	if (event.cookies && hostedUiSessionIsValid(event.cookies, env)) {
 		return {
-			actorId: headerActor || 'hosted-ui-session',
+			actorId: 'hosted-ui-session',
 			actorKind: 'hosted-user',
 			accessLevel: 1
 		};
 	}
 
 	return {
-		actorId: headerActor || 'local-control',
+		actorId: 'local-control',
 		actorKind: 'local-user',
 		accessLevel: 4
 	};
