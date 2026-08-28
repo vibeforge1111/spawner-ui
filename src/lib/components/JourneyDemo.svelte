@@ -54,6 +54,7 @@
 	// then the loop walks back through prompt -> tasks -> skills -> done.
 	let step = $state(3);
 	let timer: ReturnType<typeof setInterval> | null = null;
+	let startupDelay: ReturnType<typeof setTimeout> | null = null;
 
 	const current = $derived(EXAMPLES[cycle % EXAMPLES.length]);
 	const viewLabel = $derived({
@@ -69,7 +70,8 @@
 	];
 
 	onMount(() => {
-		setTimeout(() => {
+		startupDelay = setTimeout(() => {
+			startupDelay = null;
 			cycle = 1;
 			step = 0;
 			const PHASE_MS = 4200;
@@ -84,6 +86,7 @@
 	});
 
 	onDestroy(() => {
+		if (startupDelay) clearTimeout(startupDelay);
 		if (timer) clearInterval(timer);
 	});
 </script>
