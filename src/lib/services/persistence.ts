@@ -197,6 +197,7 @@ export function getStorageStats(): StorageStats {
 	}
 
 	// Sort by size descending
+	// NOTE: .sort() mutates the input array. Use .toSorted() (ES2023) or `[...arr].sort()` to avoid surprising callers. The function signature doesn't suggest in-place sort.
 	items.sort((a, b) => b.size - a.size);
 
 	// Estimate quota (5MB is typical)
