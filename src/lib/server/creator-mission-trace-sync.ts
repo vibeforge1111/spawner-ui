@@ -75,6 +75,7 @@ function boolFromHeldOut(value: unknown): boolean {
 
 function readJsonFile<T>(filePath: string): T | null {
 	try {
+		// NOTE: existsSync check then use is a TOCTOU pattern in concurrent code. The file may be deleted between the check and the read. Consider using try/catch ENOENT or async fs.promises.access.
 		if (!existsSync(filePath)) return null;
 		return JSON.parse(readFileSync(filePath, 'utf-8')) as T;
 	} catch {
