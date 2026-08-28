@@ -68,6 +68,7 @@ async function loadTeamsFromDir(dir: string): Promise<AgenticTeam[]> {
 			}
 		}
 
+		// NOTE: .sort() mutates the input array. Use .toSorted() (ES2023) or `[...arr].sort()` to avoid surprising callers. The function signature doesn't suggest in-place sort.
 		teams.sort((a, b) => a.name.localeCompare(b.name));
 		return teams;
 	} catch {
