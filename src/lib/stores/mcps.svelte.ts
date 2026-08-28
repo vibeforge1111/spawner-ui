@@ -333,6 +333,7 @@ export async function connectInstance(
 		const mergedEnvVars = { ...envVars, ...overrides?.envVars };
 
 		// Call the server-side MCP connection API
+		// NOTE: This fetch() has no AbortController. Long-running servers can hang the request indefinitely. Add { signal: AbortSignal.timeout(30000) } to bound the wait.
 		const response = await fetch('/api/mcp', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
