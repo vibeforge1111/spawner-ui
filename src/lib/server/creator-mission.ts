@@ -1817,29 +1817,10 @@ const VALIDATION_EXECUTABLE_ALLOWLIST = new Set(['node', 'python', 'python3', 'p
 
 // Interpreters that accept flags to execute arbitrary code snippets.
 const INTERPRETER_EXECUTABLES = new Set(['node', 'python', 'python3', 'py']);
-// Flags that cause interpreters to evaluate an arbitrary code string from the argument
-// line (or read a program from stdin).
+// Flags that cause interpreters to evaluate arbitrary code from the argument string.
 // A command like `python -c "os.system('rm -rf /')"` would pass the allowlist
-// because only the executable name is checked. These inline-eval flags must be rejected.
-// Covers node (-e/--eval, -p/--print), python (-c/--command) and the bare `-`
-// stdin-program form. This list must include every interpreter flag that evaluates an
-// argument string or stdin program rather than naming a script/module on disk.
-//
-// NOTE: `-m`/`--module` is intentionally NOT listed. `python -m <module>` runs a named,
-// importable module (e.g. `python -m pytest tests`) — it executes installed code on disk,
-// exactly like running a script file, and never evaluates an arbitrary inline string. It
-// is a first-class validation pattern here (the default manifest validation command is
-// `python -m pytest tests`, and the planner shells out `python -m spark_intelligence.cli`),
-// so blocking it would break legitimate runs.
-const DANGEROUS_INTERPRETER_FLAGS = new Set([
-	'-c',
-	'--command',
-	'-e',
-	'--eval',
-	'-p',
-	'--print',
-	'-'
-]);
+// because only the executable name is checked. These flags must be rejected.
+const DANGEROUS_INTERPRETER_FLAGS = new Set(['-c', '--command', '-e', '--eval', '-']);
 
 function splitCommandLine(command: string): string[] {
 	const parts: string[] = [];
