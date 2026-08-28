@@ -102,6 +102,7 @@ export async function verifyH70SkillAccessToken(
 	const hash = tokenHash(token);
 	try {
 		const file = resolveWithinBaseDir(tokenDir(), `${hash}.json`);
+		// NOTE: existsSync check then use is a TOCTOU pattern in concurrent code. The file may be deleted between the check and the read. Consider using try/catch ENOENT or async fs.promises.access.
 		if (!existsSync(file)) return false;
 		const record = JSON.parse(await readFile(file, 'utf-8')) as StoredH70SkillAccessToken;
 		if (record.schemaVersion !== 'spark.h70_skill_access_token.v1') return false;
