@@ -132,4 +132,75 @@ describe('resolveProviderRuntimeConfiguration', () => {
 		expect(unselected.model).toBe('local-model');
 		expect(unselected.baseUrl).toBe('http://localhost:1234/v1');
 	});
+
+	it('normalizes local OpenAI-compatible base-url overrides to /v1 for Ollama', () => {
+		const provider = {
+			id: 'ollama',
+			label: 'Ollama',
+			model: 'local-model',
+			enabled: false,
+			kind: 'openai_compat' as const,
+			eventSource: 'ollama',
+			baseUrl: 'http://127.0.0.1:11434/v1'
+		};
+
+		const explicit = applyProviderEnvOverrides(
+			provider,
+			{ SPARK_OLLAMA_BASE_URL: 'http://127.0.0.1:11434' },
+			{}
+		);
+		expect(explicit.baseUrl).toBe('http://127.0.0.1:11434/v1');
+
+		const trailingSlash = applyProviderEnvOverrides(
+			provider,
+			{ SPARK_OLLAMA_BASE_URL: 'http://127.0.0.1:11434/' },
+			{}
+		);
+		expect(trailingSlash.baseUrl).toBe('http://127.0.0.1:11434/v1');
+
+		const alreadyV1 = applyProviderEnvOverrides(
+			provider,
+			{ SPARK_OLLAMA_BASE_URL: 'http://127.0.0.1:11434/v1' },
+			{}
+		);
+		expect(alreadyV1.baseUrl).toBe('http://127.0.0.1:11434/v1');
+	});
+
+	it('does not normalize base URLs for non-localhost hosts', () => {
+		const provider = {
+			id: 'ollama',
+			label: 'Ollama',
+			model: 'local-model',
+			enabled: false,
+			kind: 'openai_compat' as const,
+			eventSource: 'ollama',
+			baseUrl: 'http://192.168.1.100:11434/v1'
+		};
+
+		const override = applyProviderEnvOverrides(
+			provider,
+			{ SPARK_OLLAMA_BASE_URL: 'http://192.168.1.100:11434' },
+			{}
+		);
+		expect(override.baseUrl).toBe('http://192.168.1.100:11434');
+	});
+
+	it('normalizes LM Studio base-url overrides to /v1', () => {
+		const provider = {
+			id: 'lmstudio',
+			label: 'LM Studio',
+			model: 'local-model',
+			enabled: false,
+			kind: 'openai_compat' as const,
+			eventSource: 'lmstudio',
+			baseUrl: 'http://localhost:1234/v1'
+		};
+
+		const override = applyProviderEnvOverrides(
+			provider,
+			{ SPARK_LMSTUDIO_BASE_URL: 'http://localhost:1234' },
+			{}
+		);
+		expect(override.baseUrl).toBe('http://localhost:1234/v1');
+	});
 });

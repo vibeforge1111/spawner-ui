@@ -69,6 +69,27 @@ function firstConfigured(...values: Array<string | undefined>): string | undefin
 	return undefined;
 }
 
+function normalizeLocalOpenAICompatBaseUrl(value: string): string {
+	const trimmed = value.trim();
+	try {
+		const url = new URL(trimmed);
+		const host = url.hostname.toLowerCase();
+		const isLocalHost = host === 'localhost' || host === '127.0.0.1' || host === '::1';
+		if (!isLocalHost) return trimmed;
+
+		// For local OpenAI-compatible servers (LM Studio / Ollama), allow users to provide a bare host:port
+		// and normalize to the expected /v1 base URL.
+		const path = url.pathname.replace(/\/+$/, '');
+		if (path === '' || path === '/') {
+			url.pathname = '/v1';
+			return url.toString();
+		}
+		return trimmed;
+	} catch {
+		return trimmed;
+	}
+}
+
 export function applyProviderEnvOverrides<T extends MultiLLMProviderConfig>(
 	provider: T,
 	envRecord: Record<string, string | undefined>,
@@ -86,6 +107,10 @@ export function applyProviderEnvOverrides<T extends MultiLLMProviderConfig>(
 		envRecord[`SPARK_${upperId}_BASE_URL`],
 		envRecord[`${upperId}_BASE_URL`]
 	);
+	const normalizedBaseUrl =
+		baseUrl && provider.kind === 'openai_compat' && (provider.id === 'lmstudio' || provider.id === 'ollama')
+			? normalizeLocalOpenAICompatBaseUrl(baseUrl)
+			: baseUrl;
 	const commandTemplate = firstConfigured(
 		isMissionDefault ? envRecord.SPARK_MISSION_LLM_COMMAND_TEMPLATE : undefined,
 		envRecord[`SPARK_${upperId}_COMMAND_TEMPLATE`],
@@ -95,7 +120,7 @@ export function applyProviderEnvOverrides<T extends MultiLLMProviderConfig>(
 	return {
 		...provider,
 		...(model ? { model } : {}),
-		...(baseUrl ? { baseUrl } : {}),
+		...(normalizedBaseUrl ? { baseUrl: normalizedBaseUrl } : {}),
 		...(commandTemplate ? { commandTemplate } : {})
 	};
 }
