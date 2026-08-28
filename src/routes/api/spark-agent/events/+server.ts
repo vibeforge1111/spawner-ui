@@ -64,6 +64,15 @@ export const GET: RequestHandler = async (event) => {
 				}
 			};
 
+			const pushComment = (comment: string) => {
+				if (closed) return;
+				try {
+					controller.enqueue(encoder.encode(`: ${comment}\n\n`));
+				} catch {
+					closed = true;
+				}
+			};
+
 			push({
 				type: 'connected',
 				sessionId,
@@ -79,6 +88,13 @@ export const GET: RequestHandler = async (event) => {
 					push(event);
 				});
 			}
+
+			// Emit a 30s SSE comment so idle Spark Agent sessions are not severed
+			// by reverse proxies (nginx/cloudflared) that close streams after ~60s
+			// of silence. Mirrors the keepalive contract on /api/events.
+			const keepalive = setInterval(() => {
+				pushComment('keepalive');
+			}, 30_000);
 
 			// Emit a 30s SSE comment so idle Spark Agent sessions are not severed
 			// by reverse proxies (nginx/cloudflared) that close streams after ~60s
