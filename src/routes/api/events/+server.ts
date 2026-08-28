@@ -6,8 +6,8 @@
  */
 
 import { json } from '@sveltejs/kit';
-import type { RequestHandler } from './$types';
 import { env } from '$env/dynamic/private';
+import type { RequestHandler } from './$types';
 import { eventBridge } from '$lib/services/event-bridge';
 import { assertSafeId, PathSafetyError, resolveWithinBaseDir } from '$lib/server/path-safety';
 import { enforceRateLimit, requireControlAuth } from '$lib/server/mcp-auth';
@@ -75,9 +75,41 @@ function isCorsOriginAllowed(origin: string): boolean {
 	return eventsAllowedOrigins().includes(origin);
 }
 
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '::1']);
+
+function parseCsv(value: string | undefined): string[] {
+	if (!value) return [];
+	return value.split(',').map((s) => s.trim()).filter((s) => s.length > 0);
+}
+
+function isOriginValidForCors(origin: string, requestUrl: string): boolean {
+	try {
+		const originHost = new URL(origin).hostname;
+		const requestHost = new URL(requestUrl).hostname;
+		// Allow loopback-to-loopback (same-origin local dev)
+		if (LOOPBACK_HOSTS.has(requestHost) && LOOPBACK_HOSTS.has(originHost)) {
+			return true;
+		}
+	} catch {
+		return false;
+	}
+
+	// Check against EVENTS_ALLOWED_ORIGINS env allowlist (CSV)
+	const allowedOrigins = parseCsv(env.EVENTS_ALLOWED_ORIGINS as string | undefined);
+	if (allowedOrigins.length === 0) {
+		// No allowlist configured — reject cross-origin reflection
+		return false;
+	}
+	if (allowedOrigins.includes('*')) {
+		return (env.SPAWNER_ALLOW_WILDCARD_ORIGINS as string | undefined)?.trim() === '1';
+	}
+	return allowedOrigins.includes(origin);
+}
+
 function corsHeaders(request: Request): Record<string, string> {
 	const origin = request.headers.get('origin');
-	if (!origin || !isCorsOriginAllowed(origin)) return {};
+	if (!origin) return {};
+	if (!isOriginValidForCors(origin, request.url)) return {};
 	return {
 		'Access-Control-Allow-Origin': origin,
 		'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
