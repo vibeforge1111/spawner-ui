@@ -100,14 +100,9 @@ function renderSafePipelineLoad(load: Record<string, unknown>): Record<string, u
  * POST - Queue a pipeline to load
  */
 export const POST: RequestHandler = async (event) => {
-	const unauthorized = requirePipelineLoaderMutationAuth(event);
+	const unauthorized = requireControlAuth(event, { surface: 'PipelineLoaderAPI', apiKeyEnvVar: 'MCP_API_KEY' });
 	if (unauthorized) return unauthorized;
-	const rateLimited = enforceRateLimit(event, {
-		scope: 'pipeline_loader_post',
-		limit: 120,
-		windowMs: 60_000
-	});
-	if (rateLimited) return rateLimited;
+	const { request } = event;
 
 	try {
 		const { request } = event;
@@ -151,14 +146,9 @@ export const POST: RequestHandler = async (event) => {
  * GET - Get the pending load (optionally peek without consuming)
  */
 export const GET: RequestHandler = async (event) => {
-	const unauthorized = requirePipelineLoaderReadAuth(event);
+	const unauthorized = requireControlAuth(event, { surface: 'PipelineLoaderAPI', apiKeyEnvVar: 'MCP_API_KEY' });
 	if (unauthorized) return unauthorized;
-	const rateLimited = enforceRateLimit(event, {
-		scope: 'pipeline_loader_get',
-		limit: 240,
-		windowMs: 60_000
-	});
-	if (rateLimited) return rateLimited;
+	const { url } = event;
 
 	try {
 		const { url } = event;
@@ -215,14 +205,8 @@ export const GET: RequestHandler = async (event) => {
  * DELETE - Clear the pending load
  */
 export const DELETE: RequestHandler = async (event) => {
-	const unauthorized = requirePipelineLoaderMutationAuth(event);
+	const unauthorized = requireControlAuth(event, { surface: 'PipelineLoaderAPI', apiKeyEnvVar: 'MCP_API_KEY' });
 	if (unauthorized) return unauthorized;
-	const rateLimited = enforceRateLimit(event, {
-		scope: 'pipeline_loader_delete',
-		limit: 120,
-		windowMs: 60_000
-	});
-	if (rateLimited) return rateLimited;
 
 	try {
 		const pendingLoadFile = getPendingLoadFile();

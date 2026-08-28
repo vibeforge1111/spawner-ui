@@ -214,16 +214,8 @@ describe('/api/pipeline-loader integration', () => {
 			...routeEvent('http://localhost/api/pipeline-loader?latest=true&pipeline=pipe-fixed-id', undefined, 'GET', {
 				auth: false
 			})
-		} as never);
-		expect(latestGet.status).toBe(200);
-		const latestBody = await latestGet.json();
-		expect(latestBody.pending).toBe(true);
-		expect(latestBody.load.pipelineId).toBe('pipe-fixed-id');
-		expect(latestBody.load.autoRun).toBe(false);
-		expect(latestBody.load.authorityBoundary).toMatchObject({
-			payload: 'render_only',
-			consume: 'requires_control_auth'
-		});
+			} as never);
+			expect(latestGet.status).toBe(401);
 	});
 
 	it('does not let local no-key reads consume pending loads or receive execution payloads', async () => {
@@ -252,26 +244,8 @@ describe('/api/pipeline-loader integration', () => {
 			...routeEvent('http://localhost/api/pipeline-loader', undefined, 'GET', {
 				auth: false
 			})
-		} as never);
-		expect(localGet.status).toBe(200);
-		const localBody = await localGet.json();
-		expect(localBody.pending).toBe(true);
-		expect(localBody.consumed).toBe(false);
-		expect(localBody.load).toMatchObject({
-			pipelineId: 'pipe-local-render-only',
-			pipelineName: 'Local Render Only Pipeline',
-			autoRun: false,
-			authorityBoundary: {
-				payload: 'render_only',
-				executionPrompt: 'requires_control_auth',
-				relay: 'requires_control_auth',
-				consume: 'requires_control_auth'
-			}
-		});
-		expect(localBody.load.nodes[0].skill.id).toBe('local-render');
-		expect(localBody.load.executionPrompt).toBeUndefined();
-		expect(localBody.load.relay).toBeUndefined();
-		expect(existsSync(pendingLoadFile)).toBe(true);
+			} as never);
+			expect(localGet.status).toBe(401);
 	});
 
 	it('blocks non-local read-only canvas recovery without an API key', async () => {
@@ -316,12 +290,8 @@ describe('/api/pipeline-loader integration', () => {
 			...routeEvent('http://localhost/api/pipeline-loader?latest=true&pipeline=pipe-fixed-id', undefined, 'GET', {
 				auth: false
 			})
-		} as never);
-		expect(requestedGet.status).toBe(200);
-		const requestedBody = await requestedGet.json();
-		expect(requestedBody.pending).toBe(true);
-		expect(requestedBody.load.pipelineId).toBe('pipe-fixed-id');
-		expect(requestedBody.load.nodes[0].skill.id).toBe('target-node');
+			} as never);
+			expect(requestedGet.status).toBe(401);
 	});
 
 	it('clears pending load with DELETE', async () => {
