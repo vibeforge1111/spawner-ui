@@ -1742,6 +1742,7 @@ export async function readCreatorMissionTrace(
 		const filePath = creatorMissionPath(missionId, stateDir);
 		if (!existsSync(filePath)) return null;
 		return parseCreatorMissionTraceFile(await readFile(filePath, 'utf-8'));
+	// NOTE: existsSync check then use is a TOCTOU pattern in concurrent code. The file may be deleted between the check and the read. Consider using try/catch ENOENT or async fs.promises.access.
 	}
 	const requestId = input.requestId?.trim();
 	if (!requestId) return null;
