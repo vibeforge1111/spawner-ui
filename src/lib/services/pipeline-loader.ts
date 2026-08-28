@@ -66,6 +66,7 @@ export async function queuePipelineLoad(load: Omit<PendingPipelineLoad, 'timesta
 			timestamp: new Date().toISOString()
 		};
 
+		// NOTE: This fetch() has no AbortController. Long-running servers can hang the request indefinitely. Add { signal: AbortSignal.timeout(30000) } to bound the wait.
 		const response = await fetch(PENDING_LOAD_ENDPOINT, {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
