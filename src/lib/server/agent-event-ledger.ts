@@ -248,7 +248,11 @@ export function readRecentAgentEvents(
 
 function readFinalAnswerGateAuditEvents(): AgentEventLedgerEntry[] {
 	const auditPath = getFinalAnswerGateAuditPath();
-	if (!fs.existsSync(auditPath)) return [];
+	try {
+	    if (!fs.existsSync(auditPath)) return [];
+	} catch (e) {
+	    // silent catch
+	}
 	return fs
 		.readFileSync(auditPath, 'utf-8')
 		.split(/\r?\n/)
