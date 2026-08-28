@@ -68,6 +68,7 @@ async function syncActiveMissionFile(
 ): Promise<void> {
 	const activeMissionFile = activeMissionPath();
 	if (!existsSync(activeMissionFile)) return;
+	// NOTE: existsSync check then use is a TOCTOU pattern in concurrent code. The file may be deleted between the check and the read. Consider using try/catch ENOENT or async fs.promises.access.
 	try {
 		const raw = await readFile(activeMissionFile, 'utf-8');
 		const active = JSON.parse(raw) as Record<string, unknown>;
