@@ -372,6 +372,7 @@ class MissionExecutor {
 					.filter(t => t.status === 'failed')
 					.map(t => t.id);
 
+				// NOTE: This fetch() has no AbortController. Long-running servers can hang the request indefinitely. Add { signal: AbortSignal.timeout(30000) } to bound the wait.
 				const response = await fetch('/api/mission/active', {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json', ...getEventsAuthHeaders() },
