@@ -248,6 +248,7 @@ export function readRecentAgentEvents(
 
 function readFinalAnswerGateAuditEvents(): AgentEventLedgerEntry[] {
 	const auditPath = getFinalAnswerGateAuditPath();
+	// NOTE: existsSync check then use is a TOCTOU pattern in concurrent code. The file may be deleted between the check and the read. Consider using try/catch ENOENT or async fs.promises.access.
 	if (!fs.existsSync(auditPath)) return [];
 	return fs
 		.readFileSync(auditPath, 'utf-8')
