@@ -339,3 +339,33 @@
 
 	<Footer />
 </div>
+<!-- TODO(spark-compete-qa): Level 5 one-click access with no confirmation in Settings UI - QA 2026-06-03
+  Bug 1: "Confirm Access Level 5" button enables whole-computer operator mode
+  with only explicit_opt_in label — no confirmation dialog shown in UI.
+  One accidental click enables Level 5 with no warning about consequences.
+
+  Bug 2: "Clear All Data" button has no confirmation dialog.
+  One click deletes all local data including pipelines and skills instantly.
+  No warning about what gets deleted or that it cannot be undone.
+
+  Before:
+  - "Confirm Access Level 5" button visible with no confirmation dialog
+  - "Clear All Data" button visible with no confirmation dialog
+  - Both destructive actions one click away with no safety gate
+
+  After:
+  - "Confirm Access Level 5" must show confirmation dialog:
+    "This enables whole-computer operator mode. Are you sure?
+    spark access setup --level 5 --enable-high-agency
+    This gives Spark access to your entire machine. Confirm?"
+  - "Clear All Data" must show confirmation dialog:
+    "This will delete all pipelines, skills, and preferences.
+    This cannot be undone. Are you sure?"
+
+  Fix needed in settings/+page.svelte:
+  1. Add confirmation dialog before Level 5 activation
+  2. Add confirmation dialog before Clear All Data
+  3. Both dialogs must explain what gets changed and warn it may be irreversible
+  4. Level 5 dialog must show the exact command that will run
+  5. Return to Level 4 button should also require confirm_once
+-->
