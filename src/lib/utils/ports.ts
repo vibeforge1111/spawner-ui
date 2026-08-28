@@ -231,3 +231,29 @@ export function getPortIncompatibilityMessage(sourceType: PortType, targetType: 
 	}
 	return `Cannot connect ${sourceType} output to ${targetType} input`;
 }
+
+/**
+ * Check if port 3333 is busy and log warning with conflicting PID
+ */
+export function checkDefaultPortConflict(): void {
+	if (typeof process === 'undefined' || !process.env) return;
+	try {
+		const { execSync } = require('node:child_process');
+		const result = execSync('lsof -ti:3333 2>/dev/null', { encoding: 'utf-8', timeout: 3000 }).trim();
+		if (result) {
+			const pids = result.split('\n').filter(Boolean);
+			console.warn(`[ports] Port 3333 is already in use by PID(s): ${pids.join(', ')}`);
+		}
+	} catch {
+		// lsof not available or no process found, try netstat alternative
+		try {
+			const { execSync } = require('node:child_process');
+			const result = execSync('netstat -tlnp 2>/dev/null | grep :3333', { encoding: 'utf-8', timeout: 3000 }).trim();
+			if (result) {
+				console.warn(`[ports] Port 3333 may be in use:\n${result}`);
+			}
+		} catch {
+			// Neither tool available, skip check
+		}
+	}
+}
