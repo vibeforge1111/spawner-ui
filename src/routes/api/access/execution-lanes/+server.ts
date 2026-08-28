@@ -70,6 +70,13 @@ function redactLocalPaths(lane: AccessExecutionLane): AccessExecutionLane {
 }
 
 export const GET: RequestHandler = async (event) => {
+	const rateLimited = enforceRateLimit(event, {
+		scope: 'access_execution_lanes',
+		limit: 60,
+		windowMs: 60_000
+	});
+	if (rateLimited) return rateLimited;
+
 	const { url } = event;
 	const accessLevel = accessLevelFromUrl(url);
 	const goal = url.searchParams.get('goal') || undefined;
