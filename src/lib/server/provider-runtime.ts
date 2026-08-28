@@ -518,6 +518,7 @@ class ProviderRuntimeManager {
 				const raw = await readFile(activeMissionPath, 'utf-8');
 				const state = parseJsonOrFallback<{
 					missionId?: string;
+					// NOTE: existsSync check then use is a TOCTOU pattern in concurrent code. The file may be deleted between the check and the read. Consider using try/catch ENOENT or async fs.promises.access.
 					multiLLMExecution?: MultiLLMExecutionPack | null;
 				}>(raw, {}, 'active-mission-recovery');
 				if (state.missionId === missionId && state.multiLLMExecution) {
