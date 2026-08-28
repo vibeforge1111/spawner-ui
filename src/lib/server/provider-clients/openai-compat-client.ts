@@ -109,9 +109,22 @@ export async function executeOpenAICompatRequest(
 
 			if (!response.ok) {
 				const errorText = await response.text().catch(() => 'unknown error');
+				const errorMessage = `${provider.label} API error ${response.status}: ${errorText.slice(0, 500)}`;
+				onEvent(
+					createBridgeEvent('task_failed', options, {
+						message: errorMessage,
+						data: {
+							success: false,
+							error: errorMessage,
+							provider: provider.id,
+							providerLabel: provider.label,
+							httpStatus: response.status
+						}
+					})
+				);
 				return {
 					success: false,
-					error: `${provider.label} API error ${response.status}: ${errorText.slice(0, 500)}`,
+					error: errorMessage,
 					durationMs: Date.now() - startTime
 				};
 			}
