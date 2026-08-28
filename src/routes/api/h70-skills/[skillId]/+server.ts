@@ -394,8 +394,12 @@ function findSkillPath(skillsLabPath: string, skillId: string): string | null {
 	for (const variant of variations) {
 		for (const category of SKILL_CATEGORIES) {
 			const skillPath = resolveWithinBaseDir(skillsLabPath, path.join(category, `${variant}.yaml`));
-			if (fs.existsSync(skillPath)) {
-				return skillPath;
+			try {
+    			if (fs.existsSync(skillPath)) {
+    				return skillPath;
+    			}
+			} catch (e) {
+			    // silent catch
 			}
 		}
 	}
