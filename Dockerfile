@@ -23,5 +23,8 @@ COPY --from=build /app/scripts/check-deploy-pair.mjs ./scripts/check-deploy-pair
 COPY --from=build /app/scripts/deploy-doctor.mjs ./scripts/deploy-doctor.mjs
 COPY --from=build /app/scripts/health-spark.mjs ./scripts/health-spark.mjs
 RUN mkdir -p /data/codex /data/spawner /data/workspaces
+RUN adduser --system --no-create-home spark \
+	&& chown -R spark /data /app
+USER spark
 EXPOSE 3000
 CMD ["sh", "-c", "mkdir -p \"${CODEX_HOME:-/data/codex}\" /data/spawner /data/workspaces && npm start"]
