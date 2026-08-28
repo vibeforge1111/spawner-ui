@@ -8,7 +8,7 @@ export const GET: RequestHandler = async (event) => {
 		surface: 'Spark Agent',
 		apiKeyEnvVar: 'SPARK_AGENT_API_KEY',
 		fallbackApiKeyEnvVar: 'MCP_API_KEY',
-		allowLoopbackWithoutKey: true,
+		allowLoopbackWithoutKey: false,
 		allowedOriginsEnvVar: 'SPARK_AGENT_ALLOWED_ORIGINS'
 	});
 	if (unauthorized) return unauthorized;
