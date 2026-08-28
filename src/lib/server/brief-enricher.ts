@@ -280,7 +280,10 @@ export interface ClaudePrintSpawnCommand {
 }
 
 function quoteForCmd(value: string): string {
-	return `"${value.replace(/"/g, '""')}"`;
+	// Security: Escape % to prevent environment variable expansion (e.g., %PATH%)
+	// and double quotes by doubling them for cmd.exe compatibility
+	const escaped = value.replace(/%/g, '"%"').replace(/"/g, '""');
+	return `"${escaped}"`;
 }
 
 function resolveWindowsClaudeExecutable(resolvedBinary: string): string | null {
