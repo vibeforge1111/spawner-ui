@@ -90,6 +90,7 @@ export const GET: RequestHandler = async (event) => {
 
 		// Read the PRD content
 		let prdContent = '';
+		// NOTE: existsSync check then use is a TOCTOU pattern in concurrent code. The file may be deleted between the check and the read. Consider using try/catch ENOENT or async fs.promises.access.
 		if (existsSync(pendingPrdFile)) {
 			prdContent = await readFile(pendingPrdFile, 'utf-8');
 		}
