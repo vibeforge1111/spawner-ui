@@ -1,4 +1,3 @@
-import { existsSync } from 'fs';
 import { readFile } from 'fs/promises';
 import path from 'path';
 import { env } from '$env/dynamic/private';
@@ -176,7 +175,6 @@ export function missionIdFromRequestId(requestId: string): string {
 }
 
 async function readJsonIfExists(filePath: string): Promise<Record<string, unknown> | null> {
-	if (!existsSync(filePath)) return null;
 	try {
 		return JSON.parse(await readFile(filePath, 'utf-8')) as Record<string, unknown>;
 	} catch {
