@@ -16,8 +16,8 @@
 	import { mcpState } from '$lib/stores/mcp.svelte';
 	import type { Mission, MissionLog, MissionTask, MissionAgent } from '$lib/services/mcp-client';
 	import type {
-		MissionControlBoardEntry,
 		MissionControlCompletionEvidence,
+		MissionControlBoardEntry,
 		MissionControlProjectLineage,
 		MissionControlProviderResultSummary
 	} from '$lib/types/mission-control';
@@ -127,10 +127,17 @@
 		}
 	}
 
+	const TERMINAL_EVENT_TYPES = new Set(['mission_completed', 'mission_failed', 'mission_cancelled']);
+
 	function startMissionControlPolling(): void {
 		if (missionControlPoller) return;
 		missionControlPoller = setInterval(() => {
-			void loadMissionControlStatus();
+			void loadMissionControlStatus().then(() => {
+				const latestEntry = missionControl?.recent?.[0];
+				if (latestEntry && TERMINAL_EVENT_TYPES.has(latestEntry.eventType)) {
+					stopMissionControlPolling();
+				}
+			});
 		}, 4000);
 	}
 
