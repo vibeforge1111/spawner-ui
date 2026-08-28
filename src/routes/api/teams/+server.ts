@@ -87,32 +87,28 @@ async function getTeamRegistry(): Promise<{ teams: AgenticTeam[]; active_team_id
 	return { teams, active_team_id };
 }
 
-function requireTeamsAuth(
-	event: Parameters<typeof requireControlAuth>[0],
-	allowLoopbackWithoutKey: boolean
-): Response | null {
-	return requireControlAuth(event, {
-		surface: 'Teams',
-		apiKeyEnvVar: 'EVENTS_API_KEY',
-		fallbackApiKeyEnvVar: 'MCP_API_KEY',
-		apiKeyCookieName: 'spawner_events_api_key',
-		allowLoopbackWithoutKey,
-		allowedOriginsEnvVar: 'EVENTS_ALLOWED_ORIGINS'
-	});
-}
-
 export const GET: RequestHandler = async (event) => {
-	const unauthorized = requireTeamsAuth(event, true);
+	const unauthorized = requireControlAuth(event, {
+		surface: 'Teams',
+		apiKeyEnvVar: 'TEAMS_API_KEY',
+		fallbackApiKeyEnvVar: 'MCP_API_KEY',
+		apiKeyQueryParam: 'apiKey',
+		allowLoopbackWithoutKey: true
+	});
 	if (unauthorized) return unauthorized;
-
 	const registry = await getTeamRegistry();
 	return json(registry);
 };
 
 export const POST: RequestHandler = async (event) => {
-	const unauthorized = requireTeamsAuth(event, false);
+	const unauthorized = requireControlAuth(event, {
+		surface: 'Teams',
+		apiKeyEnvVar: 'TEAMS_API_KEY',
+		fallbackApiKeyEnvVar: 'MCP_API_KEY',
+		apiKeyQueryParam: 'apiKey',
+		allowLoopbackWithoutKey: true
+	});
 	if (unauthorized) return unauthorized;
-
 	const { request } = event;
 	const body = await request.json();
 	const { action, team_id, agent_id } = body;

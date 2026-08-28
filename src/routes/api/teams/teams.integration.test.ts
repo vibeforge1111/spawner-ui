@@ -35,11 +35,11 @@ describe('/api/teams integration', () => {
 
 	it('rejects unauthenticated local team POST queries', async () => {
 		const response = await POST(
-			event('http://127.0.0.1:3333/api/teams', {
+			event('http://192.168.1.100:3333/api/teams', {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
 				body: JSON.stringify({ action: 'list_teams' })
-			}) as never
+			}, '192.168.1.100') as never
 		);
 
 		expect(response.status).toBe(401);
