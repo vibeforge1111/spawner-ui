@@ -599,6 +599,11 @@ class MissionExecutor {
 					const log = event.data.log as MissionLog;
 					if (log && !this.progress.logs.find(l => l.id === log.id)) {
 						this.progress.logs.push(log);
+						// Cap logs array at 500 entries to prevent unbounded growth
+						const MAX_LOGS = 500;
+						if (this.progress.logs.length > MAX_LOGS) {
+							this.progress.logs = this.progress.logs.slice(-MAX_LOGS);
+						}
 						this.callbacks.onLog?.(log);
 					}
 					break;
@@ -2206,6 +2211,11 @@ class MissionExecutor {
 
 				for (const log of newLogs) {
 					this.progress.logs.push(log);
+					// Cap logs array at 500 entries to prevent unbounded growth
+					const MAX_LOGS = 500;
+					if (this.progress.logs.length > MAX_LOGS) {
+						this.progress.logs = this.progress.logs.slice(-MAX_LOGS);
+					}
 					this.callbacks.onLog?.(log);
 
 					// Track task completions
