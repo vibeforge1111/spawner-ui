@@ -19,6 +19,20 @@ import { requireControlAuth } from '$lib/server/mcp-auth';
 import { spawnerStateDir } from '$lib/server/spawner-state';
 import { parseJsonOrFallback } from '$lib/utils/safe-json';
 
+function requireActiveMissionAuth(
+	event: Parameters<typeof requireControlAuth>[0],
+	allowLoopbackWithoutKey: boolean
+): Response | null {
+	return requireControlAuth(event, {
+		surface: 'ActiveMission',
+		apiKeyEnvVar: 'EVENTS_API_KEY',
+		fallbackApiKeyEnvVar: 'MCP_API_KEY',
+		apiKeyCookieName: 'spawner_events_api_key',
+		allowLoopbackWithoutKey,
+		allowedOriginsEnvVar: 'EVENTS_ALLOWED_ORIGINS'
+	});
+}
+
 const ACTIVE_MISSION_FILE = 'active-mission.json';
 const TERMINAL_MISSION_EVENTS = new Set(['mission_completed', 'mission_failed', 'mission_paused']);
 
@@ -34,19 +48,6 @@ function getMissionControlPath(): string {
 	return path.join(getSpawnerDir(), 'mission-control.json');
 }
 
-function requireActiveMissionAuth(
-	event: Parameters<typeof requireControlAuth>[0],
-	allowLoopbackWithoutKey: boolean
-): Response | null {
-	return requireControlAuth(event, {
-		surface: 'ActiveMission',
-		apiKeyEnvVar: 'EVENTS_API_KEY',
-		fallbackApiKeyEnvVar: 'MCP_API_KEY',
-		apiKeyCookieName: 'spawner_events_api_key',
-		allowLoopbackWithoutKey,
-		allowedOriginsEnvVar: 'EVENTS_ALLOWED_ORIGINS'
-	});
-}
 
 async function missionHasTerminalRelayEvent(missionId: string | undefined): Promise<boolean> {
 	if (!missionId) return false;
@@ -147,8 +148,8 @@ export const GET: RequestHandler = async (event) => {
 	const unauthorized = requireActiveMissionAuth(event, true);
 	if (unauthorized) return unauthorized;
 	const canReadRecoveryPayload = requireActiveMissionAuth(event, false) === null;
-
 	const { url } = event;
+
 	try {
 		const missionPath = getActiveMissionPath();
 
@@ -257,10 +258,10 @@ export const GET: RequestHandler = async (event) => {
  * Update the active mission state (called by UI when state changes)
  */
 export const POST: RequestHandler = async (event) => {
-	const unauthorized = requireActiveMissionAuth(event, false);
+	const unauthorized = requireControlAuth(event, { surface: 'MissionActiveAPI', apiKeyEnvVar: 'MCP_API_KEY' });
 	if (unauthorized) return unauthorized;
-
 	const { request } = event;
+
 	try {
 		const body = await request.json();
 		const spawnerDir = getSpawnerDir();
@@ -332,7 +333,7 @@ export const POST: RequestHandler = async (event) => {
  * Clear the active mission (when completed, cancelled, or user clears)
  */
 export const DELETE: RequestHandler = async (event) => {
-	const unauthorized = requireActiveMissionAuth(event, false);
+	const unauthorized = requireControlAuth(event, { surface: 'MissionActiveAPI', apiKeyEnvVar: 'MCP_API_KEY' });
 	if (unauthorized) return unauthorized;
 
 	try {
